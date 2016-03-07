@@ -21,6 +21,8 @@ It should build with older versions of Go but it has not been tested.
 
 # Building
 
+A few dependencies are required by Hal's core library and plugins.
+
 ```
 go get github.com/nlopes/slack
 go get github.com/mattn/go-xmpp
@@ -82,6 +84,26 @@ func uptime(evt hal.Evt) {
 	evt.Replyf("uptime: %s", ut.String())
 }
 ```
+
+# Rationale
+
+Hal contains a few decisions that deserve explanation.
+
+## MySQL as the only supported database driver
+
+Right now, only mysql-compatible database backends are supported. This is
+unlikely to change. Coding directly against a specific database allows Hal
+to use database-specific features and avoid unncessarry abstractions or loss
+of power required to support other databases.
+
+Netflix runs its bot in AWS using Aurora with local testing against MariaDB.
+
+## Plugin/Broker boilerplate
+
+The amount of boilerplate in each plugin and broker is a little higher than
+some folks would like. This is a deliberate tradeoff. The additional data
+provided by the registration and configuration code allows Hal to lean on
+compile-time type checking and do online configuration (relatively) safely.
 
 # TODO
 
