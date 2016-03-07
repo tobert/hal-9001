@@ -1,8 +1,6 @@
 # Hal-9001
 
-A bot library written in Go.
-
-Hal is a Go library that offers a number of facilities for creating a bot
+Hal-9001 is a Go library that offers a number of facilities for creating a bot
 and its plugins.
 
 # Goals
@@ -17,17 +15,16 @@ and its plugins.
 
 # Requirements
 
-* Go 1.5 with GOVENDOREXPERIMENT=1 or Go >= 1.6
+* Go >= 1.5
 
-It should build with older versions of Go as long as you have all of the
-dependencies in your GOPATH.
+It should build with older versions of Go but it has not been tested.
 
 # Building
 
 ```
 go get github.com/nlopes/slack
-go get github.com/codegangsta/cli
 go get github.com/mattn/go-xmpp
+go get github.com/codegangsta/cli
 go get github.com/go-sql-driver/mysql
 ```
 
@@ -89,6 +86,9 @@ func uptime(evt hal.Evt) {
 # TODO
 
 * work on the TODOs sprinkled throughout the code
+* provide more examples, e.g. slack-only, hipchat-only, console + slack
+* logging hooks to redirect logs to a channel
+* revive/update the Docker plugin
 
 # FUTURE IDEAS
 
