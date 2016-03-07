@@ -87,7 +87,7 @@ func uptime(evt hal.Evt) {
 
 # Rationale
 
-Hal contains a few decisions that deserve explanation.
+Some constructs in Hal are the result of a few decisions that deserve explanation.
 
 ## MySQL as the only supported database driver
 
@@ -104,6 +104,19 @@ The amount of boilerplate in each plugin and broker is a little higher than
 some folks would like. This is a deliberate tradeoff. The additional data
 provided by the registration and configuration code allows Hal to lean on
 compile-time type checking and do online configuration (relatively) safely.
+
+## missing tests & ubiquitous assertions
+
+This is not a permanent situation. The API changed a lot as the bot was being
+built and tests were frequently invalidated. Now that the API is more stable,
+tests are being added back over time.
+
+In order to speed up development and reduce the frequence of error checking
+in plugin/bot code, many parts of hal simply crash the program when errors
+occur. This makes assumptions about errors obvious and immediately visible
+without having to bubble errors up into consumer code at the cost of having
+to run your hal bot under a supervisor. When reasons are found to convert
+fatal errors into error returns, code should be refactored to do so.
 
 # TODO
 
