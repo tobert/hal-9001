@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"strconv"
+	"time"
 
 	"github.com/netflix/hal-9001/hal"
 	"github.com/nlopes/slack"
@@ -92,7 +94,7 @@ func (sb *Broker) Stream(out chan *hal.Evt) {
 					Channel:   sb.ChannelIdToName(m.Channel),
 					From:      sb.UserIdToName(m.User),
 					Broker:    sb,
-					Time:      slack.JSONTimeString(m.Timestamp).Time(),
+					Time:      slackTime(m.Timestamp),
 					IsGeneric: true,
 					Original:  m,
 				}
@@ -108,7 +110,7 @@ func (sb *Broker) Stream(out chan *hal.Evt) {
 					Channel:   sb.ChannelIdToName(sae.Item.Channel),
 					From:      user,
 					Broker:    sb,
-					Time:      slack.JSONTimeString(sae.EventTimestamp).Time(),
+					Time:      slackTime(sae.EventTimestamp),
 					IsGeneric: false, // only available to slack-aware plugins
 					Original:  sae,
 				}
@@ -124,7 +126,7 @@ func (sb *Broker) Stream(out chan *hal.Evt) {
 					Channel:   sb.ChannelIdToName(sre.Item.Channel),
 					From:      user,
 					Broker:    sb,
-					Time:      slack.JSONTimeString(sre.EventTimestamp).Time(),
+					Time:      slackTime(sre.EventTimestamp),
 					IsGeneric: false, // only available to slack-aware plugins
 					Original:  sre,
 				}
@@ -140,7 +142,7 @@ func (sb *Broker) Stream(out chan *hal.Evt) {
 					Channel:   sb.ChannelIdToName(rae.Item.Channel),
 					From:      user,
 					Broker:    sb,
-					Time:      slack.JSONTimeString(rae.EventTimestamp).Time(),
+					Time:      slackTime(rae.EventTimestamp),
 					IsGeneric: false, // only available to slack-aware plugins
 					Original:  rae,
 				}
@@ -156,7 +158,7 @@ func (sb *Broker) Stream(out chan *hal.Evt) {
 					Channel:   sb.ChannelIdToName(rre.Item.Channel),
 					From:      user,
 					Broker:    sb,
-					Time:      slack.JSONTimeString(rre.EventTimestamp).Time(),
+					Time:      slackTime(rre.EventTimestamp),
 					IsGeneric: false, // only available to slack-aware plugins
 					Original:  rre,
 				}
@@ -181,6 +183,22 @@ func (sb *Broker) Stream(out chan *hal.Evt) {
 			}
 		}
 	}
+}
+
+// slackTime converts the timestamp string to time.Time
+// cribbed from: https://github.com/nlopes/slack/commit/17d746b30caa733b519f79fe372fd509bd6fc9fd
+func slackTime(t string) time.Time {
+	if t == "" {
+		return time.Now()
+	}
+
+	floatN, err := strconv.ParseFloat(t, 64)
+	if err != nil {
+		log.Println("Error parsing Slack time string %q:", t, err)
+		return time.Now()
+	}
+
+	return time.Unix(int64(floatN), 0)
 }
 
 func (sb *Broker) FillUserCache() {
