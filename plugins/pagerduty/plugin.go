@@ -47,7 +47,7 @@ const PAGE_DEFAULT_MESSAGE = `HAL: your presence is requested in the chat room.`
 const PAGE_ALIAS_KEY = `alias.%s`
 
 func page(msg hal.Evt) {
-	parts := strings.Split(strings.TrimSpace(msg.Body), " ")
+	parts := msg.BodyAsArgv()
 
 	// detect concatenated command + team name & split them
 	// e.g. "!pagecore" -> {"!page", "core"}
