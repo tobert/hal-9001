@@ -2,6 +2,7 @@ package hal
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"strings"
 )
@@ -149,11 +150,23 @@ func (in *Pref) Get() Pref {
 		panic("TOO MANY PREFS")
 	} else if len(prefs) == 0 {
 		out := *in
-		out.Success = false
+		// only set success to false if there is also an error
+		// queries with 0 rows are successful
+		if out.Error != nil {
+			out.Success = false
+		} else {
+			out.Success = true
+			out.Value = out.Default
+		}
 		return out
 	}
 
 	panic("BUG: should be impossible to reach this point")
+}
+
+// GetPrefs returns all preferences that match the fields set in the handle.
+func (in *Pref) GetPrefs() Prefs {
+	return in.get()
 }
 
 func (in *Pref) get() Prefs {
@@ -195,6 +208,9 @@ func (in *Pref) get() Prefs {
 			p.Success = false
 			p.Value = in.Default
 			p.Error = err
+		} else {
+			p.Success = true
+			p.Error = nil
 		}
 
 		out = append(out, &p)
@@ -204,7 +220,7 @@ func (in *Pref) get() Prefs {
 }
 
 // Set writes the value and returns a new struct with the new value.
-func (in *Pref) Set() Pref {
+func (in *Pref) Set() error {
 	db := SqlDB()
 	SqlInit(PREFS_TABLE)
 
@@ -221,13 +237,33 @@ func (in *Pref) Set() Pref {
 
 	_, err := db.Exec(sql, params...)
 	if err != nil {
-		out := *in
-		out.Success = false
-		out.Error = err
-		return out
+		log.Printf("Pref.Set() write failed: %s", err)
+		return err
 	}
 
-	return in.Get()
+	return nil
+}
+
+// Set writes the value and returns a new struct with the new value.
+func (in *Pref) Delete() error {
+	db := SqlDB()
+	SqlInit(PREFS_TABLE)
+
+	sql := `DELETE FROM prefs
+			WHERE user=?
+			  AND channel=?
+			  AND broker=?
+			  AND plugin=?
+			  AND pkey=?`
+
+	// TODO: verify only one row was deleted
+	_, err := db.Exec(sql, &in.User, &in.Channel, &in.Broker, &in.Plugin, &in.Key)
+	if err != nil {
+		log.Printf("Pref.Delete() write failed: %s", err)
+		return err
+	}
+
+	return nil
 }
 
 // Find retrieves all preferences from the database that match any field in the
@@ -383,4 +419,24 @@ func (prefs Prefs) Table() [][]string {
 	}
 
 	return out
+}
+
+func (p *Pref) String() string {
+	return fmt.Sprintf(`Pref{
+	User:    %q,
+	Channel: %q,
+	Broker:  %q,
+	Plugin:  %q,
+	Key:     %q,
+	Value:   %q,
+	Default: %q,
+	Success: %t,
+	Error:   %v,
+}`, p.User, p.Channel, p.Broker, p.Plugin, p.Key, p.Value, p.Default, p.Success, p.Error)
+
+}
+
+func (p *Prefs) String() string {
+	data := p.Table()
+	return AsciiTable(data[0], data[1:])
 }
