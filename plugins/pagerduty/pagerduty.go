@@ -107,18 +107,18 @@ func AuthenticatedPost(token string, body []byte) (*http.Response, error) {
 func (e *Event) Send(token string) (*Response, error) {
 	err := e.checkRequired()
 	if err != nil {
-		return nil, err
+		return e.respond("error", err.Error()), err
 	}
 
 	js, err := json.Marshal(e)
 	if err != nil {
 		log.Printf("json.Marshal failed: %s\n", err)
-		return nil, err
+		return e.respond("error", err.Error()), err
 	}
 
 	resp, err := AuthenticatedPost(token, js)
 	if err != nil {
-		return nil, err
+		return e.respond("error", err.Error()), err
 	}
 	defer resp.Body.Close()
 
@@ -138,8 +138,12 @@ func (e *Event) Send(token string) (*Response, error) {
 		return &out, nil
 	} else {
 		msg := fmt.Sprintf("Server returned %d: %q", resp, string(body))
-		return nil, errors.New(msg)
+		return e.respond("error", msg), errors.New(msg)
 	}
+}
+
+func (e *Event) respond(status, message string) *Response {
+	return NewResponse(status, message, e.IncidentKey)
 }
 
 func (e *Event) checkRequired() error {
