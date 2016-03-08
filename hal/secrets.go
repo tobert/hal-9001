@@ -203,7 +203,7 @@ func (ss *SecretStore) SaveToDB() {
 		log.Fatalf("Failed to create transaction for saving secrets: %s", err)
 	}
 
-	insert, err := tx.Prepare(`INSERT INTO secrets (ekey,evalue,nonce) VALUES (?,?,?)`)
+	insert, err := tx.Prepare(`INSERT INTO secrets (pkey,sval,nonce) VALUES (?,?,?)`)
 	if err != nil {
 		log.Fatalf("Failed to prepare insert query: %s", err)
 	}
