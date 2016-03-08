@@ -80,6 +80,17 @@ func (e *Evt) InstanceSettings() []Pref {
 	return out
 }
 
+// NewPref creates a new pref struct with user, channel, broker, and plugin
+// set using metadata from the event.
+func (e *Evt) NewPref() Pref {
+	return Pref{
+		User:    e.From,
+		Channel: e.Channel,
+		Broker:  e.Broker.Name(),
+		Plugin:  e.instance.Plugin.Name,
+	}
+}
+
 // BodyAsArgv does minimal parsing of the event body, returning an argv-like
 // array of strings with quoted strings intact (but with quotes removed).
 // The goal is shell-like, and is not a full implementation.
