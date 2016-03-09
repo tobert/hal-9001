@@ -126,7 +126,7 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 		}
 
 		// finally, check message text against the regex
-		if inst.Regex != "" && inst.regex.MatchString(evt.Body) {
+		if inst.Regex == "" || inst.regex.MatchString(evt.Body) {
 			// this will copy the struct twice. It's intentional to avoid
 			// mutating the evt between calls. The plugin func signature
 			// forces the second copy.
