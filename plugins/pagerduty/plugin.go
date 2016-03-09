@@ -1,10 +1,13 @@
 package pagerduty
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
+	//	"github.com/davecgh/go-spew/spew"
 	"github.com/netflix/hal-9001/hal"
 )
 
@@ -27,9 +30,12 @@ func Register(gb *hal.GenericBroker) {
 }
 
 // the hal.secrets key that should contain the pagerduty auth token
-const PAGERDUTY_SECRET_KEY = `pagerduty.token`
+const PAGERDUTY_TOKEN_KEY = `pagerduty.token`
 
-const PAGE_USAGE = `!page <team> [optional message]
+// the hal.secrets key that should contain the pagerduty account domain
+const PAGERDUTY_DOMAIN_KEY = `pagerduty.domain`
+
+const PAGE_USAGE = `!page <alias> [optional message]
 
 Send an alert via Pagerduty with an optional custom message.
 
@@ -40,6 +46,13 @@ Send an alert via Pagerduty with an optional custom message.
 !page add <alias> <service key>
 !page rm <alias>
 !page list
+`
+
+const ONCALL_USAGE = `!oncall <alias>
+
+Find out who is on-call for the given alias.
+
+!oncall sre
 `
 
 const PAGE_DEFAULT_MESSAGE = `HAL: your presence is requested in the chat room.`
@@ -103,10 +116,10 @@ func pageAlias(msg hal.Evt, parts []string) {
 
 	// get the Pagerduty auth token from the secrets API
 	secrets := hal.Secrets()
-	token := secrets.Get(PAGERDUTY_SECRET_KEY)
+	token := secrets.Get(PAGERDUTY_TOKEN_KEY)
 	if token == "" {
 		msg.Replyf("Your Pagerduty auth token does not seem to be configured. Please add the %q secret.",
-			PAGERDUTY_SECRET_KEY)
+			PAGERDUTY_TOKEN_KEY)
 		return
 	}
 
@@ -166,6 +179,112 @@ func aliasKey(alias string) string {
 }
 
 func oncall(msg hal.Evt) {
-	log.Printf("%s tried !oncall but it's not implemented yet.", msg.From)
-	msg.Reply("Not implemented yet.")
+	parts := msg.BodyAsArgv()
+
+	if len(parts) == 1 {
+		msg.Reply(ONCALL_USAGE)
+		return
+	} else if len(parts) != 2 {
+		msg.Replyf("%s: invalid command.\n%s", parts[0], ONCALL_USAGE)
+		return
+	}
+
+	secrets := hal.Secrets()
+	token := secrets.Get(PAGERDUTY_TOKEN_KEY)
+	if token == "" {
+		msg.Replyf("Your Pagerduty auth token does not seem to be configured. Please add the %q secret.",
+			PAGERDUTY_TOKEN_KEY)
+		return
+	}
+
+	domain := secrets.Get(PAGERDUTY_DOMAIN_KEY)
+	if domain == "" {
+		msg.Replyf("Your Pagerduty domain does not seem to be configured. Please add the %q secret.",
+			PAGERDUTY_DOMAIN_KEY)
+		return
+	}
+
+	// let users know that they're going to have to wait for us to query the API
+	if !IsPolicyCached() {
+		msg.Reply("No cache available. Please wait, downloading policies from PagerDuty...")
+	}
+
+	// get all of the defined policies
+	policies, err := GetEscalationPolicies(token, domain)
+	if err != nil {
+		msg.Replyf("REST call to Pagerduty failed: %s", err)
+		return
+	}
+
+	want := strings.ToLower(parts[1])
+	matches := make([]EscalationPolicy, 0)
+
+	// search over all policies looking for matching policy name, escalation
+	// rule name, or service name
+	for _, policy := range policies {
+		// try matching the policy name
+		lname := strings.ToLower(policy.Name)
+		if strings.Contains(lname, want) {
+			matches = append(matches, policy)
+			continue
+		}
+
+		// try matching the escalation rule names
+		for _, rule := range policy.EscalationRules {
+			lname = strings.ToLower(rule.RuleObject.Name)
+			if strings.Contains(lname, want) {
+				matches = append(matches, policy)
+				continue
+			}
+		}
+
+		// try matching service names
+		for _, svc := range policy.Services {
+			lname = strings.ToLower(svc.Name)
+			if strings.Contains(lname, want) {
+				matches = append(matches, policy)
+				continue
+			}
+		}
+	}
+
+	reply := formatOncallReply(want, matches)
+	msg.Reply(reply)
+}
+
+func formatOncallReply(wanted string, policies []EscalationPolicy) string {
+	buf := bytes.NewBufferString(fmt.Sprintf("Results for %q\n", wanted))
+
+	for _, policy := range policies {
+		buf.WriteString(policy.Name)
+		buf.WriteString("\n")
+
+		for _, oncall := range policy.OnCall {
+			times := formatTimes(oncall.Start, oncall.End)
+			indent := strings.Repeat("  ", oncall.Level) // indent deeper per level
+			user := fmt.Sprintf("  %s%s: %s %s\n", indent, oncall.User.Name, oncall.User.Email, times)
+			buf.WriteString(user)
+		}
+
+		buf.WriteString("\n")
+	}
+
+	return buf.String()
+}
+
+func formatTimes(st, et *time.Time) string {
+	var start, end string
+	if st != nil {
+		start = st.Local().Format("2006-01-02T15:04MST")
+	} else {
+		return "always on call"
+	}
+
+	if et != nil {
+		end = et.Local().Format("2006-01-02T15:04MST")
+	} else {
+		return "always on call"
+	}
+
+	return fmt.Sprintf("%s - %s", start, end)
 }

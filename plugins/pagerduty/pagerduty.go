@@ -1,13 +1,11 @@
 package pagerduty
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
 )
 
 // https://developer.pagerduty.com/documentation/integration/events/trigger
@@ -86,23 +84,6 @@ func NewResponse(status, message, incidentKey string) *Response {
 	return &out
 }
 
-// AuthenticatedPost authenticates with the provided token and posts the
-// provided body.
-func AuthenticatedPost(token string, body []byte) (*http.Response, error) {
-	tokenHdr := fmt.Sprintf("Token token=%s", token)
-	buf := bytes.NewBuffer(body)
-
-	req, err := http.NewRequest("POST", Endpoint, buf)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Authorization", tokenHdr)
-
-	client := &http.Client{}
-	return client.Do(req)
-}
-
 // Send posts the event to Pagerduty using the provided token.
 func (e *Event) Send(token string) (*Response, error) {
 	err := e.checkRequired()
@@ -116,7 +97,7 @@ func (e *Event) Send(token string) (*Response, error) {
 		return e.respond("error", err.Error()), err
 	}
 
-	resp, err := AuthenticatedPost(token, js)
+	resp, err := authenticatedPost(token, js)
 	if err != nil {
 		return e.respond("error", err.Error()), err
 	}
