@@ -89,16 +89,36 @@ func (cache *ttlCache) Delete(key string) {
 	delete(cache.ttls, key)
 }
 
+func (cache *ttlCache) Exists(key string) bool {
+	cache.mut.Lock()
+	defer cache.mut.Unlock()
+
+	_, exists := cache.ttls[key]
+	return exists
+}
+
+// Age returns the age as time.Duration for the given key. Returns duration 0
+// for keys that don't exist.
 func (cache *ttlCache) Age(key string) time.Duration {
 	cache.mut.Lock()
 	defer cache.mut.Unlock()
 
-	return time.Now().Sub(cache.times[key])
+	if val, exists := cache.times[key]; exists {
+		return time.Now().Sub(val)
+	}
+
+	return time.Duration(0)
 }
 
+// Ttl returns the time-to-live for the given key. Returns a TTL of 0 for
+// keys that don't exist.
 func (cache *ttlCache) Ttl(key string) time.Duration {
 	cache.mut.Lock()
 	defer cache.mut.Unlock()
 
-	return cache.ttls[key]
+	if val, exists := cache.ttls[key]; exists {
+		return val
+	}
+
+	return time.Duration(0)
 }
