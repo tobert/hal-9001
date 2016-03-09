@@ -12,7 +12,6 @@ import (
 // secrets stores a plaintext key/value store for
 // sensitive data that the bot and plugins need to operate
 // along with methods for persisting encrypted copies to the database
-// TODO: make this public so godoc publishes
 type SecretStore struct {
 	key   []byte            // encryption key for persistence
 	keyed bool              // track whether the key has been set
