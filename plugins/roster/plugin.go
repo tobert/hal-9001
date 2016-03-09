@@ -37,7 +37,6 @@ func Register(gb *hal.GenericBroker) {
 	}
 	roster.Register()
 
-	// TODO: the reply is still slack-specific, fix that! (maybe?)
 	rostercmd := hal.Plugin{
 		Name:   "roster_command",
 		Func:   rosterlast,
@@ -57,10 +56,10 @@ func rostertracker(msg hal.Evt) {
 	db := hal.SqlDB()
 
 	sql := `INSERT INTO roster
-						(broker, username, channel, ts)
-			VALUES (?,?,?,?)
-			ON DUPLICATE KEY
-			UPDATE broker=?, username=?, channel=?, ts=?`
+	          (broker, username, channel, ts)
+	        VALUES (?,?,?,?)
+	        ON DUPLICATE KEY
+	        UPDATE broker=?, username=?, channel=?, ts=?`
 
 	params := []interface{}{
 		msg.Broker.Name(), msg.From, msg.Channel, msg.Time,
@@ -77,15 +76,11 @@ func rostertracker(msg hal.Evt) {
 // to the user with a table of when users last posted a message to slack
 // rather than relying on status, which is usually useless.
 func rosterlast(msg hal.Evt) {
-	log.Printf("rosterlast(%q)", msg.Body)
-
 	rus, err := GetRoster()
 	if err != nil {
 		log.Printf("Error while retreiving roster: %s\n", err)
 		return
 	}
-
-	log.Printf("rosterlast(%v): ", rus)
 
 	// TODO: ASCII art instead of JSON
 	js, err := json.MarshalIndent(rus, "", "    ")
@@ -116,8 +111,11 @@ func webroster(w http.ResponseWriter, r *http.Request) {
 func GetRoster() ([]*RosterUser, error) {
 	db := hal.SqlDB()
 
-	sql := `SELECT broker, username, channel, UNIX_TIMESTAMP(ts) AS ts
-	FROM roster ORDER BY ts DESC`
+	sql := `SELECT broker, username, channel,
+	               UNIX_TIMESTAMP(ts) AS ts
+	               FROM roster
+	               ORDER BY ts DESC`
+
 	rows, err := db.Query(sql)
 	if err != nil {
 		log.Printf("Roster query failed: %s\n", err)
