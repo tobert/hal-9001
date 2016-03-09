@@ -4,16 +4,9 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
-	"time"
 )
 
 // API docs: https://developer.pagerduty.com/documentation/rest/escalation_policies/on_call
-
-// keep an in-memory cache that expires after an hour
-var policyCache struct {
-	policies  []EscalationPolicy
-	timestamp time.Time
-}
 
 type EscalationPolicyResponse struct {
 	EscalationPolicies []EscalationPolicy `json:"escalation_policies"`
@@ -54,24 +47,7 @@ type Service struct {
 	EscalationPolicyId string `json:"escalation_policy_id"`
 }
 
-func IsPolicyCached() bool {
-	if policyCache.policies == nil {
-		return false
-	}
-	return true
-}
-
 func GetEscalationPolicies(token, domain string) ([]EscalationPolicy, error) {
-	if policyCache.policies != nil {
-		now := time.Now()
-		// expires every hour
-		// TODO: make this configurable
-		if now.Before(policyCache.timestamp.Add(time.Hour)) {
-			log.Println("returning cached policies")
-			return policyCache.policies, nil
-		}
-	}
-
 	policies := make([]EscalationPolicy, 0)
 	epresp := EscalationPolicyResponse{}
 	offset := 0
@@ -104,10 +80,6 @@ func GetEscalationPolicies(token, domain string) ([]EscalationPolicy, error) {
 			break
 		}
 	}
-
-	// cache the data
-	policyCache.policies = policies
-	policyCache.timestamp = time.Now()
 
 	return policies, nil
 }

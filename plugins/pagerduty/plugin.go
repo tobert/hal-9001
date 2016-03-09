@@ -34,6 +34,9 @@ const PAGERDUTY_TOKEN_KEY = `pagerduty.token`
 // the hal.secrets key that should contain the pagerduty account domain
 const PAGERDUTY_DOMAIN_KEY = `pagerduty.domain`
 
+// the key name used for caching the full escalation policy
+const POLICY_CACHE_KEY = `pagerduty.policy_cache`
+
 const PAGE_USAGE = `!page <alias> [optional message]
 
 Send an alert via Pagerduty with an optional custom message.
@@ -205,16 +208,29 @@ func oncall(msg hal.Evt) {
 		return
 	}
 
-	// let users know that they're going to have to wait for us to query the API
-	if !IsPolicyCached() {
-		msg.Reply("No cache available. Please wait, downloading policies from PagerDuty...")
+	// see if there's a copy cached
+	policies := []EscalationPolicy{}
+	ttl := time.Duration(0)
+	if hal.Cache().Exists(POLICY_CACHE_KEY) {
+		ttl, _ = hal.Cache().Get(POLICY_CACHE_KEY, &policies)
+		// TODO: maybe hal.Cache().Get should be careful to not modify the pointer if the ttl is expired...
+		if ttl == 0 {
+			policies = []EscalationPolicy{}
+		}
 	}
 
-	// get all of the defined policies
-	policies, err := GetEscalationPolicies(token, domain)
-	if err != nil {
-		msg.Replyf("REST call to Pagerduty failed: %s", err)
-		return
+	// when the cache fails, hit the API
+	if len(policies) == 0 {
+		msg.Reply("No cache available. Please wait, downloading policies from PagerDuty...")
+		// get all of the defined policies
+		var err error
+		policies, err = GetEscalationPolicies(token, domain)
+		if err != nil {
+			msg.Replyf("REST call to Pagerduty failed: %s", err)
+			return
+		}
+
+		hal.Cache().Set(POLICY_CACHE_KEY, &policies, time.Hour)
 	}
 
 	want := strings.ToLower(parts[1])
@@ -254,7 +270,9 @@ func oncall(msg hal.Evt) {
 }
 
 func formatOncallReply(wanted string, policies []EscalationPolicy) string {
-	buf := bytes.NewBufferString(fmt.Sprintf("Results for %q\n", wanted))
+	age := int(hal.Cache().Age(POLICY_CACHE_KEY).Seconds())
+
+	buf := bytes.NewBufferString(fmt.Sprintf("Results for %q (%d seconds ago)\n", wanted, age))
 
 	for _, policy := range policies {
 		buf.WriteString(policy.Name)
