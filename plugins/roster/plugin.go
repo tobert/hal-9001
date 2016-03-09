@@ -88,13 +88,13 @@ func rosterlast(msg hal.Evt) {
 	log.Printf("rosterlast(%v): ", rus)
 
 	// TODO: ASCII art instead of JSON
-	js, err := json.Marshal(rus)
+	js, err := json.MarshalIndent(rus, "", "    ")
 	if err != nil {
 		log.Printf("JSON marshaling failed: %s\n", err)
 		return
 	}
 
-	msg.Reply(string(js))
+	msg.Replyf("```%s```", string(js))
 }
 
 func webroster(w http.ResponseWriter, r *http.Request) {
@@ -116,7 +116,8 @@ func webroster(w http.ResponseWriter, r *http.Request) {
 func GetRoster() ([]*RosterUser, error) {
 	db := hal.SqlDB()
 
-	sql := `SELECT broker, username, channel, ts FROM roster ORDER BY ts DESC`
+	sql := `SELECT broker, username, channel, UNIX_TIMESTAMP(ts) AS ts
+	FROM roster ORDER BY ts DESC`
 	rows, err := db.Query(sql)
 	if err != nil {
 		log.Printf("Roster query failed: %s\n", err)
@@ -129,11 +130,14 @@ func GetRoster() ([]*RosterUser, error) {
 	for rows.Next() {
 		ru := RosterUser{}
 
-		err = rows.Scan(&ru.Broker, &ru.Username, &ru.Channel, &ru.Timestamp)
+		var ts int64
+		err = rows.Scan(&ru.Broker, &ru.Username, &ru.Channel, &ts)
 		if err != nil {
 			log.Printf("Row iteration failed: %s\n", err)
 			return nil, err
 		}
+
+		ru.Timestamp = time.Unix(ts, 0)
 
 		rus = append(rus, &ru)
 	}
