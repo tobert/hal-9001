@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"regexp"
 	"time"
 
 	"github.com/netflix/hal-9001/hal"
@@ -22,9 +21,9 @@ const ROSTER_TABLE = `
 CREATE TABLE IF NOT EXISTS roster (
 	broker   VARCHAR(64) NOT NULL,
 	username VARCHAR(64) NOT NULL,
-	ts       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 	channel  VARCHAR(255) DEFAULT NULL,
-	PRIMARY KEY (broker, username)
+	ts       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	PRIMARY KEY (broker, username, channel)
 )`
 
 func Register(gb *hal.GenericBroker) {
@@ -33,6 +32,7 @@ func Register(gb *hal.GenericBroker) {
 	roster := hal.Plugin{
 		Name:   "roster_tracker",
 		Func:   rostertracker,
+		Regex:  "",
 		Broker: gb,
 	}
 	roster.Register()
@@ -41,6 +41,7 @@ func Register(gb *hal.GenericBroker) {
 	rostercmd := hal.Plugin{
 		Name:   "roster_command",
 		Func:   rosterlast,
+		Regex:  "!last",
 		Broker: gb,
 	}
 	rostercmd.Register()
@@ -55,28 +56,20 @@ func Register(gb *hal.GenericBroker) {
 func rostertracker(msg hal.Evt) {
 	db := hal.SqlDB()
 
-	// see if the user is already in the roster for the given channel
-	var seen int
-	q := db.QueryRow(`SELECT COUNT(userid) FROM roster WHERE broker=? AND username=? AND channel=?`,
-		msg.Broker.Name(), msg.From, msg.Channel)
-	err := q.Scan(&seen)
-	if err != nil {
-		log.Printf("Roster existence query failed: %s\n", err)
-		return
+	sql := `INSERT INTO roster
+						(broker, username, channel, ts)
+			VALUES (?,?,?,?)
+			ON DUPLICATE KEY
+			UPDATE broker=?, username=?, channel=?, ts=?`
+
+	params := []interface{}{
+		msg.Broker.Name(), msg.From, msg.Channel, msg.Time,
+		msg.Broker.Name(), msg.From, msg.Channel, msg.Time,
 	}
 
-	if seen == 0 {
-		insert := `INSERT INTO roster (broker, username, channel, ts) VALUES (?, ?, ?, ?)`
-		_, err := db.Exec(insert, msg.Broker.Name(), msg.From, msg.Channel, msg.Time)
-		if err != nil {
-			log.Printf("Could not insert user into roster: %s\n", err)
-		}
-	} else {
-		update := `UPDATE roster SET ts=? WHERE broker=? AND username=? AND channel=?`
-		_, err = db.Exec(update, msg.Time, msg.Broker.Name(), msg.From, msg.Channel)
-		if err != nil {
-			log.Printf("Could not update user in roster: %s\n", err)
-		}
+	_, err := db.Exec(sql, params...)
+	if err != nil {
+		log.Printf("roster_tracker write failed: %s", err)
 	}
 }
 
@@ -84,16 +77,15 @@ func rostertracker(msg hal.Evt) {
 // to the user with a table of when users last posted a message to slack
 // rather than relying on status, which is usually useless.
 func rosterlast(msg hal.Evt) {
-	re := regexp.MustCompile("!last")
-	if !re.MatchString(msg.Body) {
-		return
-	}
+	log.Printf("rosterlast(%q)", msg.Body)
 
 	rus, err := GetRoster()
 	if err != nil {
 		log.Printf("Error while retreiving roster: %s\n", err)
 		return
 	}
+
+	log.Printf("rosterlast(%v): ", rus)
 
 	// TODO: ASCII art instead of JSON
 	js, err := json.Marshal(rus)
@@ -124,12 +116,8 @@ func webroster(w http.ResponseWriter, r *http.Request) {
 func GetRoster() ([]*RosterUser, error) {
 	db := hal.SqlDB()
 
-	fetch := `
-SELECT broker, username, ts, channel
-FROM roster
-WHERE ts > (NOW() - INTERVAL '1 day')
-ORDER BY ts DESC`
-	rows, err := db.Query(fetch)
+	sql := `SELECT broker, username, channel, ts FROM roster ORDER BY ts DESC`
+	rows, err := db.Query(sql)
 	if err != nil {
 		log.Printf("Roster query failed: %s\n", err)
 		return nil, err
@@ -141,7 +129,7 @@ ORDER BY ts DESC`
 	for rows.Next() {
 		ru := RosterUser{}
 
-		err = rows.Scan(&ru.Broker, &ru.Username, &ru.Timestamp, &ru.Channel)
+		err = rows.Scan(&ru.Broker, &ru.Username, &ru.Channel, &ru.Timestamp)
 		if err != nil {
 			log.Printf("Row iteration failed: %s\n", err)
 			return nil, err
