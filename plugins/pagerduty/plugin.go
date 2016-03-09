@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	//	"github.com/davecgh/go-spew/spew"
 	"github.com/netflix/hal-9001/hal"
 )
 
@@ -50,9 +49,11 @@ Send an alert via Pagerduty with an optional custom message.
 
 const ONCALL_USAGE = `!oncall <alias>
 
-Find out who is on-call for the given alias.
+Find out who is oncall. If only one argument is provided, it must match
+a known alias for a Pagerduty service. Otherwise, it is expected to be
+a subcommand.
 
-!oncall sre
+!oncall core
 `
 
 const PAGE_DEFAULT_MESSAGE = `HAL: your presence is requested in the chat room.`
