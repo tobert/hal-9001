@@ -45,7 +45,6 @@ package uptime
 // uptime: the simplest useful plugin possible
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/netflix/hal-9001/hal"
