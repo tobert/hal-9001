@@ -208,6 +208,10 @@ func oncall(msg hal.Evt) {
 		return
 	}
 
+	// TODO: look at the aliases set up for !page and try for an exact match
+	// before doing fuzzy search -- move fuzzy search to a "search" subcommand
+	// so it's clear that it is not precise
+
 	// see if there's a copy cached
 	policies := []EscalationPolicy{}
 	ttl := time.Duration(0)
