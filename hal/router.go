@@ -8,7 +8,7 @@ import (
 
 // RouterCTX holds the router's context, including input/output chans.
 type RouterCTX struct {
-	brokers map[string]*Broker
+	brokers map[string]Broker
 	in      chan *Evt     // messages from brokers --> plugins
 	out     chan *Evt     // messages from plugins --> brokers
 	update  chan struct{} // to notify the router that the instance list changed
@@ -25,7 +25,7 @@ func Router() *RouterCTX {
 		routerSingleton.in = make(chan *Evt, 1000)
 		routerSingleton.out = make(chan *Evt, 1000)
 		routerSingleton.update = make(chan struct{}, 1)
-		routerSingleton.brokers = make(map[string]*Broker)
+		routerSingleton.brokers = make(map[string]Broker)
 	})
 
 	return &routerSingleton
@@ -60,10 +60,10 @@ func (r *RouterCTX) AddBroker(b Broker) {
 	// forward events from the broker to the router's input channel
 	go forward(b2r, r.in)
 
-	r.brokers[b.Name()] = &b
+	r.brokers[b.Name()] = b
 }
 
-func (r *RouterCTX) GetBroker(name string) *Broker {
+func (r *RouterCTX) GetBroker(name string) Broker {
 	if broker, exists := r.brokers[name]; exists {
 		return broker
 	}
