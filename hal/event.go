@@ -51,6 +51,11 @@ func (e *Evt) Replyf(msg string, a ...interface{}) {
 	e.Reply(fmt.Sprintf(msg, a...))
 }
 
+// BrokerName returns the text name of the broker.
+func (e *Evt) BrokerName() string {
+	return e.Broker.Name()
+}
+
 // fetch union of all matching settings from the database
 // for user, broker, channel, and plugin
 // Plugins can use the Prefs methods to filter from there.
