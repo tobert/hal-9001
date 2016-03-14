@@ -67,7 +67,9 @@ func (cb *Broker) Stream(out chan *hal.Evt) {
 		case evt := <-cb.stdin:
 			e := hal.Evt{
 				From:      cb.User,
+				FromId:    cb.User,
 				Channel:   cb.Channel,
+				ChannelId: cb.Channel,
 				Body:      evt,
 				Time:      time.Now(),
 				Broker:    cb,

@@ -143,8 +143,10 @@ func (hb *Broker) Stream(out chan *hal.Evt) {
 			if len(parts) == 2 {
 				e := hal.Evt{
 					Body:      chat.Text,
-					Channel:   parts[0],
+					Channel:   parts[0], // TODO: provide the human-readable name
+					ChannelId: parts[0],
 					From:      parts[1],
+					FromId:    parts[1],   // TODO: provide the JID
 					Time:      time.Now(), // m.Stamp seems to be zeroed
 					IsGeneric: true,
 					Original:  &chat,

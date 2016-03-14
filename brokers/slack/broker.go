@@ -92,7 +92,9 @@ func (sb *Broker) Stream(out chan *hal.Evt) {
 				e := hal.Evt{
 					Body:      m.Text,
 					Channel:   sb.ChannelIdToName(m.Channel),
+					ChannelId: m.Channel,
 					From:      sb.UserIdToName(m.User),
+					FromId:    m.User,
 					Broker:    sb,
 					Time:      slackTime(m.Timestamp),
 					IsGeneric: true,
@@ -108,7 +110,9 @@ func (sb *Broker) Stream(out chan *hal.Evt) {
 				e := hal.Evt{
 					Body:      fmt.Sprintf("%q added a star", user),
 					Channel:   sb.ChannelIdToName(sae.Item.Channel),
+					ChannelId: sae.Item.Channel,
 					From:      user,
+					FromId:    sae.User,
 					Broker:    sb,
 					Time:      slackTime(sae.EventTimestamp),
 					IsGeneric: false, // only available to slack-aware plugins
@@ -124,7 +128,9 @@ func (sb *Broker) Stream(out chan *hal.Evt) {
 				e := hal.Evt{
 					Body:      fmt.Sprintf("%q removed a star", user),
 					Channel:   sb.ChannelIdToName(sre.Item.Channel),
+					ChannelId: sre.Item.Channel,
 					From:      user,
+					FromId:    sre.User,
 					Broker:    sb,
 					Time:      slackTime(sre.EventTimestamp),
 					IsGeneric: false, // only available to slack-aware plugins
@@ -140,7 +146,9 @@ func (sb *Broker) Stream(out chan *hal.Evt) {
 				e := hal.Evt{
 					Body:      fmt.Sprintf("%q added reaction %q", user, rae.Reaction),
 					Channel:   sb.ChannelIdToName(rae.Item.Channel),
+					ChannelId: rae.Item.Channel,
 					From:      user,
+					FromId:    rae.User,
 					Broker:    sb,
 					Time:      slackTime(rae.EventTimestamp),
 					IsGeneric: false, // only available to slack-aware plugins
@@ -156,7 +164,9 @@ func (sb *Broker) Stream(out chan *hal.Evt) {
 				e := hal.Evt{
 					Body:      fmt.Sprintf("%q removed reaction %q", user, rre.Reaction),
 					Channel:   sb.ChannelIdToName(rre.Item.Channel),
+					ChannelId: rre.Item.Channel,
 					From:      user,
+					FromId:    rre.User,
 					Broker:    sb,
 					Time:      slackTime(rre.EventTimestamp),
 					IsGeneric: false, // only available to slack-aware plugins

@@ -15,7 +15,9 @@ import (
 type Evt struct {
 	Body      string      `json:"body"`       // body of the event, regardless of source
 	Channel   string      `json:"channel"`    // the channel where the event originated
+	ChannelId string      `json:"channel_id"` // the channel id from the source broker
 	From      string      `json:"from"`       // the username that created the event
+	FromId    string      `json:"from_id"`    // the user id from the source broker
 	Time      time.Time   `json:"time"`       // timestamp of the event
 	Broker    Broker      `json:"broker"`     // the broker origin of the event
 	IsGeneric bool        `json:"is_generic"` // true if evt should be published to GenericBroker
