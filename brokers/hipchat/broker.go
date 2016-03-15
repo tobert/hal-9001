@@ -1,6 +1,7 @@
 package hipchat
 
 import (
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 // with the hipchat service.
 type Broker struct {
 	Client *xmpp.Client
+	Config Config
 	inst   string
 }
 
@@ -62,6 +64,7 @@ func (c Config) NewBroker(name string) Broker {
 
 	hb := Broker{
 		Client: client,
+		Config: c,
 		inst:   name,
 	}
 
@@ -73,9 +76,13 @@ func (hb Broker) Name() string {
 }
 
 func (hb Broker) Send(evt hal.Evt) {
+	channel := fmt.Sprintf("%s/%s", evt.ChannelId, hb.ChannelIdToName(evt.ChannelId))
+
 	msg := xmpp.Chat{
-		Text:  evt.Body,
-		Stamp: evt.Time,
+		Text:   evt.Body,
+		Stamp:  evt.Time,
+		Type:   "groupchat",
+		Remote: channel,
 	}
 
 	_, err := hb.Client.Send(msg)
@@ -90,13 +97,18 @@ func (hb *Broker) Subscribe(channel, alias string) {
 	// TODO: take a channel name and somehow look up the goofy MUC name
 	// e.g. client.JoinMUC("99999_channelName@conf.hipchat.com", "Bot Name")
 	hb.Client.JoinMUC(channel, alias)
+	hb.Config.Channels[channel] = alias
 }
 
 // Keepalive is a timer loop that can be fired up to periodically
 // send keepalive messages to the Hipchat server in order to prevent
 // Hipchat from shutting the connection down due to inactivity.
 func (hb *Broker) heartbeat(t time.Time) {
-	msg := xmpp.Chat{Text: "heartbeat"}
+	// this seems to work but returns an error you'll see in the logs
+	msg := xmpp.Chat{
+		Text:  "heartbeat",
+		Stamp: t,
+	}
 	msg.Stamp = t
 
 	n, err := hb.Client.Send(msg)
@@ -143,24 +155,44 @@ func (hb Broker) Stream(out chan *hal.Evt) {
 			if len(parts) == 2 {
 				e := hal.Evt{
 					Body:      chat.Text,
-					Channel:   parts[0], // TODO: provide the human-readable name
+					Channel:   hb.ChannelIdToName(parts[0]),
 					ChannelId: parts[0],
 					From:      parts[1],
-					FromId:    parts[1],   // TODO: provide the JID
+					FromId:    chat.Remote,
 					Time:      time.Now(), // m.Stamp seems to be zeroed
+					Broker:    hb,
 					IsGeneric: true,
 					Original:  &chat,
 				}
 
 				out <- &e
+			} else {
+				log.Printf("hipchat broker received an unsupported message: %+v", chat)
 			}
 		}
 	}
 }
 
-// required by interface
-// TODO: replace these with actually useful versions
-func (b Broker) ChannelIdToName(in string) string { return in }
-func (b Broker) ChannelNameToId(in string) string { return in }
-func (b Broker) UserIdToName(in string) string    { return in }
-func (b Broker) UserNameToId(in string) string    { return in }
+// only considers channels that have been configured in the bot
+// and does not hit the Hipchat APIs at all
+// TODO: hit the API and get the channel/name lists and cache them
+func (b Broker) ChannelIdToName(in string) string {
+	if name, exists := b.Config.Channels[in]; exists {
+		return name
+	}
+
+	return ""
+}
+
+func (b Broker) ChannelNameToId(in string) string {
+	for id, name := range b.Config.Channels {
+		if name == in {
+			return id
+		}
+	}
+
+	return ""
+}
+
+func (b Broker) UserIdToName(in string) string { return in }
+func (b Broker) UserNameToId(in string) string { return in }
