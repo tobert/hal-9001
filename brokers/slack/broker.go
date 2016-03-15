@@ -73,6 +73,17 @@ func (sb Broker) Send(evt hal.Evt) {
 	sb.RTM.SendMessage(om)
 }
 
+// checks the cache to see if the channel is known to this broker
+func (sb Broker) HasChannel(channel string) bool {
+	if sb.idRegex.MatchString(channel) {
+		_, exists := sb.i2c[channel]
+		return exists
+	} else {
+		_, exists := sb.c2i[channel]
+		return exists
+	}
+}
+
 // Stream is an event loop for Slack events & messages from the RTM API.
 // Events are copied to a hal.Evt and forwarded to the exchange where they
 // can be processed by registered handlers.
