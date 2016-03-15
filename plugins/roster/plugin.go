@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS roster (
 	PRIMARY KEY (broker, username, channel)
 )`
 
-func Register(gb *hal.GenericBroker) {
+func Register(gb hal.GenericBroker) {
 	// rostertracker gets all messages and keeps a database of when users
 	// were last seen to support !last, and the web roster.
 	roster := hal.Plugin{

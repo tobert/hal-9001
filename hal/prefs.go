@@ -86,6 +86,20 @@ func GetPref(user, broker, channel, plugin, key, def string) Pref {
 	return pref
 }
 
+// SetPref sets a preference and is shorthand for Pref{}.Set().
+func SetPref(user, broker, channel, plugin, key, value string) error {
+	pref := Pref{
+		User:    user,
+		Channel: channel,
+		Broker:  broker,
+		Plugin:  plugin,
+		Key:     key,
+		Value:   value,
+	}
+
+	return pref.Set()
+}
+
 // GetPrefs retrieves a set of preferences from the database. The
 // settings are matched exactly on user,broker,channel,plugin.
 // e.g. GetPrefs("", "", "", "uptime") would get only records that

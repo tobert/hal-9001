@@ -64,11 +64,26 @@ func (r *RouterCTX) AddBroker(b Broker) {
 }
 
 func (r *RouterCTX) GetBroker(name string) Broker {
+	r.mut.Lock()
+	defer r.mut.Unlock()
+
 	if broker, exists := r.brokers[name]; exists {
 		return broker
 	}
 
 	return nil
+}
+
+func (r *RouterCTX) Brokers() []Broker {
+	r.mut.Lock()
+	defer r.mut.Unlock()
+
+	out := make([]Broker, 0)
+	for _, b := range r.brokers {
+		out = append(out, b)
+	}
+
+	return out
 }
 
 // Route is the main method for the router. It blocks and should be run in a goroutine
@@ -121,7 +136,7 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 		}
 
 		// check if it's the correct channel
-		if evt.Channel != inst.Channel {
+		if evt.ChannelId != inst.ChannelId {
 			continue
 		}
 

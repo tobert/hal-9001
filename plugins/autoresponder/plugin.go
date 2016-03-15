@@ -14,7 +14,7 @@ attention off hours, please page us with the !page command.`
 
 const DEFAULT_TZ = "America/Los_Angeles"
 
-func Register(gb *hal.GenericBroker) {
+func Register(gb hal.GenericBroker) {
 	p := hal.Plugin{
 		Name: NAME,
 		Func: autoresponder,

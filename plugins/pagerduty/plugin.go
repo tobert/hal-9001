@@ -10,7 +10,7 @@ import (
 	"github.com/netflix/hal-9001/hal"
 )
 
-func Register(gb *hal.GenericBroker) {
+func Register(gb hal.GenericBroker) {
 	pg := hal.Plugin{
 		Name:   "page",
 		Func:   page,

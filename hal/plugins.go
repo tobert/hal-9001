@@ -20,22 +20,23 @@ type pluginRegistry struct {
 // to receive events when an instance is created e.g. by the pluginmgr
 // plugin.
 type Plugin struct {
-	Name     string    // a unique name (used to launch instances)
-	Func     func(Evt) // the code to execute for each matched event
-	Regex    string    // the default regex match
-	Multi    bool      // whether or not multiple instances are allowed
-	Broker   Broker    // the broker the plugin is tied to
-	Settings []Pref    // required+autoloaded preferences + defaults
-	Secrets  []string  // required+autoloaded secret key names
+	Name     string          // a unique name (used to launch instances)
+	Func     func(Evt)       // the code to execute for each matched event
+	Init     func(*Instance) // plugin hook called at instance creation time
+	Regex    string          // the default regex match
+	Multi    bool            // whether or not multiple instances are allowed
+	Broker   Broker          // the broker the plugin is tied to
+	Settings []Pref          // required+autoloaded preferences + defaults
+	Secrets  []string        // required+autoloaded secret key names
 }
 
 // Instance is an instance of a plugin tied to a channel.
 type Instance struct {
 	*Plugin
-	Channel  string         // channel to subscribe to
-	Regex    string         // a regex for filtering messages
-	Settings []Pref         // runtime settings for the instance
-	regex    *regexp.Regexp // the compiled regex
+	ChannelId string         // channel name
+	Regex     string         // a regex for filtering messages
+	Settings  []Pref         // runtime settings for the instance
+	regex     *regexp.Regexp // the compiled regex
 }
 
 var pluginRegSingleton pluginRegistry
@@ -69,11 +70,11 @@ func (p *Plugin) Register() error {
 
 // Instance creates an instance of a plugin. It is *not* registered (and
 // therefore not considered by the router until that is done).
-func (p *Plugin) Instance(channel string) *Instance {
+func (p *Plugin) Instance(channelId string) *Instance {
 	i := Instance{
-		Plugin:  p,
-		Channel: channel,
-		Regex:   p.Regex,
+		Plugin:    p,
+		ChannelId: channelId,
+		Regex:     p.Regex,
 	}
 
 	return &i
@@ -85,7 +86,7 @@ func (inst *Instance) Register() error {
 	pr.mut.Lock()
 	defer pr.mut.Unlock()
 
-	// restriction: only allow unique plugin.Name/inst.Channel
+	// restriction: only allow unique plugin.Name/inst.ChannelId
 	ip := inst.Plugin
 	name := inst.String()
 	for _, i := range pr.instances {
@@ -107,11 +108,17 @@ func (inst *Instance) Register() error {
 	// TODO: manually check/return the error so the bot doesn't crash
 	inst.regex = regexp.MustCompile(inst.Regex)
 
+	// call the instance init handler
+	if inst.Plugin.Init != nil {
+		inst.Plugin.Init(inst)
+	}
+
 	// once an instance is registered, the router will automatically
 	// pick it up on the next message it processes
 	pr.instances = append(pr.instances, inst)
 
-	log.Printf("Registered plugin '%s' in channel '%s' with RE match '%s'", inst.Name, inst.Channel, inst.regex)
+	log.Printf("Registered plugin '%s' in channel id '%s' with RE match '%s'",
+		inst.Name, inst.ChannelId, inst.regex)
 
 	return nil
 }
@@ -134,7 +141,7 @@ func (inst *Instance) Unregister() error {
 	// delete the instance from the list
 	pr.instances = append(pr.instances[:idx], pr.instances[idx+1:]...)
 
-	log.Printf("Unregistered plugin '%s' from channel '%s'", inst.Name, inst.Channel)
+	log.Printf("Unregistered plugin '%s' from channel id '%s'", inst.Name, inst.ChannelId)
 
 	return nil
 }
@@ -168,6 +175,10 @@ func (inst *Instance) SaveSettingsToPrefs() {
 	for _, ipref := range inst.Settings {
 		ipref.Set()
 	}
+}
+
+func (inst *Instance) BrokerName() string {
+	return inst.Broker.Name()
 }
 
 // PluginList returns a snapshot of the plugin list at call time.
@@ -209,15 +220,15 @@ func (pr *pluginRegistry) GetPlugin(name string) *Plugin {
 }
 
 // FindInstances returns the plugin instances that match the provided
-// channel and plugin name.
-func (pr *pluginRegistry) FindInstances(channel, plugin string) []*Instance {
+// channel id and plugin name.
+func (pr *pluginRegistry) FindInstances(channelId, plugin string) []*Instance {
 	pr.mut.Lock()
 	defer pr.mut.Unlock()
 
 	out := make([]*Instance, 0)
 
 	for _, i := range pr.instances {
-		if i.Plugin.Name == plugin && i.Channel == channel {
+		if i.Plugin.Name == plugin && i.ChannelId == channelId {
 			out = append(out, i)
 		}
 	}
@@ -276,5 +287,5 @@ func (p *Plugin) String() string {
 }
 
 func (inst *Instance) String() string {
-	return fmt.Sprintf("%s/%s", inst.Name, inst.Channel)
+	return fmt.Sprintf("%s/%s", inst.Name, inst.ChannelId)
 }

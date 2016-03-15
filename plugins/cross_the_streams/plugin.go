@@ -8,7 +8,7 @@ import (
 )
 
 // Register makes this plugin available to the system.
-func Register(gb *hal.GenericBroker) {
+func Register(gb hal.GenericBroker) {
 	plugin := hal.Plugin{
 		Name:   "cross_the_streams",
 		Func:   crossStreams,

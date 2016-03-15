@@ -32,7 +32,7 @@ e.g.
 `
 
 // Register makes this plugin available to the system.
-func Register(gb *hal.GenericBroker) {
+func Register(gb hal.GenericBroker) {
 	plugin := hal.Plugin{
 		Name:   NAME,
 		Func:   pluginmgr,
@@ -70,7 +70,7 @@ func pluginmgr(evt hal.Evt) {
 				},
 				cli.StringFlag{
 					Name:        "channel",
-					Value:       evt.Channel, // default to the channel where the command originated
+					Value:       evt.ChannelId, // default to the channel where the command originated
 					Destination: &channel,
 					Usage:       "the channel to attach the plugin to",
 				},
@@ -88,8 +88,8 @@ func pluginmgr(evt hal.Evt) {
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:        "channel",
-					Value:       evt.Channel, // default to the channel where the command originated
-					Destination: &channel,    // should be safe to use this again...
+					Value:       evt.ChannelId, // default to the channel where the command originated
+					Destination: &channel,      // should be safe to use this again...
 					Usage:       "the channel to detach from",
 				},
 			},
@@ -186,12 +186,28 @@ func listPlugins(c *cli.Context, evt *hal.Evt, attached bool, detached bool) {
 
 func savePlugins(c *cli.Context, evt *hal.Evt) {
 	pr := hal.PluginRegistry()
+
 	err := pr.SaveInstances()
 	if err != nil {
 		evt.Replyf("Error while saving plugin config: %s", err)
 	} else {
 		evt.Reply("Plugin configuration saved.")
 	}
+}
+
+func channelToId(evt *hal.Evt, channel string) string {
+	// the user may have provided --channel with a channel name
+	// try to look it up against the broker to figure out which it is
+	channelId := evt.Broker.ChannelNameToId(channel)
+	if channelId == "" {
+		// if it was an id already, we'll get a name and that proves it's an ID
+		channelName := evt.Broker.ChannelIdToName(channel)
+		if channelName != "" {
+			channelId = channel
+		}
+	}
+
+	return channelId
 }
 
 func attachPlugin(c *cli.Context, evt *hal.Evt, channel, pluginName, regex string) {
@@ -202,25 +218,28 @@ func attachPlugin(c *cli.Context, evt *hal.Evt, channel, pluginName, regex strin
 		return
 	}
 
-	inst := plugin.Instance(channel)
-	inst.Channel = channel
+	channelId := channelToId(evt, channel)
+	inst := plugin.Instance(channelId)
+	inst.ChannelId = channelId
 	inst.Regex = regex
 	err := inst.Register()
 	if err != nil {
-		evt.Replyf("Failed to launch plugin '%s' in channel '%s': %s", plugin, channel, err)
+		evt.Replyf("Failed to launch plugin '%s' in channel id '%s': %s", plugin, channelId, err)
 
 	} else {
-		evt.Replyf("Launched an instance of plugin: '%s' in channel '%s'", plugin, channel)
+		evt.Replyf("Launched an instance of plugin: '%s' in channel id '%s'", plugin, channelId)
 	}
 }
 
 func detachPlugin(c *cli.Context, evt *hal.Evt, channel, plugin string) {
 	pr := hal.PluginRegistry()
-	instances := pr.FindInstances(channel, plugin)
+	channelId := channelToId(evt, channel)
+	instances := pr.FindInstances(channelId, plugin)
 
 	// there should be only one, for now just log if that is not the case
 	if len(instances) > 1 {
-		log.Printf("FindInstances(%q, %q) returned %d instances. Expected 0 or 1.", channel, plugin, len(instances))
+		log.Printf("FindInstances(%q, %q) returned %d instances. Expected 0 or 1.",
+			channel, plugin, len(instances))
 	}
 
 	for _, inst := range instances {

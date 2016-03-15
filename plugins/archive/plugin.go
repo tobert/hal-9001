@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS archive (
   PRIMARY KEY (ts,username,channel)
 )`
 
-func Register(sb *slackBroker.Broker) {
+func Register(sb slackBroker.Broker) {
 	archive := hal.Plugin{
 		Name:   "message_archive",
 		Func:   archiveRecorder,

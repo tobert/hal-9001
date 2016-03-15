@@ -15,11 +15,6 @@ CREATE TABLE IF NOT EXISTS plugin_instances (
 )
 `
 
-const INSERT_SQL = `
-INSERT INTO plugin_instances
-	(plugin, broker, channel, regex)
-VALUES (?, ?, ?, ?)`
-
 // LoadInstances loads the previously saved plugin instance configuration
 // from the database and *merges* it with the plugin registry. This should be
 // idempotent if run multiple times.
@@ -40,19 +35,20 @@ func (pr *pluginRegistry) LoadInstances() error {
 
 	defer rows.Close()
 
-	var pname, bname, channel, re string
+	var pname, bname, channelId, re string
 	for rows.Next() {
-		err := rows.Scan(&pname, &bname, &channel, &re)
+		err := rows.Scan(&pname, &bname, &channelId, &re)
 		if err != nil {
 			log.Printf("LoadInstances rows.Scan() failed: %s", err)
 			return err
 		}
 
-		found := pr.FindInstances(pname, channel)
+		found := pr.FindInstances(pname, channelId)
 		if len(found) == 0 {
 			// instance is in the DB but not registered, do it now
 			plugin := pr.GetPlugin(pname)
-			inst := plugin.Instance(channel)
+
+			inst := plugin.Instance(channelId)
 			inst.Regex = re // RE can be overridden per instance
 
 			// go over the settings and pull preferences before firing up the instance
@@ -60,7 +56,8 @@ func (pr *pluginRegistry) LoadInstances() error {
 
 			err = inst.Register()
 			if err != nil {
-				log.Printf("Could not register plugin instance for plugin %q and channel %q: %s", pname, channel, err)
+				log.Printf("Could not register plugin instance for plugin %q and channel id %q: %s",
+					pname, channelId, err)
 				return err
 			}
 		} else if len(found) == 1 {
@@ -68,7 +65,8 @@ func (pr *pluginRegistry) LoadInstances() error {
 			continue
 		} else {
 			// hal doesn't currently support > 1 plugin instance per channel
-			log.Fatalf("BUG: more than 1 plugin instance matched for plugin %q and channel %q", pname, channel)
+			log.Fatalf("BUG: more than 1 plugin instance matched for plugin %q and channel id %q",
+				pname, channelId)
 		}
 	}
 
@@ -87,13 +85,15 @@ func (pr *pluginRegistry) SaveInstances() error {
 	// use a transaction to (relatively) safely wipe & rewrite the whole table
 	db := SqlDB()
 	tx, err := db.Begin()
-	stmt, err := tx.Prepare(INSERT_SQL)
+	stmt, err := tx.Prepare(`INSERT INTO plugin_instances
+	                          (plugin, broker, channel, regex)
+	                         VALUES (?, ?, ?, ?)`)
 
 	// clear the table before writing new records
 	_, err = tx.Exec("TRUNCATE TABLE plugin_instances")
 
 	for _, inst := range instances {
-		_, err = stmt.Exec(inst.Plugin.Name, inst.Broker.Name(), inst.Channel, inst.Regex)
+		_, err = stmt.Exec(inst.Plugin.Name, inst.Broker.Name(), inst.ChannelId, inst.Regex)
 		if err != nil {
 			log.Printf("insert failed: %s", err)
 			return err

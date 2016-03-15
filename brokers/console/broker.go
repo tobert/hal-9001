@@ -32,7 +32,7 @@ func (c Config) NewBroker(name string) Broker {
 		stdout:  make(chan string, 1000),
 	}
 
-	return &out
+	return out
 }
 
 func (cb Broker) Name() string {

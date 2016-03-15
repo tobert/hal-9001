@@ -251,6 +251,11 @@ func (sb *Broker) FillChannelCache() {
 // UserIdToName gets the human-readable username for a user ID using an
 // in-memory cache that falls through to the Slack API
 func (sb Broker) UserIdToName(id string) string {
+	if id == "" {
+		log.Println("broker/slack/UserIdToName(): Cannot look up empty string!")
+		return ""
+	}
+
 	if name, exists := sb.i2u[id]; exists {
 		return name
 	} else {
@@ -279,6 +284,11 @@ func (sb Broker) UserIdToName(id string) string {
 // ChannelIdToName gets the human-readable channel name for a user ID using an
 // in-memory cache that falls through to the Slack API
 func (sb Broker) ChannelIdToName(id string) string {
+	if id == "" {
+		log.Println("broker/slack/ChannelIdToName(): Cannot look up empty string!")
+		return ""
+	}
+
 	if name, exists := sb.i2c[id]; exists {
 		return name
 	} else {
@@ -307,6 +317,11 @@ func (sb Broker) ChannelIdToName(id string) string {
 // UserNameToId gets the human-readable username for a user ID using an
 // in-memory cache that falls through to the Slack API
 func (sb Broker) UserNameToId(name string) string {
+	if name == "" {
+		log.Println("broker/slack/UserNameToId(): Cannot look up empty string!")
+		return ""
+	}
+
 	if id, exists := sb.u2i[name]; exists {
 		return id
 	} else {
@@ -325,6 +340,11 @@ func (sb Broker) UserNameToId(name string) string {
 // ChannelNameToId gets the human-readable channel name for a user ID using an
 // in-memory cache that falls through to the Slack API
 func (sb Broker) ChannelNameToId(name string) string {
+	if name == "" {
+		log.Println("broker/slack/ChannelNameToId(): Cannot look up empty string!")
+		return ""
+	}
+
 	if id, exists := sb.c2i[name]; exists {
 		return id
 	} else {

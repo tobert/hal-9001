@@ -15,7 +15,7 @@ func init() {
 	booted = time.Now()
 }
 
-func Register(gb *hal.GenericBroker) {
+func Register(gb hal.GenericBroker) {
 	p := hal.Plugin{
 		Name:   "uptime",
 		Func:   uptime,
