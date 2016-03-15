@@ -36,7 +36,6 @@ func Register(gb hal.GenericBroker) {
 	plugin := hal.Plugin{
 		Name:   NAME,
 		Func:   pluginmgr,
-		Multi:  false,
 		Regex:  "^!plugin",
 		Broker: gb,
 	}

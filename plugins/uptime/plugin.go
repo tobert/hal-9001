@@ -20,7 +20,6 @@ func Register(gb hal.GenericBroker) {
 		Name:   "uptime",
 		Func:   uptime,
 		Regex:  "^!uptime",
-		Multi:  true,
 		Broker: gb,
 	}
 	p.Register()

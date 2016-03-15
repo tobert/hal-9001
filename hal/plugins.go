@@ -24,7 +24,6 @@ type Plugin struct {
 	Func     func(Evt)       // the code to execute for each matched event
 	Init     func(*Instance) // plugin hook called at instance creation time
 	Regex    string          // the default regex match
-	Multi    bool            // whether or not multiple instances are allowed
 	Broker   Broker          // the broker the plugin is tied to
 	Settings []Pref          // required+autoloaded preferences + defaults
 	Secrets  []string        // required+autoloaded secret key names
@@ -85,19 +84,6 @@ func (inst *Instance) Register() error {
 	pr := PluginRegistry()
 	pr.mut.Lock()
 	defer pr.mut.Unlock()
-
-	// restriction: only allow unique plugin.Name/inst.ChannelId
-	ip := inst.Plugin
-	name := inst.String()
-	for _, i := range pr.instances {
-		// disallow multiple instances for plugins that set Multi: false
-		if !ip.Multi && ip.Name == i.Plugin.Name {
-			log.Fatalf("BUG: plugin '%s' being registered multiple times when only one instance is allowed.", ip.Name)
-		}
-		if i.String() == name {
-			return fmt.Errorf("'%s' is already instantiated", name)
-		}
-	}
 
 	// default to the plugin's default if no RE was provided
 	if inst.Regex == "" {

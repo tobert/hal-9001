@@ -22,18 +22,7 @@ func Register(gb hal.GenericBroker) {
 		// the second half and keep the RE simple for now
 		Regex:  "<[!@](?i:all|here|core)\\W",
 		Broker: gb,
-		Multi:  true,
 	}
-	/*
-		UserPrefs: map[string]string{
-			"reply_in_channel": "false",
-			"timezone":         DEFAULT_TZ,
-		},
-		ChanPrefs: map[string]string{
-			"hours":    "09:00-18:00", // hmm should this require UTC?
-			"timezone": DEFAULT_TZ,    // for now, apply TZ to hours to keep it simple
-		},
-	*/
 
 	p.Register()
 }
