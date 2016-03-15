@@ -93,10 +93,10 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 		case msg := <-sb.RTM.IncomingEvents:
 			switch ev := msg.Data.(type) {
 			case *slack.HelloEvent:
-				log.Println("slack.HelloEvent") // ignored
+				log.Println("brokers/slack ignoring HelloEvent")
 
 			case *slack.ConnectedEvent:
-				log.Printf("slack.ConnectedEvent (%s)\n", msg.Type) // ignored
+				log.Printf("brokers/slack ignoring ConnectedEvent")
 
 			case *slack.MessageEvent:
 				m := msg.Data.(*slack.MessageEvent)
@@ -193,14 +193,14 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				// ignored
 
 			case *slack.RTMError:
-				log.Printf("slack.RTMError: %s\n", ev.Error())
+				log.Printf("brokers/slack ignoring RTMError: %s\n", ev.Error())
 
 			case *slack.InvalidAuthEvent:
-				log.Println("slack.InvalidAuthEvent")
+				log.Println("brokers/slack InvalidAuthEvent")
 				break
 
 			default:
-				log.Printf("Unexpected: %v\n", msg.Data)
+				log.Printf("brokers/slack: unexpected message: %+v\n", msg)
 			}
 		}
 	}
@@ -215,7 +215,7 @@ func slackTime(t string) time.Time {
 
 	floatN, err := strconv.ParseFloat(t, 64)
 	if err != nil {
-		log.Println("Error parsing Slack time string %q:", t, err)
+		log.Println("brokers/slack error parsing Slack time string %q:", t, err)
 		return time.Now()
 	}
 
@@ -225,7 +225,7 @@ func slackTime(t string) time.Time {
 func (sb *Broker) FillUserCache() {
 	users, err := sb.Client.GetUsers()
 	if err != nil {
-		log.Printf("Failed to fetch user list: %s", err)
+		log.Printf("brokers/slack failed to fetch user list: %s", err)
 		return
 	}
 
@@ -238,7 +238,7 @@ func (sb *Broker) FillUserCache() {
 func (sb *Broker) FillChannelCache() {
 	channels, err := sb.Client.GetChannels(true)
 	if err != nil {
-		log.Printf("Failed to fetch channel list: %s", err)
+		log.Printf("brokers/slack failed to fetch channel list: %s", err)
 		return
 	}
 
@@ -261,7 +261,7 @@ func (sb Broker) UserIdToName(id string) string {
 	} else {
 		user, err := sb.Client.GetUserInfo(id)
 		if err != nil {
-			log.Printf("Could not retrieve user info for '%s' from the slack API: %s\n", id, err)
+			log.Printf("brokers/slack could not retrieve user info for '%s' via API: %s\n", id, err)
 			return ""
 		}
 
@@ -269,7 +269,7 @@ func (sb Broker) UserIdToName(id string) string {
 		// remove this if it proves unnecessary (tobert/2016-03-02)
 		if _, exists := sb.u2i[user.Name]; exists {
 			if sb.u2i[user.Name] != user.ID {
-				log.Fatalf("BUG: found a non-unique user name:ID pair. Had: %q/%q. Got: %q/%q",
+				log.Fatalf("BUG(brokers/slack): found a non-unique user name:ID pair. Had: %q/%q. Got: %q/%q",
 					user.Name, sb.u2i[user.Name], user.Name, user.ID)
 			}
 		}
@@ -294,7 +294,7 @@ func (sb Broker) ChannelIdToName(id string) string {
 	} else {
 		channel, err := sb.Client.GetChannelInfo(id)
 		if err != nil {
-			log.Printf("Could not retrieve channel info for '%s' from the slack API: %s\n", id, err)
+			log.Printf("brokers/slack could not retrieve channel info for '%s' via API: %s\n", id, err)
 			return ""
 		}
 
@@ -302,7 +302,7 @@ func (sb Broker) ChannelIdToName(id string) string {
 		// remove this if it proves unnecessary (tobert/2016-03-02)
 		if _, exists := sb.c2i[channel.Name]; exists {
 			if sb.c2i[channel.Name] != channel.ID {
-				log.Fatalf("BUG: found a non-unique channel name:ID pair. Had: %q/%q. Got: %q/%q",
+				log.Fatalf("BUG(brokers/slack): found a non-unique channel name:ID pair. Had: %q/%q. Got: %q/%q",
 					channel.Name, sb.c2i[channel.Name], channel.Name, channel.ID)
 			}
 		}
@@ -332,7 +332,7 @@ func (sb Broker) UserNameToId(name string) string {
 			return id
 		}
 
-		log.Printf("Slack does not seem to have knowledge of username %q", name)
+		log.Printf("brokers/slack service does not seem to have knowledge of username %q", name)
 		return ""
 	}
 }
@@ -353,7 +353,7 @@ func (sb Broker) ChannelNameToId(name string) string {
 			return id
 		}
 
-		log.Printf("Slack does not seem to have knowledge of channel name %q", name)
+		log.Printf("brokers/slack service does not seem to have knowledge of channel name %q", name)
 		return ""
 	}
 }
