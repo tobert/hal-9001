@@ -30,7 +30,9 @@ type Evt struct {
 func (e *Evt) Clone() Evt {
 	out := Evt{
 		Channel:   e.Channel,
+		ChannelId: e.ChannelId,
 		From:      e.From,
+		FromId:    e.FromId,
 		Time:      time.Now(),
 		Broker:    e.Broker,
 		IsGeneric: e.IsGeneric,
