@@ -63,6 +63,7 @@ func (r *RouterCTX) AddBroker(b Broker) {
 	r.brokers[b.Name()] = b
 }
 
+// GetBroker retrieves a broker handle by name.
 func (r *RouterCTX) GetBroker(name string) Broker {
 	r.mut.Lock()
 	defer r.mut.Unlock()
@@ -74,6 +75,7 @@ func (r *RouterCTX) GetBroker(name string) Broker {
 	return nil
 }
 
+// Brokers returns all brokers that have been added to the router.
 func (r *RouterCTX) Brokers() []Broker {
 	r.mut.Lock()
 	defer r.mut.Unlock()
