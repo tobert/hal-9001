@@ -19,7 +19,7 @@ type Broker struct {
 	stdout  chan string
 }
 
-func (c *Config) NewBroker(name string) *Broker {
+func (c Config) NewBroker(name string) Broker {
 	user := os.Getenv("USER")
 	if user == "" {
 		user = "testuser"
@@ -35,15 +35,15 @@ func (c *Config) NewBroker(name string) *Broker {
 	return &out
 }
 
-func (cb *Broker) Name() string {
+func (cb Broker) Name() string {
 	return cb.Channel
 }
 
-func (cb *Broker) Send(e hal.Evt) {
+func (cb Broker) Send(e hal.Evt) {
 	cb.stdout <- fmt.Sprintf("%s/%s: %s\n", e.From, e.Channel, e.Body)
 }
 
-func (cb *Broker) Stream(out chan *hal.Evt) {
+func (cb Broker) Stream(out chan *hal.Evt) {
 	go func() {
 		scanner := bufio.NewScanner(os.Stdin)
 		for scanner.Scan() {
@@ -88,3 +88,9 @@ func (cb *Broker) Stream(out chan *hal.Evt) {
 		}
 	}
 }
+
+// required by interface
+func (b Broker) ChannelIdToName(in string) string { return in }
+func (b Broker) ChannelNameToId(in string) string { return in }
+func (b Broker) UserIdToName(in string) string    { return in }
+func (b Broker) UserNameToId(in string) string    { return in }

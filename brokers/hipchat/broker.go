@@ -31,7 +31,7 @@ const HIPCHAT_HOST = `chat.hipchat.com:5223`
 // Host must be "chat.hipchat.com:5223". This requirement can go away
 // once someone takes the time to integrate and test against an on-prem
 // Hipchat server.
-func (c *Config) NewBroker(name string) *Broker {
+func (c Config) NewBroker(name string) Broker {
 	// TODO: remove this once the TLS/SSL requirements are sorted
 	if c.Host != HIPCHAT_HOST {
 		log.Println("TODO: Only SSL and hosted Hipchat are supported at the moment.")
@@ -65,14 +65,14 @@ func (c *Config) NewBroker(name string) *Broker {
 		inst:   name,
 	}
 
-	return &hb
+	return hb
 }
 
-func (hb *Broker) Name() string {
+func (hb Broker) Name() string {
 	return hb.inst
 }
 
-func (hb *Broker) Send(evt hal.Evt) {
+func (hb Broker) Send(evt hal.Evt) {
 	msg := xmpp.Chat{
 		Text:  evt.Body,
 		Stamp: evt.Time,
@@ -106,7 +106,7 @@ func (hb *Broker) heartbeat(t time.Time) {
 }
 
 // Stream is an event loop for Hipchat events.
-func (hb *Broker) Stream(out chan *hal.Evt) {
+func (hb Broker) Stream(out chan *hal.Evt) {
 	client := hb.Client
 	incoming := make(chan *xmpp.Chat)
 	timer := time.Tick(time.Minute * 1) // once a minute
@@ -157,3 +157,10 @@ func (hb *Broker) Stream(out chan *hal.Evt) {
 		}
 	}
 }
+
+// required by interface
+// TODO: replace these with actually useful versions
+func (b Broker) ChannelIdToName(in string) string { return in }
+func (b Broker) ChannelNameToId(in string) string { return in }
+func (b Broker) UserIdToName(in string) string    { return in }
+func (b Broker) UserNameToId(in string) string    { return in }

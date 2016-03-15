@@ -16,8 +16,8 @@ func (gb GenericBroker) Send(evt Evt) {
 }
 
 // GetGenericBroker returns the singleton handle for the generic broker.
-func GetGenericBroker() *GenericBroker {
-	return &gBroker
+func GetGenericBroker() GenericBroker {
+	return gBroker
 }
 
 // Name returns "generic"
@@ -30,3 +30,9 @@ func (gb GenericBroker) Name() string {
 func (gb GenericBroker) Stream(out chan *Evt) {
 	select {}
 }
+
+// required by interface
+func (gb GenericBroker) ChannelIdToName(in string) string { return in }
+func (gb GenericBroker) ChannelNameToId(in string) string { return in }
+func (gb GenericBroker) UserIdToName(in string) string    { return in }
+func (gb GenericBroker) UserNameToId(in string) string    { return in }

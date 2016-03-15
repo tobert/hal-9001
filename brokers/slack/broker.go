@@ -27,7 +27,7 @@ type Config struct {
 	Token string
 }
 
-func (c *Config) NewBroker(name string) *Broker {
+func (c Config) NewBroker(name string) Broker {
 	client := slack.New(c.Token)
 	// TODO: check for failures and log.Fatalf()
 	rtm := client.NewRTM()
@@ -49,15 +49,15 @@ func (c *Config) NewBroker(name string) *Broker {
 
 	go rtm.ManageConnection()
 
-	return &sb
+	return sb
 }
 
 // Name returns the name of the broker as set in NewBroker.
-func (sb *Broker) Name() string {
+func (sb Broker) Name() string {
 	return sb.inst
 }
 
-func (sb *Broker) Send(evt hal.Evt) {
+func (sb Broker) Send(evt hal.Evt) {
 	// make sure the channel is an ID and not the name
 	// TODO: go through plugins, etc and see if there's a sane way to make the ID persist through
 	// the system and have the name only resolve in and out of the genericbroker and in plugins
@@ -76,7 +76,7 @@ func (sb *Broker) Send(evt hal.Evt) {
 // Stream is an event loop for Slack events & messages from the RTM API.
 // Events are copied to a hal.Evt and forwarded to the exchange where they
 // can be processed by registered handlers.
-func (sb *Broker) Stream(out chan *hal.Evt) {
+func (sb Broker) Stream(out chan *hal.Evt) {
 	for {
 		select {
 		case msg := <-sb.RTM.IncomingEvents:
@@ -239,7 +239,7 @@ func (sb *Broker) FillChannelCache() {
 
 // UserIdToName gets the human-readable username for a user ID using an
 // in-memory cache that falls through to the Slack API
-func (sb *Broker) UserIdToName(id string) string {
+func (sb Broker) UserIdToName(id string) string {
 	if name, exists := sb.i2u[id]; exists {
 		return name
 	} else {
@@ -267,7 +267,7 @@ func (sb *Broker) UserIdToName(id string) string {
 
 // ChannelIdToName gets the human-readable channel name for a user ID using an
 // in-memory cache that falls through to the Slack API
-func (sb *Broker) ChannelIdToName(id string) string {
+func (sb Broker) ChannelIdToName(id string) string {
 	if name, exists := sb.i2c[id]; exists {
 		return name
 	} else {
@@ -295,7 +295,7 @@ func (sb *Broker) ChannelIdToName(id string) string {
 
 // UserNameToId gets the human-readable username for a user ID using an
 // in-memory cache that falls through to the Slack API
-func (sb *Broker) UserNameToId(name string) string {
+func (sb Broker) UserNameToId(name string) string {
 	if id, exists := sb.u2i[name]; exists {
 		return id
 	} else {
@@ -313,7 +313,7 @@ func (sb *Broker) UserNameToId(name string) string {
 
 // ChannelNameToId gets the human-readable channel name for a user ID using an
 // in-memory cache that falls through to the Slack API
-func (sb *Broker) ChannelNameToId(name string) string {
+func (sb Broker) ChannelNameToId(name string) string {
 	if id, exists := sb.c2i[name]; exists {
 		return id
 	} else {
