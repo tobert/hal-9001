@@ -13,10 +13,10 @@ import (
 type Config struct{}
 
 type Broker struct {
-	User    string
-	Channel string
-	stdin   chan string
-	stdout  chan string
+	User   string
+	Room   string
+	stdin  chan string
+	stdout chan string
 }
 
 func (c Config) NewBroker(name string) Broker {
@@ -26,21 +26,21 @@ func (c Config) NewBroker(name string) Broker {
 	}
 
 	out := Broker{
-		User:    user,
-		Channel: name,
-		stdin:   make(chan string, 1000),
-		stdout:  make(chan string, 1000),
+		User:   user,
+		Room:   name,
+		stdin:  make(chan string, 1000),
+		stdout: make(chan string, 1000),
 	}
 
 	return out
 }
 
 func (cb Broker) Name() string {
-	return cb.Channel
+	return cb.Room
 }
 
 func (cb Broker) Send(e hal.Evt) {
-	cb.stdout <- fmt.Sprintf("%s/%s: %s\n", e.From, e.Channel, e.Body)
+	cb.stdout <- fmt.Sprintf("%s/%s: %s\n", e.User, e.Room, e.Body)
 }
 
 func (cb Broker) Stream(out chan *hal.Evt) {
@@ -66,10 +66,10 @@ func (cb Broker) Stream(out chan *hal.Evt) {
 		select {
 		case evt := <-cb.stdin:
 			e := hal.Evt{
-				From:      cb.User,
-				FromId:    cb.User,
-				Channel:   cb.Channel,
-				ChannelId: cb.Channel,
+				User:      cb.User,
+				UserId:    cb.User,
+				Room:      cb.Room,
+				RoomId:    cb.Room,
 				Body:      evt,
 				Time:      time.Now(),
 				Broker:    cb,
@@ -90,7 +90,7 @@ func (cb Broker) Stream(out chan *hal.Evt) {
 }
 
 // required by interface
-func (b Broker) ChannelIdToName(in string) string { return in }
-func (b Broker) ChannelNameToId(in string) string { return in }
-func (b Broker) UserIdToName(in string) string    { return in }
-func (b Broker) UserNameToId(in string) string    { return in }
+func (b Broker) RoomIdToName(in string) string { return in }
+func (b Broker) RoomNameToId(in string) string { return in }
+func (b Broker) UserIdToName(in string) string { return in }
+func (b Broker) UserNameToId(in string) string { return in }

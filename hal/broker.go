@@ -4,8 +4,8 @@ package hal
 type Broker interface {
 	Name() string
 	Send(Evt)
-	ChannelIdToName(string) string
-	ChannelNameToId(string) string
+	RoomIdToName(string) string
+	RoomNameToId(string) string
 	UserIdToName(string) string
 	UserNameToId(string) string
 	Stream(out chan *Evt)

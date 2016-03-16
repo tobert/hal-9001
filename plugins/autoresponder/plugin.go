@@ -30,11 +30,8 @@ func Register(gb hal.GenericBroker) {
 // autoresponder is a handler that lets folks know that pinging the room
 // outside of business hours does not have an SLA
 func autoresponder(evt hal.Evt) {
-	//tzname := hal.GetPref(evt.From, evt.Channel, NAME, "tz", DEFAULT_TZ)
-	//tz, err := time.LoadLocation(tzname.Value)
 	tz, err := time.LoadLocation(DEFAULT_TZ)
 	if err != nil {
-		//log.Fatalf("Could not load timezone info for '%s': %s\n", tzname.Value, err)
 		log.Fatalf("Could not load timezone info for '%s': %s\n", DEFAULT_TZ, err)
 	}
 

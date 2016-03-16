@@ -14,10 +14,10 @@ import (
 // The original event should usually be attached to the Original
 type Evt struct {
 	Body      string      `json:"body"`       // body of the event, regardless of source
-	Channel   string      `json:"channel"`    // the channel where the event originated
-	ChannelId string      `json:"channel_id"` // the channel id from the source broker
-	From      string      `json:"from"`       // the username that created the event
-	FromId    string      `json:"from_id"`    // the user id from the source broker
+	Room      string      `json:"room"`       // the room where the event originated
+	RoomId    string      `json:"room_id"`    // the room id from the source broker
+	User      string      `json:"user"`       // the username that created the event
+	UserId    string      `json:"user_id"`    // the user id from the source broker
 	Time      time.Time   `json:"time"`       // timestamp of the event
 	Broker    Broker      `json:"broker"`     // the broker origin of the event
 	IsGeneric bool        `json:"is_generic"` // true if evt should be published to GenericBroker
@@ -25,14 +25,14 @@ type Evt struct {
 	instance  *Instance   // used by the broker to provide plugin instance metadata
 }
 
-// Clone() returns a copy of the event with the same broker/channel/from
+// Clone() returns a copy of the event with the same broker/room/user
 // and a current timestamp. Body and Original will be empty.
 func (e *Evt) Clone() Evt {
 	out := Evt{
-		Channel:   e.Channel,
-		ChannelId: e.ChannelId,
-		From:      e.From,
-		FromId:    e.FromId,
+		Room:      e.Room,
+		RoomId:    e.RoomId,
+		User:      e.User,
+		UserId:    e.UserId,
 		Time:      time.Now(),
 		Broker:    e.Broker,
 		IsGeneric: e.IsGeneric,
@@ -61,12 +61,12 @@ func (e *Evt) BrokerName() string {
 }
 
 // fetch union of all matching settings from the database
-// for user, broker, channel, and plugin
+// for user, broker, room, and plugin
 // Plugins can use the Prefs methods to filter from there.
 func (e *Evt) FindPrefs() Prefs {
 	broker := e.Broker.Name()
 	plugin := e.instance.Plugin.Name
-	return FindPrefs(e.From, broker, e.Channel, plugin, "")
+	return FindPrefs(e.User, broker, e.Room, plugin, "")
 }
 
 // gets the plugin instance's preferences
@@ -77,26 +77,26 @@ func (e *Evt) InstanceSettings() []Pref {
 	out := make([]Pref, 0)
 
 	for _, stg := range e.instance.Plugin.Settings {
-		// ignore channel-specific settings for other channels
-		if stg.Channel != "" && stg.Channel != e.Channel {
+		// ignore room-specific settings for other room
+		if stg.Room != "" && stg.Room != e.Room {
 			continue
 		}
 
-		pref := GetPref("", broker, e.Channel, plugin, stg.Key, stg.Default)
+		pref := GetPref("", broker, e.Room, plugin, stg.Key, stg.Default)
 		out = append(out, pref)
 	}
 
 	return out
 }
 
-// NewPref creates a new pref struct with user, channel, broker, and plugin
+// NewPref creates a new pref struct with user, room, broker, and plugin
 // set using metadata from the event.
 func (e *Evt) NewPref() Pref {
 	return Pref{
-		User:    e.From,
-		Channel: e.Channel,
-		Broker:  e.Broker.Name(),
-		Plugin:  e.instance.Plugin.Name,
+		User:   e.User,
+		Room:   e.Room,
+		Broker: e.Broker.Name(),
+		Plugin: e.instance.Plugin.Name,
 	}
 }
 
@@ -126,5 +126,5 @@ func (e *Evt) BodyAsArgv() []string {
 }
 
 func (e *Evt) String() string {
-	return fmt.Sprintf("%s/%s@%s: %s", e.From, e.Channel, e.Time.String(), e.Body)
+	return fmt.Sprintf("%s/%s@%s: %s", e.User, e.Room, e.Time.String(), e.Body)
 }

@@ -12,18 +12,18 @@ import (
 
 type RosterUser struct {
 	Broker    string    `json: broker` // broker name e.g. slack, hipchat
-	Username  string    `json: username`
+	User      string    `json: user`
+	Room      string    `json: room`
 	Timestamp time.Time `json: timestamp`
-	Channel   string    `json: channel`
 }
 
 const ROSTER_TABLE = `
 CREATE TABLE IF NOT EXISTS roster (
-	broker   VARCHAR(64) NOT NULL,
-	username VARCHAR(64) NOT NULL,
-	channel  VARCHAR(255) DEFAULT NULL,
-	ts       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-	PRIMARY KEY (broker, username, channel)
+	broker VARCHAR(64) NOT NULL,
+	user   VARCHAR(64) NOT NULL,
+	room   VARCHAR(255) DEFAULT NULL,
+	ts     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	PRIMARY KEY (broker, user, room)
 )`
 
 func Register(gb hal.GenericBroker) {
@@ -56,14 +56,14 @@ func rostertracker(msg hal.Evt) {
 	db := hal.SqlDB()
 
 	sql := `INSERT INTO roster
-	          (broker, username, channel, ts)
+	          (broker, user, room, ts)
 	        VALUES (?,?,?,?)
 	        ON DUPLICATE KEY
-	        UPDATE broker=?, username=?, channel=?, ts=?`
+	        UPDATE broker=?, user=?, room=?, ts=?`
 
 	params := []interface{}{
-		msg.Broker.Name(), msg.From, msg.Channel, msg.Time,
-		msg.Broker.Name(), msg.From, msg.Channel, msg.Time,
+		msg.Broker.Name(), msg.User, msg.Room, msg.Time,
+		msg.Broker.Name(), msg.User, msg.Room, msg.Time,
 	}
 
 	_, err := db.Exec(sql, params...)
@@ -111,7 +111,7 @@ func webroster(w http.ResponseWriter, r *http.Request) {
 func GetRoster() ([]*RosterUser, error) {
 	db := hal.SqlDB()
 
-	sql := `SELECT broker, username, channel,
+	sql := `SELECT broker, user, room,
 	               UNIX_TIMESTAMP(ts) AS ts
 	               FROM roster
 	               ORDER BY ts DESC`
@@ -129,7 +129,7 @@ func GetRoster() ([]*RosterUser, error) {
 		ru := RosterUser{}
 
 		var ts int64
-		err = rows.Scan(&ru.Broker, &ru.Username, &ru.Channel, &ts)
+		err = rows.Scan(&ru.Broker, &ru.User, &ru.Room, &ts)
 		if err != nil {
 			log.Printf("Row iteration failed: %s\n", err)
 			return nil, err

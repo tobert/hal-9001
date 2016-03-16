@@ -40,16 +40,16 @@ func crossStreams(evt hal.Evt) {
 			if channel, exists = settings["to_channel"]; exists {
 				channel = settings["to_channel"]
 			} else {
-				channel = evt.Channel
+				channel = evt.Room
 			}
 
 			if broker == from {
 				tb := router.GetBroker(to)
 				if tb != nil {
 					out := hal.Evt{
-						Body:    fmt.Sprintf("%s %s@%s: %s", evt.Time, evt.From, from, evt.Body),
-						Channel: channel,
-						From:    evt.From, // ignored (for now)
+						Body:    fmt.Sprintf("%s %s@%s: %s", evt.Time, evt.User, from, evt.Body),
+						Room: channel,
+						User:    evt.User, // ignored (for now)
 						Time:    evt.Time,
 						Broker:  tb,
 					}

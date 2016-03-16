@@ -22,7 +22,7 @@ type Config struct {
 	Host     string
 	Jid      string
 	Password string
-	Channels map[string]string
+	Rooms    map[string]string
 }
 
 // HIPCHAT_HOST is the only supported hipchat host.
@@ -58,7 +58,7 @@ func (c Config) NewBroker(name string) Broker {
 		log.Fatalf("Could not connect to Hipchat over XMPP: %s\n", err)
 	}
 
-	for jid, name := range c.Channels {
+	for jid, name := range c.Rooms {
 		client.JoinMUC(jid, name)
 	}
 
@@ -76,13 +76,13 @@ func (hb Broker) Name() string {
 }
 
 func (hb Broker) Send(evt hal.Evt) {
-	channel := fmt.Sprintf("%s/%s", evt.ChannelId, hb.ChannelIdToName(evt.ChannelId))
+	remote := fmt.Sprintf("%s/%s", evt.RoomId, hb.RoomIdToName(evt.RoomId))
 
 	msg := xmpp.Chat{
 		Text:   evt.Body,
 		Stamp:  evt.Time,
 		Type:   "groupchat",
-		Remote: channel,
+		Remote: remote,
 	}
 
 	_, err := hb.Client.Send(msg)
@@ -91,13 +91,13 @@ func (hb Broker) Send(evt hal.Evt) {
 	}
 }
 
-// Subscribe joins a channel with the given alias.
+// Subscribe joins a room with the given alias.
 // These names are specific to how Hipchat does things.
-func (hb *Broker) Subscribe(channel, alias string) {
-	// TODO: take a channel name and somehow look up the goofy MUC name
-	// e.g. client.JoinMUC("99999_channelName@conf.hipchat.com", "Bot Name")
-	hb.Client.JoinMUC(channel, alias)
-	hb.Config.Channels[channel] = alias
+func (hb *Broker) Subscribe(room, alias string) {
+	// TODO: take a room name and somehow look up the goofy MUC name
+	// e.g. client.JoinMUC("99999_roomName@conf.hipchat.com", "Bot Name")
+	hb.Client.JoinMUC(room, alias)
+	hb.Config.Rooms[room] = alias
 }
 
 // Keepalive is a timer loop that can be fired up to periodically
@@ -149,16 +149,16 @@ func (hb Broker) Stream(out chan *hal.Evt) {
 		case t := <-timer:
 			hb.heartbeat(t)
 		case chat := <-incoming:
-			// Remote should look like "99999_channelName@conf.hipchat.com/User Name"
+			// Remote should look like "99999_roomName@conf.hipchat.com/User Name"
 			parts := strings.SplitN(chat.Remote, "/", 2)
 
 			if len(parts) == 2 {
 				e := hal.Evt{
 					Body:      chat.Text,
-					Channel:   hb.ChannelIdToName(parts[0]),
-					ChannelId: parts[0],
-					From:      parts[1],
-					FromId:    chat.Remote,
+					Room:      hb.RoomIdToName(parts[0]),
+					RoomId:    parts[0],
+					User:      parts[1],
+					UserId:    chat.Remote,
 					Time:      time.Now(), // m.Stamp seems to be zeroed
 					Broker:    hb,
 					IsGeneric: true,
@@ -173,19 +173,19 @@ func (hb Broker) Stream(out chan *hal.Evt) {
 	}
 }
 
-// only considers channels that have been configured in the bot
+// only considers rooms that have been configured in the bot
 // and does not hit the Hipchat APIs at all
-// TODO: hit the API and get the channel/name lists and cache them
-func (b Broker) ChannelIdToName(in string) string {
-	if name, exists := b.Config.Channels[in]; exists {
+// TODO: hit the API and get the room/name lists and cache them
+func (b Broker) RoomIdToName(in string) string {
+	if name, exists := b.Config.Rooms[in]; exists {
 		return name
 	}
 
 	return ""
 }
 
-func (b Broker) ChannelNameToId(in string) string {
-	for id, name := range b.Config.Channels {
+func (b Broker) RoomNameToId(in string) string {
+	for id, name := range b.Config.Rooms {
 		if name == in {
 			return id
 		}

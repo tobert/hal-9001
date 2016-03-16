@@ -14,18 +14,18 @@ import (
 
 type ArchiveEntry struct {
 	Timestamp time.Time `json: timestamp`
-	Username  string    `json: username`
-	Channel   string    `json: channel`
+	User      string    `json: user`
+	Room      string    `json: room`
 	Text      string    `json: text`
 }
 
 const ARCHIVE_TABLE = `
 CREATE TABLE IF NOT EXISTS archive (
   ts       TIMESTAMP,
-  username VARCHAR(64),
-  channel  VARCHAR(255),
+  user     VARCHAR(64),
+  room     VARCHAR(255),
   txt      TEXT,
-  PRIMARY KEY (ts,username,channel)
+  PRIMARY KEY (ts,user,room)
 )`
 
 func Register(sb slackBroker.Broker) {
@@ -54,8 +54,8 @@ func Register(sb slackBroker.Broker) {
 func archiveRecorder(msg hal.Evt) {
 	db := hal.SqlDB()
 
-	insert := `INSERT INTO archive (ts, username, channel, txt) VALUES (?, ?, ?, ?)`
-	_, err := db.Exec(insert, msg.Time, msg.From, msg.Channel, msg.Body)
+	insert := `INSERT INTO archive (ts, user, room, txt) VALUES (?, ?, ?, ?)`
+	_, err := db.Exec(insert, msg.Time, msg.User, msg.Room, msg.Body)
 	if err != nil {
 		log.Printf("Could not insert user into roster: %s\n", err)
 	}
@@ -89,7 +89,7 @@ func FetchArchive(limit int) ([]*ArchiveEntry, error) {
 	db := hal.SqlDB()
 
 	fetch := `
-SELECT ts, username, channel, txt
+SELECT ts, user, room, txt
 FROM archive
 WHERE ts > (NOW() - INTERVAL '1 day')
 ORDER BY ts DESC`
@@ -105,7 +105,7 @@ ORDER BY ts DESC`
 	for rows.Next() {
 		ae := ArchiveEntry{}
 
-		err = rows.Scan(&ae.Timestamp, &ae.Username, &ae.Channel, &ae.Text)
+		err = rows.Scan(&ae.Timestamp, &ae.User, &ae.Room, &ae.Text)
 		if err != nil {
 			log.Printf("Row iteration failed: %s\n", err)
 			return nil, err

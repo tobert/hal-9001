@@ -26,7 +26,7 @@ func main() {
 	// this part with your thing
 	dsn := requireEnv("HAL_DSN")
 	keyfile := requireEnv("HAL_SECRETS_KEY_FILE")
-	controlChannel := requireEnv("HAL_CONTROL_CHANNEL")
+	controlRoom := requireEnv("HAL_CONTROL_ROOM")
 	hipchatRoomJid := requireEnv("HAL_HIPCHAT_ROOM_JID")
 	hipchatRoomName := requireEnv("HAL_HIPCHAT_ROOM_NAME")
 	webAddr := defaultEnv("HAL_HTTP_LISTEN_ADDR", ":9001")
@@ -89,9 +89,9 @@ func main() {
 	// so if it's not present, initialize it manually just this once
 	// alternatively, you could poke config straight into the DB
 	// TODO: remove the hard-coded room name or make it configurable
-	if len(pr.FindInstances(controlChannel, "pluginmgr")) == 0 {
+	if len(pr.FindInstances(controlRoom, "pluginmgr")) == 0 {
 		mgr := pr.GetPlugin("pluginmgr")
-		mgrInst := mgr.Instance(controlChannel)
+		mgrInst := mgr.Instance(controlRoom)
 		mgrInst.Register()
 	}
 
@@ -102,7 +102,7 @@ func main() {
 		Password: secrets.Get("hipchat.password"),
 
 		// TODO: make this configurable via prefs (or maybe secrets?)
-		Channels: map[string]string{
+		Rooms: map[string]string{
 			hipchatRoomJid: hipchatRoomName,
 		},
 	}
@@ -130,10 +130,10 @@ func main() {
 	// TODO: remove this or make it permanent by using the same method as
 	// the pluginmgr bootstrap above to set the room name, etc.
 	slk.Send(hal.Evt{
-		Body:    "Ohai! HAL-9001 up and running.",
-		Channel: controlChannel,
-		From:    "HAL-9001",
-		Broker:  slk,
+		Body:   "Ohai! HAL-9001 up and running.",
+		Room:   controlRoom,
+		User:   "HAL-9001",
+		Broker: slk,
 	})
 
 	// start the webserver - some plugins register handlers to the default

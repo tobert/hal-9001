@@ -10,49 +10,49 @@ import (
 // provides a persistent configuration store
 
 // Order of precendence for prefs:
-// user -> channel -> broker -> plugin -> global -> default
+// user -> room -> broker -> plugin -> global -> default
 
 // PREFS_TABLE contains the SQL to create the prefs table
 // key field is called pkey because key is a reserved word
 const PREFS_TABLE = `
 CREATE TABLE IF NOT EXISTS prefs (
 	 user    VARCHAR(32) DEFAULT "",
-	 channel VARCHAR(32) DEFAULT "",
+	 room    VARCHAR(32) DEFAULT "",
 	 broker  VARCHAR(32) DEFAULT "",
 	 plugin  VARCHAR(32) DEFAULT "",
 	 pkey    VARCHAR(32) NOT NULL,
 	 value   TEXT,
-	 PRIMARY KEY(user, channel, broker, plugin, pkey)
+	 PRIMARY KEY(user, room, broker, plugin, pkey)
 )`
 
 /*
    -- test data, will remove once there are automated tests
-   INSERT INTO prefs (user,channel,broker,plugin,pkey,value) VALUES ("tobert", "", "", "", "foo", "user");
-   INSERT INTO prefs (user,channel,broker,plugin,pkey,value) VALUES ("tobert", "CORE", "", "", "foo",
-   "user-channel");
-   INSERT INTO prefs (user,channel,broker,plugin,pkey,value) VALUES ("tobert", "CORE", "slack", "", "foo",
-   "user-channel-broker");
-   INSERT INTO prefs (user,channel,broker,plugin,pkey,value) VALUES ("tobert", "CORE", "slack", "uptime",
-   "foo", "user-channel-broker-plugin");
-   INSERT INTO prefs (user,channel,broker,plugin,pkey,value) VALUES ("tobert", "", "slack", "uptime", "foo",
+   INSERT INTO prefs (user,room,broker,plugin,pkey,value) VALUES ("tobert", "", "", "", "foo", "user");
+   INSERT INTO prefs (user,room,broker,plugin,pkey,value) VALUES ("tobert", "CORE", "", "", "foo",
+   "user-room");
+   INSERT INTO prefs (user,room,broker,plugin,pkey,value) VALUES ("tobert", "CORE", "slack", "", "foo",
+   "user-room-broker");
+   INSERT INTO prefs (user,room,broker,plugin,pkey,value) VALUES ("tobert", "CORE", "slack", "uptime",
+   "foo", "user-room-broker-plugin");
+   INSERT INTO prefs (user,room,broker,plugin,pkey,value) VALUES ("tobert", "", "slack", "uptime", "foo",
    "user-broker-plugin");
-   INSERT INTO prefs (user,channel,broker,plugin,pkey,value) VALUES ("tobert", "CORE", "", "uptime",
-   "foo", "user-channel-plugin");
-   INSERT INTO prefs (user,channel,broker,plugin,pkey,value) VALUES ("tobert", "", "", "uptime", "foo",
+   INSERT INTO prefs (user,room,broker,plugin,pkey,value) VALUES ("tobert", "CORE", "", "uptime",
+   "foo", "user-room-plugin");
+   INSERT INTO prefs (user,room,broker,plugin,pkey,value) VALUES ("tobert", "", "", "uptime", "foo",
    "user-plugin");
 */
 
 // !prefs list --scope plugin --plugin autoresponder
-// !prefs get --scope channel --plugin autoresponder --channel CORE --key timezone
-// !prefs set --scope user --plugin autoresponder --channel CORE
+// !prefs get --scope room --plugin autoresponder --room CORE --key timezone
+// !prefs set --scope user --plugin autoresponder --room CORE
 
 // Pref is a key/value pair associated with a combination of user, plugin,
-// borker, or channel.
+// borker, or room.
 type Pref struct {
 	User    string
 	Plugin  string
 	Broker  string
-	Channel string
+	Room    string
 	Key     string
 	Value   string
 	Default string
@@ -66,10 +66,10 @@ type Prefs []*Pref
 // storage using the parameters provided. This is a bit like pattern
 // matching. If no match is found, the provided default is returned.
 // TODO: explain this better
-func GetPref(user, broker, channel, plugin, key, def string) Pref {
+func GetPref(user, broker, room, plugin, key, def string) Pref {
 	pref := Pref{
 		User:    user,
-		Channel: channel,
+		Room:    room,
 		Broker:  broker,
 		Plugin:  plugin,
 		Key:     key,
@@ -87,70 +87,46 @@ func GetPref(user, broker, channel, plugin, key, def string) Pref {
 }
 
 // SetPref sets a preference and is shorthand for Pref{}.Set().
-func SetPref(user, broker, channel, plugin, key, value string) error {
+func SetPref(user, broker, room, plugin, key, value string) error {
 	pref := Pref{
-		User:    user,
-		Channel: channel,
-		Broker:  broker,
-		Plugin:  plugin,
-		Key:     key,
-		Value:   value,
+		User:   user,
+		Room:   room,
+		Broker: broker,
+		Plugin: plugin,
+		Key:    key,
+		Value:  value,
 	}
 
 	return pref.Set()
 }
 
 // GetPrefs retrieves a set of preferences from the database. The
-// settings are matched exactly on user,broker,channel,plugin.
+// settings are matched exactly on user,broker,room,plugin.
 // e.g. GetPrefs("", "", "", "uptime") would get only records that
-// have user/broker/channel set to the empty string and channel
+// have user/broker/room set to the empty string and room
 // set to "uptime". A record with user "pford" and plugin "uptime"
 // would not be included.
-func GetPrefs(user, broker, channel, plugin string) Prefs {
+func GetPrefs(user, broker, room, plugin string) Prefs {
 	pref := Pref{
-		User:    user,
-		Broker:  broker,
-		Channel: channel,
-		Plugin:  plugin,
+		User:   user,
+		Broker: broker,
+		Room:   room,
+		Plugin: plugin,
 	}
 	return pref.get()
 }
 
 // FindPrefs gets all records that match any of the inputs that are
 // not empty strings. (hint: user="x", broker="y"; WHERE user=? OR broker=?)
-func FindPrefs(user, broker, channel, plugin, key string) Prefs {
+func FindPrefs(user, broker, room, plugin, key string) Prefs {
 	pref := Pref{
-		User:    user,
-		Broker:  broker,
-		Channel: channel,
-		Plugin:  plugin,
-		Key:     key,
+		User:   user,
+		Broker: broker,
+		Room:   room,
+		Plugin: plugin,
+		Key:    key,
 	}
 	return pref.Find()
-}
-
-func GetUserPrefs(user string) Prefs {
-	pref := Pref{}
-	pref.User = user
-	return pref.get()
-}
-
-func GetChannelPrefs(channel string) Prefs {
-	pref := Pref{}
-	pref.Channel = channel
-	return pref.get()
-}
-
-func GetBrokerPrefs(broker string) Prefs {
-	pref := Pref{}
-	pref.Broker = broker
-	return pref.get()
-}
-
-func GetPluginPrefs(plugin string) Prefs {
-	pref := Pref{}
-	pref.Plugin = plugin
-	return pref.get()
 }
 
 // Get retrieves a value from the database. If the database returns
@@ -186,13 +162,13 @@ func (in *Pref) GetPrefs() Prefs {
 func (in *Pref) get() Prefs {
 	SqlInit(PREFS_TABLE)
 
-	sql := `SELECT user,channel,broker,plugin,pkey,value
+	sql := `SELECT user,room,broker,plugin,pkey,value
 	        FROM prefs
 	        WHERE user=?
-			  AND channel=?
+			  AND room=?
 			  AND broker=?
 			  AND plugin=?`
-	params := []interface{}{&in.User, &in.Channel, &in.Broker, &in.Plugin}
+	params := []interface{}{&in.User, &in.Room, &in.Broker, &in.Plugin}
 
 	// only query by key if it's specified, otherwise get all keys for the selection
 	if in.Key != "" {
@@ -215,7 +191,7 @@ func (in *Pref) get() Prefs {
 	for rows.Next() {
 		p := *in
 
-		err := rows.Scan(&p.User, &p.Channel, &p.Broker, &p.Plugin, &p.Key, &p.Value)
+		err := rows.Scan(&p.User, &p.Room, &p.Broker, &p.Plugin, &p.Key, &p.Value)
 
 		if err != nil {
 			log.Printf("Returning default due to row iteration failure: %s", err)
@@ -239,14 +215,14 @@ func (in *Pref) Set() error {
 	SqlInit(PREFS_TABLE)
 
 	sql := `INSERT INTO prefs
-						(value,user,channel,broker,plugin,pkey)
+						(value,user,room,broker,plugin,pkey)
 			VALUES (?,?,?,?,?,?)
 			ON DUPLICATE KEY
-			UPDATE value=?, user=?, channel=?, broker=?, plugin=?, pkey=?`
+			UPDATE value=?, user=?, room=?, broker=?, plugin=?, pkey=?`
 
 	params := []interface{}{
-		&in.Value, &in.User, &in.Channel, &in.Broker, &in.Plugin, &in.Key,
-		&in.Value, &in.User, &in.Channel, &in.Broker, &in.Plugin, &in.Key,
+		&in.Value, &in.User, &in.Room, &in.Broker, &in.Plugin, &in.Key,
+		&in.Value, &in.User, &in.Room, &in.Broker, &in.Plugin, &in.Key,
 	}
 
 	_, err := db.Exec(sql, params...)
@@ -265,13 +241,13 @@ func (in *Pref) Delete() error {
 
 	sql := `DELETE FROM prefs
 			WHERE user=?
-			  AND channel=?
+			  AND room=?
 			  AND broker=?
 			  AND plugin=?
 			  AND pkey=?`
 
 	// TODO: verify only one row was deleted
-	_, err := db.Exec(sql, &in.User, &in.Channel, &in.Broker, &in.Plugin, &in.Key)
+	_, err := db.Exec(sql, &in.User, &in.Room, &in.Broker, &in.Plugin, &in.Key)
 	if err != nil {
 		log.Printf("Pref.Delete() write failed: %s", err)
 		return err
@@ -296,9 +272,9 @@ func (p Pref) Find() Prefs {
 		params = append(params, p.User)
 	}
 
-	if p.Channel != "" {
-		fields = append(fields, "channel=?")
-		params = append(params, p.Channel)
+	if p.Room != "" {
+		fields = append(fields, "room=?")
+		params = append(params, p.Room)
 	}
 
 	if p.Broker != "" {
@@ -316,7 +292,7 @@ func (p Pref) Find() Prefs {
 		params = append(params, p.Key)
 	}
 
-	q := bytes.NewBufferString("SELECT user,channel,broker,plugin,pkey,value\n")
+	q := bytes.NewBufferString("SELECT user,room,broker,plugin,pkey,value\n")
 	q.WriteString("FROM prefs\n")
 
 	// TODO: maybe it's silly to make it easy for Find() to get all preferences
@@ -342,7 +318,7 @@ func (p Pref) Find() Prefs {
 
 	for rows.Next() {
 		row := Pref{}
-		err = rows.Scan(&row.User, &row.Channel, &row.Broker, &row.Plugin, &row.Key, &row.Value)
+		err = rows.Scan(&row.User, &row.Room, &row.Broker, &row.Plugin, &row.Key, &row.Value)
 		// improbable in practice - follows previously mentioned conventions for errors
 		if err != nil {
 			log.Printf("Fetching a row failed: %s\n", err)
@@ -374,13 +350,13 @@ func (prefs Prefs) User(user string) Prefs {
 	return out
 }
 
-// Channel filters the preference list by channel, returning a new Prefs
-// e.g. instprefs = prefs.Channel("magrathea").Plugin("uptime").Broker("slack")
-func (prefs Prefs) Channel(channel string) Prefs {
+// Room filters the preference list by room, returning a new Prefs
+// e.g. instprefs = prefs.Room("magrathea").Plugin("uptime").Broker("slack")
+func (prefs Prefs) Room(room string) Prefs {
 	out := make(Prefs, 0)
 
 	for _, pref := range prefs {
-		if pref.Channel == channel {
+		if pref.Room == room {
 			out = append(out, pref)
 		}
 	}
@@ -417,12 +393,12 @@ func (prefs Prefs) Plugin(plugin string) Prefs {
 // ready to hand off to e.g. hal.AsciiTable()
 func (prefs Prefs) Table() [][]string {
 	out := make([][]string, 1)
-	out[0] = []string{"User", "Channel", "Broker", "Plugin", "Key", "Value"}
+	out[0] = []string{"User", "Room", "Broker", "Plugin", "Key", "Value"}
 
 	for _, pref := range prefs {
 		m := []string{
 			pref.User,
-			pref.Channel,
+			pref.Room,
 			pref.Broker,
 			pref.Plugin,
 			pref.Key,
@@ -438,7 +414,7 @@ func (prefs Prefs) Table() [][]string {
 func (p *Pref) String() string {
 	return fmt.Sprintf(`Pref{
 	User:    %q,
-	Channel: %q,
+	Room:    %q,
 	Broker:  %q,
 	Plugin:  %q,
 	Key:     %q,
@@ -446,7 +422,7 @@ func (p *Pref) String() string {
 	Default: %q,
 	Success: %t,
 	Error:   %v,
-}`, p.User, p.Channel, p.Broker, p.Plugin, p.Key, p.Value, p.Default, p.Success, p.Error)
+}`, p.User, p.Room, p.Broker, p.Plugin, p.Key, p.Value, p.Default, p.Success, p.Error)
 
 }
 

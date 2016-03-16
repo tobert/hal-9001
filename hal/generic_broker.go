@@ -32,7 +32,7 @@ func (gb GenericBroker) Stream(out chan *Evt) {
 }
 
 // required by interface
-func (gb GenericBroker) ChannelIdToName(in string) string { return in }
-func (gb GenericBroker) ChannelNameToId(in string) string { return in }
-func (gb GenericBroker) UserIdToName(in string) string    { return in }
-func (gb GenericBroker) UserNameToId(in string) string    { return in }
+func (gb GenericBroker) RoomIdToName(in string) string { return in }
+func (gb GenericBroker) RoomNameToId(in string) string { return in }
+func (gb GenericBroker) UserIdToName(in string) string { return in }
+func (gb GenericBroker) UserNameToId(in string) string { return in }

@@ -59,7 +59,7 @@ func prefmgr(evt hal.Evt) {
 
 	channelFlag := cli.StringFlag{
 		Name:        "channel",
-		Destination: &flags.Channel,
+		Destination: &flags.Room,
 		Usage:       "select only prefs for the provided channel",
 	}
 

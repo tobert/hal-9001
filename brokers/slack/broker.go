@@ -20,7 +20,7 @@ type Broker struct {
 	i2c     map[string]string // id->name cache
 	u2i     map[string]string // name->id cache
 	c2i     map[string]string // name->id cache
-	idRegex *regexp.Regexp    // compiled RE to match user/channel ids
+	idRegex *regexp.Regexp    // compiled RE to match user/room ids
 }
 
 type Config struct {
@@ -45,7 +45,7 @@ func (c Config) NewBroker(name string) Broker {
 
 	// fill the caches at startup to cut down on API requests
 	sb.FillUserCache()
-	sb.FillChannelCache()
+	sb.FillRoomCache()
 
 	go rtm.ManageConnection()
 
@@ -58,28 +58,17 @@ func (sb Broker) Name() string {
 }
 
 func (sb Broker) Send(evt hal.Evt) {
-	// make sure the channel is an ID and not the name
-	// TODO: go through plugins, etc and see if there's a sane way to make the ID persist through
-	// the system and have the name only resolve in and out of the genericbroker and in plugins
-	// but probably not ... this should be fine
-	var channel string
-	if sb.idRegex.MatchString(evt.Channel) {
-		channel = evt.Channel
-	} else {
-		channel = sb.ChannelNameToId(evt.Channel)
-	}
-
-	om := sb.RTM.NewOutgoingMessage(evt.Body, channel)
+	om := sb.RTM.NewOutgoingMessage(evt.Body, evt.RoomId)
 	sb.RTM.SendMessage(om)
 }
 
-// checks the cache to see if the channel is known to this broker
-func (sb Broker) HasChannel(channel string) bool {
-	if sb.idRegex.MatchString(channel) {
-		_, exists := sb.i2c[channel]
+// checks the cache to see if the room is known to this broker
+func (sb Broker) HasRoom(room string) bool {
+	if sb.idRegex.MatchString(room) {
+		_, exists := sb.i2c[room]
 		return exists
 	} else {
-		_, exists := sb.c2i[channel]
+		_, exists := sb.c2i[room]
 		return exists
 	}
 }
@@ -100,12 +89,13 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 
 			case *slack.MessageEvent:
 				m := msg.Data.(*slack.MessageEvent)
+				// slack channels = hal rooms, see hal-9001/hal/event.go
 				e := hal.Evt{
 					Body:      m.Text,
-					Channel:   sb.ChannelIdToName(m.Channel),
-					ChannelId: m.Channel,
-					From:      sb.UserIdToName(m.User),
-					FromId:    m.User,
+					Room:      sb.RoomIdToName(m.Channel),
+					RoomId:    m.Channel,
+					User:      sb.UserIdToName(m.User),
+					UserId:    m.User,
 					Broker:    sb,
 					Time:      slackTime(m.Timestamp),
 					IsGeneric: true,
@@ -120,10 +110,10 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 
 				e := hal.Evt{
 					Body:      fmt.Sprintf("%q added a star", user),
-					Channel:   sb.ChannelIdToName(sae.Item.Channel),
-					ChannelId: sae.Item.Channel,
-					From:      user,
-					FromId:    sae.User,
+					Room:      sb.RoomIdToName(sae.Item.Channel),
+					RoomId:    sae.Item.Channel,
+					User:      user,
+					UserId:    sae.User,
 					Broker:    sb,
 					Time:      slackTime(sae.EventTimestamp),
 					IsGeneric: false, // only available to slack-aware plugins
@@ -138,10 +128,10 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 
 				e := hal.Evt{
 					Body:      fmt.Sprintf("%q removed a star", user),
-					Channel:   sb.ChannelIdToName(sre.Item.Channel),
-					ChannelId: sre.Item.Channel,
-					From:      user,
-					FromId:    sre.User,
+					Room:      sb.RoomIdToName(sre.Item.Channel),
+					RoomId:    sre.Item.Channel,
+					User:      user,
+					UserId:    sre.User,
 					Broker:    sb,
 					Time:      slackTime(sre.EventTimestamp),
 					IsGeneric: false, // only available to slack-aware plugins
@@ -156,10 +146,10 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 
 				e := hal.Evt{
 					Body:      fmt.Sprintf("%q added reaction %q", user, rae.Reaction),
-					Channel:   sb.ChannelIdToName(rae.Item.Channel),
-					ChannelId: rae.Item.Channel,
-					From:      user,
-					FromId:    rae.User,
+					Room:      sb.RoomIdToName(rae.Item.Channel),
+					RoomId:    rae.Item.Channel,
+					User:      user,
+					UserId:    rae.User,
 					Broker:    sb,
 					Time:      slackTime(rae.EventTimestamp),
 					IsGeneric: false, // only available to slack-aware plugins
@@ -174,10 +164,10 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 
 				e := hal.Evt{
 					Body:      fmt.Sprintf("%q removed reaction %q", user, rre.Reaction),
-					Channel:   sb.ChannelIdToName(rre.Item.Channel),
-					ChannelId: rre.Item.Channel,
-					From:      user,
-					FromId:    rre.User,
+					Room:      sb.RoomIdToName(rre.Item.Channel),
+					RoomId:    rre.Item.Channel,
+					User:      user,
+					UserId:    rre.User,
 					Broker:    sb,
 					Time:      slackTime(rre.EventTimestamp),
 					IsGeneric: false, // only available to slack-aware plugins
@@ -235,16 +225,16 @@ func (sb *Broker) FillUserCache() {
 	}
 }
 
-func (sb *Broker) FillChannelCache() {
-	channels, err := sb.Client.GetChannels(true)
+func (sb *Broker) FillRoomCache() {
+	rooms, err := sb.Client.GetChannels(true)
 	if err != nil {
-		log.Printf("brokers/slack failed to fetch channel list: %s", err)
+		log.Printf("brokers/slack failed to fetch room list: %s", err)
 		return
 	}
 
-	for _, channel := range channels {
-		sb.c2i[channel.Name] = channel.ID
-		sb.i2c[channel.ID] = channel.Name
+	for _, room := range rooms {
+		sb.c2i[room.Name] = room.ID
+		sb.i2c[room.ID] = room.Name
 	}
 }
 
@@ -265,7 +255,7 @@ func (sb Broker) UserIdToName(id string) string {
 			return ""
 		}
 
-		// TODO: verify if channel/user names are enforced unique in slack or if this is madness
+		// TODO: verify if room/user names are enforced unique in slack or if this is madness
 		// remove this if it proves unnecessary (tobert/2016-03-02)
 		if _, exists := sb.u2i[user.Name]; exists {
 			if sb.u2i[user.Name] != user.ID {
@@ -281,36 +271,36 @@ func (sb Broker) UserIdToName(id string) string {
 	}
 }
 
-// ChannelIdToName gets the human-readable channel name for a user ID using an
+// RoomIdToName gets the human-readable room name for a user ID using an
 // in-memory cache that falls through to the Slack API
-func (sb Broker) ChannelIdToName(id string) string {
+func (sb Broker) RoomIdToName(id string) string {
 	if id == "" {
-		log.Println("broker/slack/ChannelIdToName(): Cannot look up empty string!")
+		log.Println("broker/slack/RoomIdToName(): Cannot look up empty string!")
 		return ""
 	}
 
 	if name, exists := sb.i2c[id]; exists {
 		return name
 	} else {
-		channel, err := sb.Client.GetChannelInfo(id)
+		room, err := sb.Client.GetChannelInfo(id)
 		if err != nil {
-			log.Printf("brokers/slack could not retrieve channel info for '%s' via API: %s\n", id, err)
+			log.Printf("brokers/slack could not retrieve room info for '%s' via API: %s\n", id, err)
 			return ""
 		}
 
-		// TODO: verify if channel/user names are enforced unique in slack or if this is madness
+		// TODO: verify if room/user names are enforced unique in slack or if this is madness
 		// remove this if it proves unnecessary (tobert/2016-03-02)
-		if _, exists := sb.c2i[channel.Name]; exists {
-			if sb.c2i[channel.Name] != channel.ID {
-				log.Fatalf("BUG(brokers/slack): found a non-unique channel name:ID pair. Had: %q/%q. Got: %q/%q",
-					channel.Name, sb.c2i[channel.Name], channel.Name, channel.ID)
+		if _, exists := sb.c2i[room.Name]; exists {
+			if sb.c2i[room.Name] != room.ID {
+				log.Fatalf("BUG(brokers/slack): found a non-unique room name:ID pair. Had: %q/%q. Got: %q/%q",
+					room.Name, sb.c2i[room.Name], room.Name, room.ID)
 			}
 		}
 
-		sb.i2c[channel.ID] = channel.Name
-		sb.c2i[channel.Name] = channel.ID
+		sb.i2c[room.ID] = room.Name
+		sb.c2i[room.Name] = room.ID
 
-		return channel.Name
+		return room.Name
 	}
 }
 
@@ -337,23 +327,23 @@ func (sb Broker) UserNameToId(name string) string {
 	}
 }
 
-// ChannelNameToId gets the human-readable channel name for a user ID using an
+// RoomNameToId gets the human-readable room name for a user ID using an
 // in-memory cache that falls through to the Slack API
-func (sb Broker) ChannelNameToId(name string) string {
+func (sb Broker) RoomNameToId(name string) string {
 	if name == "" {
-		log.Println("broker/slack/ChannelNameToId(): Cannot look up empty string!")
+		log.Println("broker/slack/RoomNameToId(): Cannot look up empty string!")
 		return ""
 	}
 
 	if id, exists := sb.c2i[name]; exists {
 		return id
 	} else {
-		sb.FillChannelCache()
+		sb.FillRoomCache()
 		if id, exists := sb.c2i[name]; exists {
 			return id
 		}
 
-		log.Printf("brokers/slack service does not seem to have knowledge of channel name %q", name)
+		log.Printf("brokers/slack service does not seem to have knowledge of room name %q", name)
 		return ""
 	}
 }

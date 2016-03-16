@@ -29,13 +29,13 @@ type Plugin struct {
 	Secrets  []string        // required+autoloaded secret key names
 }
 
-// Instance is an instance of a plugin tied to a channel.
+// Instance is an instance of a plugin tied to a room.
 type Instance struct {
 	*Plugin
-	ChannelId string         // channel name
-	Regex     string         // a regex for filtering messages
-	Settings  []Pref         // runtime settings for the instance
-	regex     *regexp.Regexp // the compiled regex
+	RoomId   string         // room id
+	Regex    string         // a regex for filtering messages
+	Settings []Pref         // runtime settings for the instance
+	regex    *regexp.Regexp // the compiled regex
 }
 
 var pluginRegSingleton pluginRegistry
@@ -69,11 +69,11 @@ func (p *Plugin) Register() error {
 
 // Instance creates an instance of a plugin. It is *not* registered (and
 // therefore not considered by the router until that is done).
-func (p *Plugin) Instance(channelId string) *Instance {
+func (p *Plugin) Instance(roomId string) *Instance {
 	i := Instance{
-		Plugin:    p,
-		ChannelId: channelId,
-		Regex:     p.Regex,
+		Plugin: p,
+		RoomId: roomId,
+		Regex:  p.Regex,
 	}
 
 	return &i
@@ -103,8 +103,8 @@ func (inst *Instance) Register() error {
 	// pick it up on the next message it processes
 	pr.instances = append(pr.instances, inst)
 
-	log.Printf("Registered plugin '%s' in channel id '%s' with RE match '%s'",
-		inst.Name, inst.ChannelId, inst.regex)
+	log.Printf("Registered plugin '%s' in room id '%s' with RE match '%s'",
+		inst.Name, inst.RoomId, inst.regex)
 
 	return nil
 }
@@ -127,7 +127,7 @@ func (inst *Instance) Unregister() error {
 	// delete the instance from the list
 	pr.instances = append(pr.instances[:idx], pr.instances[idx+1:]...)
 
-	log.Printf("Unregistered plugin '%s' from channel id '%s'", inst.Name, inst.ChannelId)
+	log.Printf("Unregistered plugin '%s' from room id '%s'", inst.Name, inst.RoomId)
 
 	return nil
 }
@@ -206,15 +206,15 @@ func (pr *pluginRegistry) GetPlugin(name string) *Plugin {
 }
 
 // FindInstances returns the plugin instances that match the provided
-// channel id and plugin name.
-func (pr *pluginRegistry) FindInstances(channelId, plugin string) []*Instance {
+// room id and plugin name.
+func (pr *pluginRegistry) FindInstances(roomId, plugin string) []*Instance {
 	pr.mut.Lock()
 	defer pr.mut.Unlock()
 
 	out := make([]*Instance, 0)
 
 	for _, i := range pr.instances {
-		if i.Plugin.Name == plugin && i.ChannelId == channelId {
+		if i.Plugin.Name == plugin && i.RoomId == roomId {
 			out = append(out, i)
 		}
 	}
@@ -273,5 +273,5 @@ func (p *Plugin) String() string {
 }
 
 func (inst *Instance) String() string {
-	return fmt.Sprintf("%s/%s", inst.Name, inst.ChannelId)
+	return fmt.Sprintf("%s/%s", inst.Name, inst.RoomId)
 }

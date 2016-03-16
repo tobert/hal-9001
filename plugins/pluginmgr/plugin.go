@@ -21,13 +21,13 @@ const HELP = `
 Examples:
 !plugin list
 !plugin save
-!plugin attach <plugin> --channel <channel>
-!plugin attach --regex ^!foo <plugin> <channel>
-!plugin detach <plugin> <channel>
+!plugin attach <plugin> --room <room>
+!plugin attach --regex ^!foo <plugin> <room>
+!plugin detach <plugin> <room>
 
 e.g.
-!plugin attach uptime --channel CORE
-!plugin detach uptime --channel CORE
+!plugin attach uptime --room CORE
+!plugin detach uptime --room CORE
 !plugin save
 `
 
@@ -47,14 +47,14 @@ func Register(gb hal.GenericBroker) {
 
 func pluginmgr(evt hal.Evt) {
 	// expose plugin names as subcommands so users can do
-	// !plugin attach uptime --regex ^!up --channel CORE
+	// !plugin attach uptime --regex ^!up --room CORE
 	attachCmds := make([]cli.Command, 0)
 	detachCmds := make([]cli.Command, 0)
 
 	pr := hal.PluginRegistry()
 
 	for _, p := range pr.PluginList() {
-		var name, channel, regex string
+		var name, room, regex string
 		name = p.Name
 
 		attachCmd := cli.Command{
@@ -68,14 +68,14 @@ func pluginmgr(evt hal.Evt) {
 					Usage:       "set a regex filter to select messages to send the plugin, overriding the plugin default",
 				},
 				cli.StringFlag{
-					Name:        "channel",
-					Value:       evt.ChannelId, // default to the channel where the command originated
-					Destination: &channel,
-					Usage:       "the channel to attach the plugin to",
+					Name:        "room",
+					Value:       evt.RoomId, // default to the room where the command originated
+					Destination: &room,
+					Usage:       "the room to attach the plugin to",
 				},
 			},
 			Action: func(c *cli.Context) {
-				attachPlugin(c, &evt, channel, name, regex)
+				attachPlugin(c, &evt, room, name, regex)
 			},
 		}
 
@@ -86,14 +86,14 @@ func pluginmgr(evt hal.Evt) {
 			Usage: fmt.Sprintf("Attach the %s plugin.", p.Name),
 			Flags: []cli.Flag{
 				cli.StringFlag{
-					Name:        "channel",
-					Value:       evt.ChannelId, // default to the channel where the command originated
-					Destination: &channel,      // should be safe to use this again...
-					Usage:       "the channel to detach from",
+					Name:        "room",
+					Value:       evt.RoomId, // default to the room where the command originated
+					Destination: &room,      // should be safe to use this again...
+					Usage:       "the room to detach from",
 				},
 			},
 			Action: func(c *cli.Context) {
-				detachPlugin(c, &evt, channel, name)
+				detachPlugin(c, &evt, room, name)
 			},
 		}
 
@@ -140,14 +140,14 @@ func pluginmgr(evt hal.Evt) {
 		},
 		{
 			Name:        "attach",
-			Usage:       "attach a plugin to a channel (creates an instance)",
+			Usage:       "attach a plugin to a room (creates an instance)",
 			Subcommands: attachCmds, // composed above
 		},
-		// for now, plugins are restricted to one instance per channel to avoid having to
+		// for now, plugins are restricted to one instance per room to avoid having to
 		// generate and manage some kind of ID, which will probably get added later
 		{
 			Name:        "detach",
-			Usage:       "detach a plugin from a channel",
+			Usage:       "detach a plugin from a room",
 			Subcommands: detachCmds,
 		},
 	}
@@ -194,22 +194,22 @@ func savePlugins(c *cli.Context, evt *hal.Evt) {
 	}
 }
 
-func channelToId(evt *hal.Evt, channel string) string {
-	// the user may have provided --channel with a channel name
+func roomToId(evt *hal.Evt, room string) string {
+	// the user may have provided --room with a room name
 	// try to look it up against the broker to figure out which it is
-	channelId := evt.Broker.ChannelNameToId(channel)
-	if channelId == "" {
+	roomId := evt.Broker.RoomNameToId(room)
+	if roomId == "" {
 		// if it was an id already, we'll get a name and that proves it's an ID
-		channelName := evt.Broker.ChannelIdToName(channel)
-		if channelName != "" {
-			channelId = channel
+		roomName := evt.Broker.RoomIdToName(room)
+		if roomName != "" {
+			roomId = room
 		}
 	}
 
-	return channelId
+	return roomId
 }
 
-func attachPlugin(c *cli.Context, evt *hal.Evt, channel, pluginName, regex string) {
+func attachPlugin(c *cli.Context, evt *hal.Evt, room, pluginName, regex string) {
 	pr := hal.PluginRegistry()
 	plugin := pr.GetPlugin(pluginName)
 	if plugin == nil {
@@ -217,33 +217,33 @@ func attachPlugin(c *cli.Context, evt *hal.Evt, channel, pluginName, regex strin
 		return
 	}
 
-	channelId := channelToId(evt, channel)
-	inst := plugin.Instance(channelId)
-	inst.ChannelId = channelId
+	roomId := roomToId(evt, room)
+	inst := plugin.Instance(roomId)
+	inst.RoomId = roomId
 	inst.Regex = regex
 	err := inst.Register()
 	if err != nil {
-		evt.Replyf("Failed to launch plugin '%s' in channel id '%s': %s", plugin, channelId, err)
+		evt.Replyf("Failed to launch plugin '%s' in room id '%s': %s", plugin, roomId, err)
 
 	} else {
-		evt.Replyf("Launched an instance of plugin: '%s' in channel id '%s'", plugin, channelId)
+		evt.Replyf("Launched an instance of plugin: '%s' in room id '%s'", plugin, roomId)
 	}
 }
 
-func detachPlugin(c *cli.Context, evt *hal.Evt, channel, plugin string) {
+func detachPlugin(c *cli.Context, evt *hal.Evt, room, plugin string) {
 	pr := hal.PluginRegistry()
-	channelId := channelToId(evt, channel)
-	instances := pr.FindInstances(channelId, plugin)
+	roomId := roomToId(evt, room)
+	instances := pr.FindInstances(roomId, plugin)
 
 	// there should be only one, for now just log if that is not the case
 	if len(instances) > 1 {
 		log.Printf("FindInstances(%q, %q) returned %d instances. Expected 0 or 1.",
-			channel, plugin, len(instances))
+			room, plugin, len(instances))
 	}
 
 	for _, inst := range instances {
 		inst.Unregister()
-		evt.Replyf("%q/%q unregistered", channel, plugin)
+		evt.Replyf("%q/%q unregistered", room, plugin)
 	}
 }
 

@@ -31,7 +31,7 @@ func Router() *RouterCTX {
 	return &routerSingleton
 }
 
-// forward from one (go) channel to another
+// forward from one chan to another
 // TODO: figure out if this needs to check for closed channels, etc.
 func forward(from, to chan *Evt) {
 	for {
@@ -125,7 +125,7 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 		ibname := inst.Broker.Name()
 		pname = inst.Plugin.Name // recovery handler ^ will pick this up in a panic
 
-		// a plugin instance matches on broker, channel, and regex
+		// a plugin instance matches on broker, room, and regex
 		// first, check if the instance is attached to a specific broker or generic
 		if ibname != evt.Broker.Name() && ibname != gBroker.Name() {
 			continue
@@ -137,8 +137,8 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 			continue
 		}
 
-		// check if it's the correct channel
-		if evt.ChannelId != inst.ChannelId {
+		// check if it's the correct room
+		if evt.RoomId != inst.RoomId {
 			continue
 		}
 
