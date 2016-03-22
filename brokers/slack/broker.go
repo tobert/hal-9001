@@ -159,7 +159,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				out <- &e
 
 			case *slack.ReactionRemovedEvent:
-				rre := msg.Data.(*slack.ReactionAddedEvent)
+				rre := msg.Data.(*slack.ReactionRemovedEvent)
 				user := sb.UserIdToName(rre.User)
 
 				e := hal.Evt{
