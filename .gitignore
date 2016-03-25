@@ -28,5 +28,7 @@ _testmain.go
 
 *.swp
 
-example/example
+example/everything/everything
+example/minimal/minimal
+example/repl/repl
 plugins/*/console/console
