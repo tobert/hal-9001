@@ -33,7 +33,7 @@ func (e *Evt) Clone() Evt {
 		User:    e.User,
 		UserId:  e.UserId,
 		Time:    time.Now(),
-		Brokers: e.Brokers.Clone(),
+		Brokers: e.Brokers.Clone(), // TODO: consider reverting this back to just a single Broker:
 	}
 
 	return out
