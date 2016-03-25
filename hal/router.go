@@ -16,6 +16,11 @@ type RouterCTX struct {
 	init    sync.Once
 }
 
+type fwdBroker struct {
+	from Broker
+	to   Broker
+}
+
 var routerSingleton RouterCTX
 
 // Router returns the singleton router context. The router is initialized
@@ -31,9 +36,9 @@ func Router() *RouterCTX {
 	return &routerSingleton
 }
 
-// forward from one chan to another
+// forwardChan forwards events from one chan of to another.
 // TODO: figure out if this needs to check for closed channels, etc.
-func forward(from, to chan *Evt) {
+func forwardChan(from, to chan *Evt) {
 	for {
 		select {
 		case evt := <-from:
@@ -58,7 +63,7 @@ func (r *RouterCTX) AddBroker(b Broker) {
 	go b.Stream(b2r)
 
 	// forward events from the broker to the router's input channel
-	go forward(b2r, r.in)
+	go forwardChan(b2r, r.in)
 
 	r.brokers[b.Name()] = b
 }
@@ -76,28 +81,33 @@ func (r *RouterCTX) GetBroker(name string) Broker {
 }
 
 // Brokers returns all brokers that have been added to the router.
-func (r *RouterCTX) Brokers() []Broker {
+// The returned list is not in any particular order.
+func (r *RouterCTX) Brokers() Brokers {
 	r.mut.Lock()
 	defer r.mut.Unlock()
 
-	out := make([]Broker, 0)
+	out := make(Brokers, len(r.brokers))
+	i := 0
 	for _, b := range r.brokers {
-		out = append(out, b)
+		out[i] = b
+		i++
 	}
 
 	return out
 }
 
-// Route is the main method for the router. It blocks and should be run in a goroutine
-// exactly once.
+// Route is the main method for the router. It blocks and should be run in a
+// goroutine exactly once. Running more than one router in the same process
+// will result in shenanigans.
 func (r *RouterCTX) Route() {
 	for {
 		select {
 		case evt := <-r.in:
-			if evt.Broker == nil {
-				panic("BUG: received event with nil Broker. This breaks all the things!")
+			if len(evt.Brokers) == 0 {
+				panic("BUG: received event with no Brokers. This breaks all the things!")
 			}
 
+			// events are processed concurrently, plugins are not
 			go r.processEvent(evt)
 		}
 	}
@@ -122,20 +132,9 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 	}()
 
 	for _, inst := range instances {
-		ibname := inst.Broker.Name()
 		pname = inst.Plugin.Name // recovery handler ^ will pick this up in a panic
 
-		// a plugin instance matches on broker, room, and regex
-		// first, check if the instance is attached to a specific broker or generic
-		if ibname != evt.Broker.Name() && ibname != gBroker.Name() {
-			continue
-		}
-
-		// if this is a generic broker instance and the event is marked as not
-		// generic, skip it
-		if ibname == gBroker.Name() && !evt.IsGeneric {
-			continue
-		}
+		// TODO: verify that things are still sane after having removed the broker checking code
 
 		// check if it's the correct room
 		if evt.RoomId != inst.RoomId {

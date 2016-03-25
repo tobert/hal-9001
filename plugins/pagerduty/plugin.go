@@ -10,11 +10,11 @@ import (
 	"github.com/netflix/hal-9001/hal"
 )
 
-func Register(gb hal.GenericBroker) {
+func Register(broker hal.Broker) {
 	pg := hal.Plugin{
 		Name:   "page",
 		Func:   page,
-		Broker: gb,
+		Broker: broker,
 		Regex:  "^[[:space:]]*!page",
 	}
 	pg.Register()
@@ -22,7 +22,7 @@ func Register(gb hal.GenericBroker) {
 	oc := hal.Plugin{
 		Name:   "oncall",
 		Func:   oncall,
-		Broker: gb,
+		Broker: broker,
 		Regex:  "^[[:space:]]*!oncall",
 	}
 	oc.Register()

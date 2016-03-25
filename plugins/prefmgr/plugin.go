@@ -18,12 +18,12 @@ const HELP = `Listing keys with no filter will list all keys visible to the acti
 !prefs list --user USER --chan CHANNEL --plugin PLUGIN --key KEY --def DEFAULT
 `
 
-func Register(gb hal.GenericBroker) {
+func Register(broker hal.Broker) {
 	plugin := hal.Plugin{
 		Name:   NAME,
 		Func:   prefmgr,
 		Regex:  "^!prefs",
-		Broker: gb,
+		Broker: broker,
 	}
 	plugin.Register()
 

@@ -32,12 +32,12 @@ e.g.
 `
 
 // Register makes this plugin available to the system.
-func Register(gb hal.GenericBroker) {
+func Register(broker hal.Broker) {
 	plugin := hal.Plugin{
 		Name:   NAME,
 		Func:   pluginmgr,
 		Regex:  "^!plugin",
-		Broker: gb,
+		Broker: broker,
 	}
 
 	plugin.Register()
@@ -196,17 +196,22 @@ func savePlugins(c *cli.Context, evt *hal.Evt) {
 
 func roomToId(evt *hal.Evt, room string) string {
 	// the user may have provided --room with a room name
-	// try to look it up against the broker to figure out which it is
-	roomId := evt.Broker.RoomNameToId(room)
-	if roomId == "" {
-		// if it was an id already, we'll get a name and that proves it's an ID
-		roomName := evt.Broker.RoomIdToName(room)
-		if roomName != "" {
-			roomId = room
+	// try to look it up against the brokers to figure out which it is
+	for _, b := range evt.Brokers {
+		roomId := b.RoomNameToId(room)
+
+		// ignore brokers that don't know about ids
+		if roomId == "" {
+			continue
+		} else {
+			return roomId
 		}
 	}
 
-	return roomId
+	// none of the brokers have returned a room id, so it's probably
+	// a broker that doesn't have them and it's ok to just use the
+	// room name
+	return room
 }
 
 func attachPlugin(c *cli.Context, evt *hal.Evt, room, pluginName, regex string) {

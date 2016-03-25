@@ -13,29 +13,27 @@ import (
 // isn't copied, at a minimum.
 // The original event should usually be attached to the Original
 type Evt struct {
-	Body      string      `json:"body"`       // body of the event, regardless of source
-	Room      string      `json:"room"`       // the room where the event originated
-	RoomId    string      `json:"room_id"`    // the room id from the source broker
-	User      string      `json:"user"`       // the username that created the event
-	UserId    string      `json:"user_id"`    // the user id from the source broker
-	Time      time.Time   `json:"time"`       // timestamp of the event
-	Broker    Broker      `json:"broker"`     // the broker origin of the event
-	IsGeneric bool        `json:"is_generic"` // true if evt should be published to GenericBroker
-	Original  interface{} // the original message container (e.g. slack.MessageEvent)
-	instance  *Instance   // used by the broker to provide plugin instance metadata
+	Body     string      `json:"body"`    // body of the event, regardless of source
+	Room     string      `json:"room"`    // the room where the event originated
+	RoomId   string      `json:"room_id"` // the room id from the source broker
+	User     string      `json:"user"`    // the username that created the event
+	UserId   string      `json:"user_id"` // the user id from the source broker
+	Time     time.Time   `json:"time"`    // timestamp of the event
+	Brokers  Brokers     `json:"brokers"` // the stack of brokers the event has passed through
+	Original interface{} // the original message container (e.g. slack.MessageEvent)
+	instance *Instance   // used by the broker to provide plugin instance metadata
 }
 
 // Clone() returns a copy of the event with the same broker/room/user
 // and a current timestamp. Body and Original will be empty.
 func (e *Evt) Clone() Evt {
 	out := Evt{
-		Room:      e.Room,
-		RoomId:    e.RoomId,
-		User:      e.User,
-		UserId:    e.UserId,
-		Time:      time.Now(),
-		Broker:    e.Broker,
-		IsGeneric: e.IsGeneric,
+		Room:    e.Room,
+		RoomId:  e.RoomId,
+		User:    e.User,
+		UserId:  e.UserId,
+		Time:    time.Now(),
+		Brokers: e.Brokers.Clone(),
 	}
 
 	return out
@@ -46,7 +44,7 @@ func (e *Evt) Clone() Evt {
 func (e *Evt) Reply(msg string) {
 	out := e.Clone()
 	out.Body = msg
-	e.Broker.Send(out)
+	e.Brokers.Last().Send(out)
 }
 
 // Replyf is the same as Reply but allows for string formatting using
@@ -55,23 +53,23 @@ func (e *Evt) Replyf(msg string, a ...interface{}) {
 	e.Reply(fmt.Sprintf(msg, a...))
 }
 
-// BrokerName returns the text name of the broker.
+// BrokerName returns the text name of current broker.
 func (e *Evt) BrokerName() string {
-	return e.Broker.Name()
+	return e.Brokers.Last().Name()
 }
 
 // fetch union of all matching settings from the database
 // for user, broker, room, and plugin
 // Plugins can use the Prefs methods to filter from there.
 func (e *Evt) FindPrefs() Prefs {
-	broker := e.Broker.Name()
+	broker := e.Brokers.Last().Name()
 	plugin := e.instance.Plugin.Name
 	return FindPrefs(e.User, broker, e.Room, plugin, "")
 }
 
 // gets the plugin instance's preferences
 func (e *Evt) InstanceSettings() []Pref {
-	broker := e.Broker.Name()
+	broker := e.Brokers.Last().Name()
 	plugin := e.instance.Plugin.Name
 
 	out := make([]Pref, 0)
@@ -95,7 +93,7 @@ func (e *Evt) NewPref() Pref {
 	return Pref{
 		User:   e.User,
 		Room:   e.Room,
-		Broker: e.Broker.Name(),
+		Broker: e.Brokers.Last().Name(),
 		Plugin: e.instance.Plugin.Name,
 	}
 }

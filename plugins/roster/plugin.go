@@ -26,14 +26,14 @@ CREATE TABLE IF NOT EXISTS roster (
 	PRIMARY KEY (broker, user, room)
 )`
 
-func Register(gb hal.GenericBroker) {
+func Register(broker hal.Broker) {
 	// rostertracker gets all messages and keeps a database of when users
 	// were last seen to support !last, and the web roster.
 	roster := hal.Plugin{
 		Name:   "roster_tracker",
 		Func:   rostertracker,
 		Regex:  "",
-		Broker: gb,
+		Broker: broker,
 	}
 	roster.Register()
 
@@ -41,7 +41,7 @@ func Register(gb hal.GenericBroker) {
 		Name:   "roster_command",
 		Func:   rosterlast,
 		Regex:  "!last",
-		Broker: gb,
+		Broker: broker,
 	}
 	rostercmd.Register()
 
@@ -62,8 +62,8 @@ func rostertracker(msg hal.Evt) {
 	        UPDATE broker=?, user=?, room=?, ts=?`
 
 	params := []interface{}{
-		msg.Broker.Name(), msg.User, msg.Room, msg.Time,
-		msg.Broker.Name(), msg.User, msg.Room, msg.Time,
+		msg.BrokerName(), msg.User, msg.Room, msg.Time,
+		msg.BrokerName(), msg.User, msg.Room, msg.Time,
 	}
 
 	_, err := db.Exec(sql, params...)

@@ -12,6 +12,8 @@ import (
 )
 
 // Broker interacts with the slack service.
+// TODO: consider using the hal.Cache() for [iuc]2[iuc]
+// TODO: add a miss cache to avoid hammering the room/user info apis
 type Broker struct {
 	Client  *slack.Client     // slack API object
 	RTM     *slack.RTM        // slack RTM object
@@ -58,6 +60,12 @@ func (sb Broker) Name() string {
 }
 
 func (sb Broker) Send(evt hal.Evt) {
+	// sender may or may not have specified the broker, make sure
+	// this one is the last on the stack and if not, add it
+	if evt.BrokerName() != sb.inst {
+		evt.Brokers.Push(sb)
+	}
+
 	om := sb.RTM.NewOutgoingMessage(evt.Body, evt.RoomId)
 	sb.RTM.SendMessage(om)
 }
@@ -91,15 +99,14 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				m := msg.Data.(*slack.MessageEvent)
 				// slack channels = hal rooms, see hal-9001/hal/event.go
 				e := hal.Evt{
-					Body:      m.Text,
-					Room:      sb.RoomIdToName(m.Channel),
-					RoomId:    m.Channel,
-					User:      sb.UserIdToName(m.User),
-					UserId:    m.User,
-					Broker:    sb,
-					Time:      slackTime(m.Timestamp),
-					IsGeneric: true,
-					Original:  m,
+					Body:     m.Text,
+					Room:     sb.RoomIdToName(m.Channel),
+					RoomId:   m.Channel,
+					User:     sb.UserIdToName(m.User),
+					UserId:   m.User,
+					Brokers:  hal.Brokers{sb},
+					Time:     slackTime(m.Timestamp),
+					Original: m,
 				}
 
 				out <- &e
@@ -109,15 +116,14 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				user := sb.UserIdToName(sae.User)
 
 				e := hal.Evt{
-					Body:      fmt.Sprintf("%q added a star", user),
-					Room:      sb.RoomIdToName(sae.Item.Channel),
-					RoomId:    sae.Item.Channel,
-					User:      user,
-					UserId:    sae.User,
-					Broker:    sb,
-					Time:      slackTime(sae.EventTimestamp),
-					IsGeneric: false, // only available to slack-aware plugins
-					Original:  sae,
+					Body:     fmt.Sprintf("%q added a star", user),
+					Room:     sb.RoomIdToName(sae.Item.Channel),
+					RoomId:   sae.Item.Channel,
+					User:     user,
+					UserId:   sae.User,
+					Brokers:  hal.Brokers{sb},
+					Time:     slackTime(sae.EventTimestamp),
+					Original: sae,
 				}
 
 				out <- &e
@@ -127,15 +133,14 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				user := sb.UserIdToName(sre.User)
 
 				e := hal.Evt{
-					Body:      fmt.Sprintf("%q removed a star", user),
-					Room:      sb.RoomIdToName(sre.Item.Channel),
-					RoomId:    sre.Item.Channel,
-					User:      user,
-					UserId:    sre.User,
-					Broker:    sb,
-					Time:      slackTime(sre.EventTimestamp),
-					IsGeneric: false, // only available to slack-aware plugins
-					Original:  sre,
+					Body:     fmt.Sprintf("%q removed a star", user),
+					Room:     sb.RoomIdToName(sre.Item.Channel),
+					RoomId:   sre.Item.Channel,
+					User:     user,
+					UserId:   sre.User,
+					Brokers:  hal.Brokers{sb},
+					Time:     slackTime(sre.EventTimestamp),
+					Original: sre,
 				}
 
 				out <- &e
@@ -145,15 +150,14 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				user := sb.UserIdToName(rae.User)
 
 				e := hal.Evt{
-					Body:      fmt.Sprintf("%q added reaction %q", user, rae.Reaction),
-					Room:      sb.RoomIdToName(rae.Item.Channel),
-					RoomId:    rae.Item.Channel,
-					User:      user,
-					UserId:    rae.User,
-					Broker:    sb,
-					Time:      slackTime(rae.EventTimestamp),
-					IsGeneric: false, // only available to slack-aware plugins
-					Original:  rae,
+					Body:     fmt.Sprintf("%q added reaction %q", user, rae.Reaction),
+					Room:     sb.RoomIdToName(rae.Item.Channel),
+					RoomId:   rae.Item.Channel,
+					User:     user,
+					UserId:   rae.User,
+					Brokers:  hal.Brokers{sb},
+					Time:     slackTime(rae.EventTimestamp),
+					Original: rae,
 				}
 
 				out <- &e
@@ -163,15 +167,14 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				user := sb.UserIdToName(rre.User)
 
 				e := hal.Evt{
-					Body:      fmt.Sprintf("%q removed reaction %q", user, rre.Reaction),
-					Room:      sb.RoomIdToName(rre.Item.Channel),
-					RoomId:    rre.Item.Channel,
-					User:      user,
-					UserId:    rre.User,
-					Broker:    sb,
-					Time:      slackTime(rre.EventTimestamp),
-					IsGeneric: false, // only available to slack-aware plugins
-					Original:  rre,
+					Body:     fmt.Sprintf("%q removed reaction %q", user, rre.Reaction),
+					Room:     sb.RoomIdToName(rre.Item.Channel),
+					RoomId:   rre.Item.Channel,
+					User:     user,
+					UserId:   rre.User,
+					Brokers:  hal.Brokers{sb},
+					Time:     slackTime(rre.EventTimestamp),
+					Original: rre,
 				}
 
 				out <- &e

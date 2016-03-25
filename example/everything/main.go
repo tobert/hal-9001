@@ -66,35 +66,6 @@ func main() {
 	// update the DSN again since the database might have a stale copy
 	secrets.Set(hal.SECRETS_KEY_DSN, dsn)
 
-	// the generic broker is virtual and built into hal
-	// if you only care about one broker you can ignore it but many of the
-	// builtin plugins rely on it and will have to be converted (easy though)
-	gbroker := hal.GetGenericBroker()
-
-	// plugins are registered at startup but not bound to any events
-	// until they are activated/instantiated at runtime
-	// These plugins are generic and can be attached to any room / any time.
-	autoresponder.Register(gbroker)
-	pagerduty.Register(gbroker)
-	pluginmgr.Register(gbroker)
-	prefmgr.Register(gbroker)
-	roster.Register(gbroker)
-	uptime.Register(gbroker)
-
-	// load any previously configured plugin instances from the database
-	pr := hal.PluginRegistry()
-	pr.LoadInstances()
-
-	// pluginmgr is needed to set up all the other plugins
-	// so if it's not present, initialize it manually just this once
-	// alternatively, you could poke config straight into the DB
-	// TODO: remove the hard-coded room name or make it configurable
-	if len(pr.FindInstances(controlRoom, "pluginmgr")) == 0 {
-		mgr := pr.GetPlugin("pluginmgr")
-		mgrInst := mgr.Instance(controlRoom)
-		mgrInst.Register()
-	}
-
 	// configure the Hipchat broker
 	hconf := hipchat.Config{
 		Host:     hipchat.HIPCHAT_HOST, // TODO: not really configurable yet
@@ -114,27 +85,55 @@ func main() {
 	}
 	slk := sconf.NewBroker("slack")
 
-	// the archive plugin uses the Slack API to record stars and reactions
-	archive.Register(slk)
-
 	// bind the slack and hipchat plugins to the router
 	// the generic broker gets copies of all the events these emit
 	router := hal.Router()
 	router.AddBroker(hc)
 	router.AddBroker(slk)
 
+	// Register plugins that are generic and can be attached to any broker.
+	// Plugin registration makes them available to the bot but does not
+	// activate them. That needs to be done separately.
+	for _, broker := range router.Brokers() {
+		autoresponder.Register(broker)
+		pagerduty.Register(broker)
+		pluginmgr.Register(broker)
+		prefmgr.Register(broker)
+		roster.Register(broker)
+		uptime.Register(broker)
+	}
+
+	// the archive plugin uses the Slack API to record stars and reactions
+	// and only works with the Slack broker
+	archive.Register(slk)
+
 	// start up the router goroutine
 	go router.Route()
+
+	// load any previously configured plugin instances from the database
+	pr := hal.PluginRegistry()
+	pr.LoadInstances()
+
+	// pluginmgr is needed to set up all the other plugins
+	// so if it's not present, initialize it manually just this once
+	// alternatively, you could poke config straight into the DB
+	// TODO: remove the hard-coded room name or make it configurable
+	if len(pr.FindInstances(controlRoom, "pluginmgr")) == 0 {
+		mgr := pr.GetPlugin("pluginmgr")
+		mgrInst := mgr.Instance(controlRoom)
+		mgrInst.Register()
+	}
 
 	// temporary ... (2016-03-02)
 	// TODO: remove this or make it permanent by using the same method as
 	// the pluginmgr bootstrap above to set the room name, etc.
-	slk.Send(hal.Evt{
-		Body:   "Ohai! HAL-9001 up and running.",
-		Room:   controlRoom,
-		User:   "HAL-9001",
-		Broker: slk,
-	})
+	for _, broker := range router.Brokers() {
+		broker.Send(hal.Evt{
+			Body: "Ohai! HAL-9001 up and running.",
+			Room: controlRoom,
+			User: "HAL-9001",
+		})
+	}
 
 	// start the webserver - some plugins register handlers to the default
 	// net/http router. This makes them available. Remove this if you don't
