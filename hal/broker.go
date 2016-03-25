@@ -16,6 +16,9 @@ type BrokerConfig interface {
 	NewBroker(name string) Broker
 }
 
+// TODO: consider reverting all this Broker stack stuff now that forwarding
+// has proven to be a bad idea (that led to a better one)
+
 // Brokers is a stack of brokers.
 type Brokers []Broker
 
