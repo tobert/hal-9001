@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	slackBroker "github.com/netflix/hal-9001/brokers/slack"
 	"github.com/netflix/hal-9001/hal"
 	"github.com/nlopes/slack"
 )
@@ -28,18 +27,16 @@ CREATE TABLE IF NOT EXISTS archive (
   PRIMARY KEY (ts,user,room)
 )`
 
-func Register(sb slackBroker.Broker) {
+func Register() {
 	archive := hal.Plugin{
-		Name:   "message_archive",
-		Func:   archiveRecorder,
-		Broker: sb,
+		Name: "message_archive",
+		Func: archiveRecorder,
 	}
 	archive.Register()
 
 	stars := hal.Plugin{
-		Name:   "slack_star_tracker",
-		Func:   slackArchiveStarAdded,
-		Broker: sb,
+		Name: "slack_star_tracker",
+		Func: slackArchiveStarAdded,
 	}
 	stars.Register()
 

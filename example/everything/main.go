@@ -86,26 +86,20 @@ func main() {
 	slk := sconf.NewBroker("slack")
 
 	// bind the slack and hipchat plugins to the router
-	// the generic broker gets copies of all the events these emit
 	router := hal.Router()
 	router.AddBroker(hc)
 	router.AddBroker(slk)
 
-	// Register plugins that are generic and can be attached to any broker.
 	// Plugin registration makes them available to the bot but does not
-	// activate them. That needs to be done separately.
-	for _, broker := range router.Brokers() {
-		autoresponder.Register(broker)
-		pagerduty.Register(broker)
-		pluginmgr.Register(broker)
-		prefmgr.Register(broker)
-		roster.Register(broker)
-		uptime.Register(broker)
-	}
-
-	// the archive plugin uses the Slack API to record stars and reactions
-	// and only works with the Slack broker
-	archive.Register(slk)
+	// activate them. That happens at runtime using e.g. pluginmgr or
+	// the plugin registry's LoadInstances() (used below)
+	archive.Register()
+	autoresponder.Register()
+	pagerduty.Register()
+	pluginmgr.Register()
+	prefmgr.Register()
+	roster.Register()
+	uptime.Register()
 
 	// start up the router goroutine
 	go router.Route()
@@ -118,10 +112,12 @@ func main() {
 	// so if it's not present, initialize it manually just this once
 	// alternatively, you could poke config straight into the DB
 	// TODO: remove the hard-coded room name or make it configurable
-	if len(pr.FindInstances(controlRoom, "pluginmgr")) == 0 {
-		mgr := pr.GetPlugin("pluginmgr")
-		mgrInst := mgr.Instance(controlRoom)
-		mgrInst.Register()
+	for _, broker := range router.Brokers() {
+		if len(pr.FindInstances(controlRoom, broker.Name(), "pluginmgr")) == 0 {
+			mgr := pr.GetPlugin("pluginmgr")
+			mgrInst := mgr.Instance(controlRoom, broker)
+			mgrInst.Register()
+		}
 	}
 
 	// temporary ... (2016-03-02)

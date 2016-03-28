@@ -22,7 +22,6 @@ CREATE TABLE IF NOT EXISTS plugin_instances (
 // each time.
 func (pr *pluginRegistry) LoadInstances() error {
 	log.Printf("Loading plugin instances to the database.")
-	defer func() { log.Printf("Done loading plugin instances.") }()
 
 	SqlInit(PLUGIN_INST_TABLE)
 
@@ -43,12 +42,23 @@ func (pr *pluginRegistry) LoadInstances() error {
 			return err
 		}
 
-		found := pr.FindInstances(pname, roomId)
+		// check to see if there is already a runtime instance, create it
+		// if it doesn't exist
+		found := pr.FindInstances(pname, bname, roomId)
 		if len(found) == 0 {
 			// instance is in the DB but not registered, do it now
 			plugin := pr.GetPlugin(pname)
+			if plugin == nil {
+				log.Printf("%q is configured in the database but is not registered. Ignoring.", pname)
+				continue
+			}
 
-			inst := plugin.Instance(roomId)
+			broker := Router().GetBroker(bname)
+			if broker == nil {
+				log.Fatalf("Broker %q does not exist.", bname)
+			}
+
+			inst := plugin.Instance(roomId, broker)
 			inst.Regex = re // RE can be overridden per instance
 
 			// go over the settings and pull preferences before firing up the instance
@@ -68,6 +78,8 @@ func (pr *pluginRegistry) LoadInstances() error {
 				pname, roomId)
 		}
 	}
+
+	log.Println("Done loading plugin instances.")
 
 	return nil
 }

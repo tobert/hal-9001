@@ -60,12 +60,6 @@ func (sb Broker) Name() string {
 }
 
 func (sb Broker) Send(evt hal.Evt) {
-	// sender may or may not have specified the broker, make sure
-	// this one is the last on the stack and if not, add it
-	if evt.BrokerName() != sb.inst {
-		evt.Brokers.Push(sb)
-	}
-
 	om := sb.RTM.NewOutgoingMessage(evt.Body, evt.RoomId)
 	sb.RTM.SendMessage(om)
 }
@@ -104,7 +98,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					RoomId:   m.Channel,
 					User:     sb.UserIdToName(m.User),
 					UserId:   m.User,
-					Brokers:  hal.Brokers{sb},
+					Broker:   sb,
 					Time:     slackTime(m.Timestamp),
 					Original: m,
 				}
@@ -121,7 +115,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					RoomId:   sae.Item.Channel,
 					User:     user,
 					UserId:   sae.User,
-					Brokers:  hal.Brokers{sb},
+					Broker:   sb,
 					Time:     slackTime(sae.EventTimestamp),
 					Original: sae,
 				}
@@ -138,7 +132,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					RoomId:   sre.Item.Channel,
 					User:     user,
 					UserId:   sre.User,
-					Brokers:  hal.Brokers{sb},
+					Broker:   sb,
 					Time:     slackTime(sre.EventTimestamp),
 					Original: sre,
 				}
@@ -155,7 +149,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					RoomId:   rae.Item.Channel,
 					User:     user,
 					UserId:   rae.User,
-					Brokers:  hal.Brokers{sb},
+					Broker:   sb,
 					Time:     slackTime(rae.EventTimestamp),
 					Original: rae,
 				}
@@ -172,7 +166,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					RoomId:   rre.Item.Channel,
 					User:     user,
 					UserId:   rre.User,
-					Brokers:  hal.Brokers{sb},
+					Broker:   sb,
 					Time:     slackTime(rre.EventTimestamp),
 					Original: rre,
 				}

@@ -15,12 +15,11 @@ func init() {
 	booted = time.Now()
 }
 
-func Register(broker hal.Broker) {
+func Register() {
 	p := hal.Plugin{
-		Name:   "uptime",
-		Func:   uptime,
-		Regex:  "^!uptime",
-		Broker: broker,
+		Name:  "uptime",
+		Func:  uptime,
+		Regex: "^!uptime",
 	}
 	p.Register()
 }

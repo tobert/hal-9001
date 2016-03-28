@@ -32,12 +32,11 @@ e.g.
 `
 
 // Register makes this plugin available to the system.
-func Register(broker hal.Broker) {
+func Register() {
 	plugin := hal.Plugin{
-		Name:   NAME,
-		Func:   pluginmgr,
-		Regex:  "^!plugin",
-		Broker: broker,
+		Name:  NAME,
+		Func:  pluginmgr,
+		Regex: "^!plugin",
 	}
 
 	plugin.Register()
@@ -196,21 +195,14 @@ func savePlugins(c *cli.Context, evt *hal.Evt) {
 
 func roomToId(evt *hal.Evt, room string) string {
 	// the user may have provided --room with a room name
-	// try to look it up against the brokers to figure out which it is
-	for _, b := range evt.Brokers {
-		roomId := b.RoomNameToId(room)
-
-		// ignore brokers that don't know about ids
+	// try to resolve a roomId with the broker, falling back to the name
+	if evt.Broker != nil {
+		roomId := evt.Broker.RoomNameToId(room)
 		if roomId == "" {
-			continue
-		} else {
-			return roomId
+			return room
 		}
 	}
 
-	// none of the brokers have returned a room id, so it's probably
-	// a broker that doesn't have them and it's ok to just use the
-	// room name
 	return room
 }
 
@@ -223,7 +215,7 @@ func attachPlugin(c *cli.Context, evt *hal.Evt, room, pluginName, regex string) 
 	}
 
 	roomId := roomToId(evt, room)
-	inst := plugin.Instance(roomId)
+	inst := plugin.Instance(roomId, evt.Broker)
 	inst.RoomId = roomId
 	inst.Regex = regex
 	err := inst.Register()
@@ -238,7 +230,7 @@ func attachPlugin(c *cli.Context, evt *hal.Evt, room, pluginName, regex string) 
 func detachPlugin(c *cli.Context, evt *hal.Evt, room, plugin string) {
 	pr := hal.PluginRegistry()
 	roomId := roomToId(evt, room)
-	instances := pr.FindInstances(roomId, plugin)
+	instances := pr.FindInstances(roomId, evt.BrokerName(), plugin)
 
 	// there should be only one, for now just log if that is not the case
 	if len(instances) > 1 {

@@ -35,20 +35,18 @@ CREATE TABLE IF NOT EXISTS blabberwords (
   PRIMARY KEY (word, user, room, next)
 )`
 
-func Register(gb hal.GenericBroker) {
+func Register() {
 	bw := hal.Plugin{
-		Name:   "blabberwords",
-		Func:   bwCounter,
-		Regex:  "",
-		Broker: gb,
+		Name:  "blabberwords",
+		Func:  bwCounter,
+		Regex: "",
 	}
 	bw.Register()
 
 	bb := hal.Plugin{
-		Name:   "blab",
-		Func:   blab,
-		Regex:  "^[[:space:]]*!blab",
-		Broker: gb,
+		Name:  "blab",
+		Func:  blab,
+		Regex: "^[[:space:]]*!blab",
 	}
 	bb.Register()
 

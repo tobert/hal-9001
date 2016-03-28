@@ -60,20 +60,16 @@ func init() {
 // make the plugin available for use at runtime. It can be called anything
 // you like, but most of the plugins call it Register().
 //
-// The GenericBroker receives messages from all brokers wired up to
-// hal. Plugins have to be associated with a broker at startup
-// so Register accepts a hal.Broker (interface) object that it
-// can use to create the plugin struct that is then registered with
-// the bot. If your plugin uses, e.g. Slack or Hipchat specific functionality,
-// use the specific broker and you won't have to deal with weird things
-// happening when messages come from an unsupported broker.
-func Register(gb *hal.GenericBroker) {
+// Plugins are not tied to a specific broker so if it is going to use
+// the evt.Original field, be careful about double-checking the type
+// of message or evt.Broker to make sure it's safe to use.
+func Register() {
 	p := hal.Plugin{
 		Name:   "uptime",
 		Func:   uptime,
 		Regex:  "^!uptime",
-		Broker: gb,
 	}
+
 	p.Register()
 }
 
@@ -96,13 +92,6 @@ to use database-specific features and avoid unncessarry abstractions or loss
 of power required to support other databases.
 
 Netflix runs its bot in AWS using Aurora with local testing against MariaDB.
-
-## Plugin/Broker boilerplate
-
-The amount of boilerplate in each plugin and broker is a little higher than
-some folks would like. This is a deliberate tradeoff. The additional data
-provided by the registration and configuration code allows Hal to lean on
-compile-time type checking and do online configuration (relatively) safely.
 
 ## missing tests & ubiquitous assertions
 

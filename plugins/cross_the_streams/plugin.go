@@ -8,12 +8,11 @@ import (
 )
 
 // Register makes this plugin available to the system.
-func Register(gb hal.GenericBroker) {
+func Register() {
 	plugin := hal.Plugin{
-		Name:   "cross_the_streams",
-		Func:   crossStreams,
-		Regex:  "", // get all messages
-		Broker: gb,
+		Name:  "cross_the_streams",
+		Func:  crossStreams,
+		Regex: "", // get all messages
 		Settings: map[string]string{
 			"from_broker": "", // the string name of the source broker
 			"to_broker":   "", // the string name of the destination broker
@@ -47,11 +46,11 @@ func crossStreams(evt hal.Evt) {
 				tb := router.GetBroker(to)
 				if tb != nil {
 					out := hal.Evt{
-						Body:    fmt.Sprintf("%s %s@%s: %s", evt.Time, evt.User, from, evt.Body),
-						Room: channel,
-						User:    evt.User, // ignored (for now)
-						Time:    evt.Time,
-						Broker:  tb,
+						Body:   fmt.Sprintf("%s %s@%s: %s", evt.Time, evt.User, from, evt.Body),
+						Room:   channel,
+						User:   evt.User, // ignored (for now)
+						Time:   evt.Time,
+						Broker: tb,
 					}
 					tb.Send(out)
 				}

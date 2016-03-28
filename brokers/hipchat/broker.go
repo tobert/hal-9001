@@ -76,12 +76,6 @@ func (hb Broker) Name() string {
 }
 
 func (hb Broker) Send(evt hal.Evt) {
-	// sender may or may not have specified the broker, make sure
-	// this one is the last on the stack and if not, add it
-	if evt.BrokerName() != hb.inst {
-		evt.Brokers.Push(hb)
-	}
-
 	remote := fmt.Sprintf("%s/%s", evt.RoomId, hb.RoomIdToName(evt.RoomId))
 
 	msg := xmpp.Chat{
@@ -166,7 +160,7 @@ func (hb Broker) Stream(out chan *hal.Evt) {
 					User:     parts[1],
 					UserId:   chat.Remote,
 					Time:     time.Now(), // m.Stamp seems to be zeroed
-					Brokers:  hal.Brokers{hb},
+					Broker:   hb,
 					Original: &chat,
 				}
 

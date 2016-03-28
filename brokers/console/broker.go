@@ -40,12 +40,6 @@ func (cb Broker) Name() string {
 }
 
 func (cb Broker) Send(e hal.Evt) {
-	// sender may or may not have specified the broker, make sure
-	// this one is the last on the stack and if not, add it
-	if e.BrokerName() != cb.Room {
-		e.Brokers.Push(cb)
-	}
-
 	cb.stdout <- fmt.Sprintf("%s/%s: %s\n", e.User, e.Room, e.Body)
 }
 
@@ -78,7 +72,7 @@ func (cb Broker) Stream(out chan *hal.Evt) {
 				RoomId:   cb.Room,
 				Body:     evt,
 				Time:     time.Now(),
-				Brokers:  hal.Brokers{cb},
+				Broker:   cb,
 				Original: &evt,
 			}
 

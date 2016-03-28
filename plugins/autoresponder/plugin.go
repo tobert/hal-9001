@@ -14,14 +14,13 @@ attention off hours, please page us with the !page command.`
 
 const DEFAULT_TZ = "America/Los_Angeles"
 
-func Register(broker hal.Broker) {
+func Register() {
 	p := hal.Plugin{
 		Name: NAME,
 		Func: autoresponder,
 		// match the starting < on Slack's mention messages but don't bother with
 		// the second half and keep the RE simple for now
-		Regex:  "<[!@](?i:all|here|core)\\W",
-		Broker: broker,
+		Regex: "<[!@](?i:all|here|core)\\W",
 	}
 
 	p.Register()

@@ -24,7 +24,6 @@ type Plugin struct {
 	Func     func(Evt)       // the code to execute for each matched event
 	Init     func(*Instance) // plugin hook called at instance creation time
 	Regex    string          // the default regex match
-	Broker   Broker          // the broker the plugin is tied to
 	Settings []Pref          // required+autoloaded preferences + defaults
 	Secrets  []string        // required+autoloaded secret key names
 }
@@ -33,6 +32,7 @@ type Plugin struct {
 type Instance struct {
 	*Plugin
 	RoomId   string         // room id
+	Broker   Broker         // the broker that produces events
 	Regex    string         // a regex for filtering messages
 	Settings []Pref         // runtime settings for the instance
 	regex    *regexp.Regexp // the compiled regex
@@ -69,10 +69,11 @@ func (p *Plugin) Register() error {
 
 // Instance creates an instance of a plugin. It is *not* registered (and
 // therefore not considered by the router until that is done).
-func (p *Plugin) Instance(roomId string) *Instance {
+func (p *Plugin) Instance(roomId string, broker Broker) *Instance {
 	i := Instance{
 		Plugin: p,
 		RoomId: roomId,
+		Broker: broker,
 		Regex:  p.Regex,
 	}
 
@@ -103,8 +104,8 @@ func (inst *Instance) Register() error {
 	// pick it up on the next message it processes
 	pr.instances = append(pr.instances, inst)
 
-	log.Printf("Registered plugin '%s' in room id '%s' with RE match '%s'",
-		inst.Name, inst.RoomId, inst.regex)
+	log.Printf("Registered plugin %q in room id %q on broker %q with RE match %q",
+		inst.Name, inst.RoomId, inst.Broker.Name(), inst.regex)
 
 	return nil
 }
@@ -140,12 +141,12 @@ func (inst *Instance) LoadSettingsFromPrefs() {
 	pr.mut.Lock()
 	defer pr.mut.Unlock()
 
-	pstgs := inst.Plugin.Settings
+	ips := inst.Plugin.Settings
 
 	// wipe the previous settings
-	inst.Settings = make([]Pref, len(pstgs))
+	inst.Settings = make([]Pref, len(ips))
 
-	for i, ppref := range pstgs {
+	for i, ppref := range ips {
 		ipref := ppref.Get()
 		inst.Settings[i] = ipref
 	}
@@ -161,10 +162,6 @@ func (inst *Instance) SaveSettingsToPrefs() {
 	for _, ipref := range inst.Settings {
 		ipref.Set()
 	}
-}
-
-func (inst *Instance) BrokerName() string {
-	return inst.Broker.Name()
 }
 
 // PluginList returns a snapshot of the plugin list at call time.
@@ -206,15 +203,15 @@ func (pr *pluginRegistry) GetPlugin(name string) *Plugin {
 }
 
 // FindInstances returns the plugin instances that match the provided
-// room id and plugin name.
-func (pr *pluginRegistry) FindInstances(roomId, plugin string) []*Instance {
+// room id, broker, and plugin name.
+func (pr *pluginRegistry) FindInstances(roomId, bname, plugin string) []*Instance {
 	pr.mut.Lock()
 	defer pr.mut.Unlock()
 
 	out := make([]*Instance, 0)
 
 	for _, i := range pr.instances {
-		if i.Plugin.Name == plugin && i.RoomId == roomId {
+		if i.Plugin.Name == plugin && i.Broker.Name() == bname && i.RoomId == roomId {
 			out = append(out, i)
 		}
 	}

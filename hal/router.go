@@ -82,11 +82,11 @@ func (r *RouterCTX) GetBroker(name string) Broker {
 
 // Brokers returns all brokers that have been added to the router.
 // The returned list is not in any particular order.
-func (r *RouterCTX) Brokers() Brokers {
+func (r *RouterCTX) Brokers() []Broker {
 	r.mut.Lock()
 	defer r.mut.Unlock()
 
-	out := make(Brokers, len(r.brokers))
+	out := make([]Broker, len(r.brokers))
 	i := 0
 	for _, b := range r.brokers {
 		out[i] = b
@@ -103,10 +103,6 @@ func (r *RouterCTX) Route() {
 	for {
 		select {
 		case evt := <-r.in:
-			if len(evt.Brokers) == 0 {
-				panic("BUG: received event with no Brokers. This breaks all the things!")
-			}
-
 			// events are processed concurrently, plugins are not
 			go r.processEvent(evt)
 		}
@@ -132,9 +128,9 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 	}()
 
 	for _, inst := range instances {
-		pname = inst.Plugin.Name // recovery handler ^ will pick this up in a panic
-
-		// TODO: verify that things are still sane after having removed the broker checking code
+		// the recovery handler will pick this up in a panic to provide
+		// the name of the plugin that caused the panic
+		pname = inst.Plugin.Name
 
 		// check if it's the correct room
 		if evt.RoomId != inst.RoomId {

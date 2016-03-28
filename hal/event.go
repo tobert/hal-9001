@@ -19,7 +19,7 @@ type Evt struct {
 	User     string      `json:"user"`    // the username that created the event
 	UserId   string      `json:"user_id"` // the user id from the source broker
 	Time     time.Time   `json:"time"`    // timestamp of the event
-	Brokers  Brokers     `json:"brokers"` // the stack of brokers the event has passed through
+	Broker   Broker      `json:"broker"`  // the broker the event came from
 	Original interface{} // the original message container (e.g. slack.MessageEvent)
 	instance *Instance   // used by the broker to provide plugin instance metadata
 }
@@ -28,12 +28,12 @@ type Evt struct {
 // and a current timestamp. Body and Original will be empty.
 func (e *Evt) Clone() Evt {
 	out := Evt{
-		Room:    e.Room,
-		RoomId:  e.RoomId,
-		User:    e.User,
-		UserId:  e.UserId,
-		Time:    time.Now(),
-		Brokers: e.Brokers.Clone(), // TODO: consider reverting this back to just a single Broker:
+		Room:   e.Room,
+		RoomId: e.RoomId,
+		User:   e.User,
+		UserId: e.UserId,
+		Time:   time.Now(),
+		Broker: e.Broker,
 	}
 
 	return out
@@ -44,7 +44,12 @@ func (e *Evt) Clone() Evt {
 func (e *Evt) Reply(msg string) {
 	out := e.Clone()
 	out.Body = msg
-	e.Brokers.Last().Send(out)
+
+	if e.Broker != nil {
+		e.Broker.Send(out)
+	} else {
+		panic("hal.Evt.Reply called with nil Broker!")
+	}
 }
 
 // Replyf is the same as Reply but allows for string formatting using
@@ -55,21 +60,21 @@ func (e *Evt) Replyf(msg string, a ...interface{}) {
 
 // BrokerName returns the text name of current broker.
 func (e *Evt) BrokerName() string {
-	return e.Brokers.Last().Name()
+	return e.Broker.Name()
 }
 
 // fetch union of all matching settings from the database
 // for user, broker, room, and plugin
 // Plugins can use the Prefs methods to filter from there.
 func (e *Evt) FindPrefs() Prefs {
-	broker := e.Brokers.Last().Name()
+	broker := e.BrokerName()
 	plugin := e.instance.Plugin.Name
 	return FindPrefs(e.User, broker, e.Room, plugin, "")
 }
 
 // gets the plugin instance's preferences
 func (e *Evt) InstanceSettings() []Pref {
-	broker := e.Brokers.Last().Name()
+	broker := e.BrokerName()
 	plugin := e.instance.Plugin.Name
 
 	out := make([]Pref, 0)
@@ -93,7 +98,7 @@ func (e *Evt) NewPref() Pref {
 	return Pref{
 		User:   e.User,
 		Room:   e.Room,
-		Broker: e.Brokers.Last().Name(),
+		Broker: e.BrokerName(),
 		Plugin: e.instance.Plugin.Name,
 	}
 }
