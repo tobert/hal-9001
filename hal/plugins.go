@@ -19,12 +19,13 @@ type pluginRegistry struct {
 // Plugins are registered at startup by the main program and wired up
 // to receive events when an instance is created e.g. by the pluginmgr
 // plugin.
+// Most of the time only the Key field should be specified in Settings.
 type Plugin struct {
 	Name     string          // a unique name (used to launch instances)
 	Func     func(Evt)       // the code to execute for each matched event
 	Init     func(*Instance) // plugin hook called at instance creation time
 	Regex    string          // the default regex match
-	Settings []Pref          // required+autoloaded preferences + defaults
+	Settings Prefs           // required+autoloaded preferences + defaults
 	Secrets  []string        // required+autoloaded secret key names
 }
 
@@ -34,7 +35,7 @@ type Instance struct {
 	RoomId   string         // room id
 	Broker   Broker         // the broker that produces events
 	Regex    string         // a regex for filtering messages
-	Settings []Pref         // runtime settings for the instance
+	Settings Prefs          // runtime settings for the instance
 	regex    *regexp.Regexp // the compiled regex
 }
 
@@ -135,18 +136,22 @@ func (inst *Instance) Unregister() error {
 
 // LoadSettingsFromPrefs loads all of the settings specified in the plugin
 // Settings list into the instance's Settings list. Any current settings
-// are replaced.
+// are replaced. The search is run with room and plugin set to whatever
+// values the instance has.
 func (inst *Instance) LoadSettingsFromPrefs() {
 	pr := PluginRegistry()
 	pr.mut.Lock()
 	defer pr.mut.Unlock()
 
-	ips := inst.Plugin.Settings
+	ips := inst.Plugin.Settings.Clone()
 
 	// wipe the previous settings
-	inst.Settings = make([]Pref, len(ips))
+	inst.Settings = make(Prefs, len(ips))
 
 	for i, ppref := range ips {
+		ppref.Room = inst.RoomId
+		ppref.Broker = inst.Broker.Name()
+		ppref.Plugin = inst.Plugin.Name
 		ipref := ppref.Get()
 		inst.Settings[i] = ipref
 	}
