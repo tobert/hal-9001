@@ -60,7 +60,7 @@ type Pref struct {
 	Error   error
 }
 
-type Prefs []*Pref
+type Prefs []Pref
 
 // GetPref will retreive the most-specific preference from pref
 // storage using the parameters provided. This is a bit like pattern
@@ -135,7 +135,7 @@ func (in *Pref) Get() Pref {
 	prefs := in.get()
 
 	if len(prefs) == 1 {
-		return *prefs[0]
+		return prefs[0]
 	} else if len(prefs) > 1 {
 		panic("TOO MANY PREFS")
 	} else if len(prefs) == 0 {
@@ -203,7 +203,7 @@ func (in *Pref) get() Prefs {
 			p.Error = nil
 		}
 
-		out = append(out, &p)
+		out = append(out, p)
 	}
 
 	return out
@@ -330,7 +330,19 @@ func (p Pref) Find() Prefs {
 			row.Success = true
 		}
 
-		out = append(out, &row)
+		out = append(out, row)
+	}
+
+	return out
+}
+
+// Clone returns a full/deep copy of the Prefs list.
+func (prefs Prefs) Clone() Prefs {
+	out := make(Prefs, len(prefs))
+
+	for i, pref := range prefs {
+		copy := pref
+		out[i] = copy
 	}
 
 	return out
@@ -383,6 +395,19 @@ func (prefs Prefs) Plugin(plugin string) Prefs {
 
 	for _, pref := range prefs {
 		if pref.Plugin == plugin {
+			out = append(out, pref)
+		}
+	}
+
+	return out
+}
+
+// Key filters the preference list by key, returning a new Prefs
+func (prefs Prefs) Key(key string) Prefs {
+	out := make(Prefs, 0)
+
+	for _, pref := range prefs {
+		if pref.Key == key {
 			out = append(out, pref)
 		}
 	}
