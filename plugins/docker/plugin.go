@@ -47,6 +47,12 @@ func docker(evt hal.Evt) {
 	}
 }
 
+// TODO: the idea is to be able to run an interactive container that may be more
+// than a single command, e.g. an old-school question/answer script that asks a
+// few questions then does some work. This will probably require a timeout
+// and some way to either signal which container you're messaging or spawn a
+// DM room for the purpose and perhaps send the output back to the originating
+// room. The DM approach is likely least complex, even across brokers.
 func run(evt hal.Evt, argv []string) {
 	// danger! insecure! Demo code ;)
 	cmd := exec.Command("/usr/bin/docker", argv[1:]...)
