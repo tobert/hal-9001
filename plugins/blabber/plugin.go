@@ -1,3 +1,7 @@
+// blabber records events as word pairs with counts and can
+// use that data to generate text
+// This is an experiment and work-in-progress. I haven't built
+// one of these before...
 package blabber
 
 import (
