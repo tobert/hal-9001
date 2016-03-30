@@ -43,25 +43,31 @@ func (cb Broker) Send(e hal.Evt) {
 	cb.stdout <- fmt.Sprintf("%s/%s: %s\n", e.User, e.Room, e.Body)
 }
 
-func (cb Broker) Stream(out chan *hal.Evt) {
-	go func() {
-		scanner := bufio.NewScanner(os.Stdin)
-		for scanner.Scan() {
-			line := scanner.Text()
+// SimpleStdin will loop forever reading stdin and publish each line
+// as an event in the console broker.
+func (cb Broker) SimpleStdin() {
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		line := scanner.Text()
 
-			if err := scanner.Err(); err != nil {
-				log.Fatalf("Failed while reading from stdin: %s\n", err)
-			}
-
-			// ignore empty lines
-			if len(line) == 0 {
-				continue
-			}
-
-			cb.stdin <- line
+		if err := scanner.Err(); err != nil {
+			log.Fatalf("Failed while reading from stdin: %s\n", err)
 		}
-	}()
 
+		// ignore empty lines
+		if len(line) == 0 {
+			continue
+		}
+
+		cb.stdin <- line
+	}
+}
+
+func (cb Broker) Line(line string) {
+	cb.stdin <- line
+}
+
+func (cb Broker) Stream(out chan *hal.Evt) {
 	for {
 		select {
 		case evt := <-cb.stdin:
