@@ -58,6 +58,18 @@ func (e *Evt) Replyf(msg string, a ...interface{}) {
 	e.Reply(fmt.Sprintf(msg, a...))
 }
 
+// Replyf is the same as Reply but allows for string formatting using
+// fmt.Sprintf()
+func (e *Evt) ReplyTable(hdr []string, rows [][]string) {
+	out := e.Clone() // may not be necessary
+
+	if e.Broker != nil {
+		e.Broker.SendTable(out, hdr, rows)
+	} else {
+		panic("hal.Evt.ReplyTable called with nil Broker!")
+	}
+}
+
 // BrokerName returns the text name of current broker.
 func (e *Evt) BrokerName() string {
 	return e.Broker.Name()

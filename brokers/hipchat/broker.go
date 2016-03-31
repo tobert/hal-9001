@@ -91,6 +91,14 @@ func (hb Broker) Send(evt hal.Evt) {
 	}
 }
 
+func (hb Broker) SendTable(evt hal.Evt, hdr []string, rows [][]string) {
+	out := evt.Clone()
+	// TODO: verify if this works for bots - works fine in the client
+	// will probably need to post with the API
+	out.Body = fmt.Sprintf("/code %s", hal.Utf8Table(hdr, rows))
+	hb.Send(out)
+}
+
 // Subscribe joins a room with the given alias.
 // These names are specific to how Hipchat does things.
 func (hb *Broker) Subscribe(room, alias string) {

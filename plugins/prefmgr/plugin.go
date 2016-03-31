@@ -113,8 +113,9 @@ func prefmgr(evt hal.Evt) {
 func cliList(ctx *cli.Context, evt hal.Evt, opts hal.Pref) {
 	prefs := opts.Find()
 	data := prefs.Table()
-	text := hal.AsciiTable(data[0], data[1:])
-	evt.Reply(text)
+	evt.ReplyTable(data[0], data[1:])
+	//text := hal.AsciiTable(data[0], data[1:])
+	//evt.Reply(text)
 }
 
 func cliGet(ctx *cli.Context, evt hal.Evt, opts hal.Pref) {

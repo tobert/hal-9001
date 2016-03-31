@@ -2,9 +2,16 @@ package slack
 
 import (
 	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
+	"io/ioutil"
 	"log"
+	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/netflix/hal-9001/hal"
@@ -62,6 +69,80 @@ func (sb Broker) Name() string {
 func (sb Broker) Send(evt hal.Evt) {
 	om := sb.RTM.NewOutgoingMessage(evt.Body, evt.RoomId)
 	sb.RTM.SendMessage(om)
+}
+
+func (sb Broker) SendTable(evt hal.Evt, hdr []string, rows [][]string) {
+	out := evt.Clone()
+	out.Body = hal.Utf8Table(hdr, rows)
+	sb.SendAsImage(out)
+}
+
+// SendAsImage sends the body of the event as a png file. The png is rendered
+// using hal's FixedFont facility.
+// This is useful for making sure pre-formatted text stays legible in
+// Slack while we wait for them to figure out a way to render things like
+// tables of data consistently.
+func (sb Broker) SendAsImage(evt hal.Evt) {
+	fd := hal.FixedFont()
+
+	// create a tempfile
+	f, err := ioutil.TempFile(os.TempDir(), "hal")
+	if err != nil {
+		evt.Replyf("Could not create tempfile for image upload: %s", err)
+		return
+	}
+	defer os.Remove(f.Name())
+
+	// check for a color preference
+	// need to figure out a way to have a helper around this
+	var fg color.Color
+	fg = color.Black
+	// TODO: prefs --set isn't setting the room, etc. remove the filter for now
+	fgprefs := hal.FindPrefs("", "", "", "", "image.fg")
+	ufgprefs := fgprefs.User(evt.UserId)
+	if len(ufgprefs) > 0 {
+		fg = fd.ParseColor(ufgprefs[0].Value, fg)
+	} else if len(fgprefs) > 0 {
+		fg = fd.ParseColor(fgprefs[0].Value, fg)
+	}
+
+	var bg color.Color
+	bg = color.Transparent
+	// TODO: ditto from ft
+	//bgprefs := hal.FindPrefs("", sb.Name(), evt.RoomId, "", "image.bg")
+	bgprefs := hal.FindPrefs("", "", "", "", "image.bg")
+	ubgprefs := bgprefs.User(evt.UserId)
+	if len(ubgprefs) > 0 {
+		bg = fd.ParseColor(ubgprefs[0].Value, fg)
+	} else if len(bgprefs) > 0 {
+		bg = fd.ParseColor(bgprefs[0].Value, fg)
+	}
+
+	// generate the image
+	lines := strings.Split(strings.TrimSpace(evt.Body), "\n")
+	textimg := fd.StringsToImage(lines, fg)
+
+	// img has a background color, copy textimg onto it
+	img := image.NewRGBA(textimg.Bounds())
+	draw.Draw(img, img.Bounds(), &image.Uniform{bg}, image.ZP, draw.Src)
+	draw.Draw(img, img.Bounds(), textimg, image.ZP, draw.Src)
+
+	// TODO: apply background color
+
+	// write the png data to the temp file
+	png.Encode(f, img)
+	f.Close()
+
+	// upload the file
+	params := slack.FileUploadParameters{
+		File:     f.Name(),
+		Filename: "text.png",
+		Channels: []string{evt.RoomId},
+	}
+	_, err = sb.Client.UploadFile(params)
+	if err != nil {
+		evt.Replyf("Could not upload image: %s", err)
+	}
 }
 
 // checks the cache to see if the room is known to this broker

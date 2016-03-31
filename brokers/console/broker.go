@@ -43,6 +43,10 @@ func (cb Broker) Send(e hal.Evt) {
 	cb.stdout <- fmt.Sprintf("%s/%s: %s\n", e.User, e.Room, e.Body)
 }
 
+func (cb Broker) SendTable(e hal.Evt, hdr []string, rows [][]string) {
+	cb.stdout <- hal.Utf8Table(hdr, rows)
+}
+
 // SimpleStdin will loop forever reading stdin and publish each line
 // as an event in the console broker.
 func (cb Broker) SimpleStdin() {
