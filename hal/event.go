@@ -110,10 +110,34 @@ func (e *Evt) InstanceSettings() Prefs {
 func (e *Evt) NewPref() Pref {
 	return Pref{
 		User:   e.User,
-		Room:   e.Room,
+		Room:   e.RoomId,
 		Broker: e.BrokerName(),
 		Plugin: e.instance.Plugin.Name,
 	}
+}
+
+// FillPref returns a copy of the provided pref with user, room, broker,
+// and plugin set using data from the event handle for any of those fields
+// that don't already have a value. e.g. if the input has a room set it will
+// be left alone and the other fields will be set.
+func (e *Evt) FillPref(p Pref) Pref {
+	if p.User == "" {
+		p.User = e.User
+	}
+
+	if p.Room == "" {
+		p.Room = e.RoomId
+	}
+
+	if p.Broker == "" {
+		p.Broker = e.BrokerName()
+	}
+
+	if p.Plugin == "" {
+		p.Plugin = e.instance.Plugin.Name
+	}
+
+	return p
 }
 
 // BodyAsArgv does minimal parsing of the event body, returning an argv-like
