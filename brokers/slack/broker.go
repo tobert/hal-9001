@@ -360,25 +360,38 @@ func (sb Broker) RoomIdToName(id string) string {
 	if name, exists := sb.i2c[id]; exists {
 		return name
 	} else {
-		room, err := sb.Client.GetChannelInfo(id)
-		if err != nil {
-			log.Printf("brokers/slack could not retrieve room info for '%s' via API: %s\n", id, err)
-			return ""
+		var name string
+
+		// private channels are on a different endpoint
+		if strings.HasPrefix(id, "G") {
+			grp, err := sb.Client.GetGroupInfo(id)
+			if err != nil {
+				log.Printf("brokers/slack could not retrieve group info for '%s' via API: %s\n", id, err)
+				return ""
+			}
+			name = grp.Name
+		} else {
+			room, err := sb.Client.GetChannelInfo(id)
+			if err != nil {
+				log.Printf("brokers/slack could not retrieve room info for '%s' via API: %s\n", id, err)
+				return ""
+			}
+			name = room.Name
 		}
 
 		// TODO: verify if room/user names are enforced unique in slack or if this is madness
 		// remove this if it proves unnecessary (tobert/2016-03-02)
-		if _, exists := sb.c2i[room.Name]; exists {
-			if sb.c2i[room.Name] != room.ID {
+		if _, exists := sb.c2i[name]; exists {
+			if sb.c2i[name] != id {
 				log.Fatalf("BUG(brokers/slack): found a non-unique room name:ID pair. Had: %q/%q. Got: %q/%q",
-					room.Name, sb.c2i[room.Name], room.Name, room.ID)
+					name, sb.c2i[name], name, id)
 			}
 		}
 
-		sb.i2c[room.ID] = room.Name
-		sb.c2i[room.Name] = room.ID
+		sb.i2c[id] = name
+		sb.c2i[name] = id
 
-		return room.Name
+		return name
 	}
 }
 
