@@ -20,6 +20,7 @@ const NAME = "pluginmgr"
 const HELP = `
 Examples:
 !plugin list
+!plugin instances
 !plugin save
 !plugin attach <plugin> --room <room>
 !plugin attach --regex ^!foo <plugin> <room>
@@ -99,9 +100,6 @@ func pluginmgr(evt hal.Evt) {
 		detachCmds = append(detachCmds, detachCmd)
 	}
 
-	listAttached := false
-	listDetached := false
-
 	// have cli write output to a buffer instead of stdio
 	outbuf := bytes.NewBuffer([]byte{})
 
@@ -112,30 +110,19 @@ func pluginmgr(evt hal.Evt) {
 	app.Writer = outbuf
 	app.Commands = []cli.Command{
 		{
-			Name:  "list",
-			Usage: "list the available plugins",
-			Flags: []cli.Flag{
-				cli.BoolFlag{
-					Name:        "attached",
-					Destination: &listAttached,
-					Usage:       "only show attached plugins",
-				},
-				cli.BoolFlag{
-					Name:        "detached",
-					Destination: &listDetached,
-					Usage:       "only show detached plugins",
-				},
-			},
-			Action: func(c *cli.Context) {
-				listPlugins(c, &evt, listAttached, listDetached)
-			},
+			Name:   "list",
+			Usage:  "list the available plugins",
+			Action: func(c *cli.Context) { listPlugins(c, &evt) },
 		},
 		{
-			Name:  "save",
-			Usage: "save the runtime plugin configuration",
-			Action: func(c *cli.Context) {
-				savePlugins(c, &evt)
-			},
+			Name:   "instances",
+			Usage:  "list the currently attached and running plugins",
+			Action: func(c *cli.Context) { listInstances(c, &evt) },
+		},
+		{
+			Name:   "save",
+			Usage:  "save the runtime plugin configuration",
+			Action: func(c *cli.Context) { savePlugins(c, &evt) },
 		},
 		{
 			Name:        "attach",
@@ -159,27 +146,40 @@ func pluginmgr(evt hal.Evt) {
 	evt.Reply(outbuf.String())
 }
 
-func listPlugins(c *cli.Context, evt *hal.Evt, attached bool, detached bool) {
+func listPlugins(c *cli.Context, evt *hal.Evt) {
+	hdr := []string{"Plugin Name", "Default RE", "Status"}
+	rows := [][]string{}
 	pr := hal.PluginRegistry()
-	buf := bytes.NewBufferString("\n")
-	var plugins []*hal.Plugin
 
-	if attached {
-		plugins = pr.ActivePluginList()
-	} else if detached {
-		plugins = pr.InactivePluginList()
-	} else {
-		plugins = pr.PluginList()
+	for _, p := range pr.ActivePluginList() {
+		row := []string{p.Name, p.Regex, "active"}
+		rows = append(rows, row)
 	}
 
-	for _, p := range plugins {
-		// TODO: better formatting
-		buf.WriteString("--> ")
-		buf.WriteString(p.String())
-		buf.WriteString("\n")
+	for _, p := range pr.InactivePluginList() {
+		row := []string{p.Name, p.Regex, "inactive"}
+		rows = append(rows, row)
 	}
 
-	evt.Reply(buf.String())
+	evt.ReplyTable(hdr, rows)
+}
+
+func listInstances(c *cli.Context, evt *hal.Evt) {
+	hdr := []string{"Plugin Name", "Broker", "Room", "RE"}
+	rows := [][]string{}
+	pr := hal.PluginRegistry()
+
+	for _, inst := range pr.InstanceList() {
+		row := []string{
+			inst.Plugin.Name,
+			inst.Broker.Name(),
+			inst.RoomId,
+			inst.Regex,
+		}
+		rows = append(rows, row)
+	}
+
+	evt.ReplyTable(hdr, rows)
 }
 
 func savePlugins(c *cli.Context, evt *hal.Evt) {
