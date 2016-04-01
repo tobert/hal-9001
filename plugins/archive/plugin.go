@@ -18,7 +18,7 @@ type ArchiveEntry struct {
 	Text      string    `json: text`
 }
 
-const ARCHIVE_TABLE = `
+const ArchiveTable = `
 CREATE TABLE IF NOT EXISTS archive (
   ts       TIMESTAMP,
   user     VARCHAR(64),
@@ -41,7 +41,7 @@ func Register() {
 	stars.Register()
 
 	// apply the schema to the database as necessary
-	hal.SqlInit(ARCHIVE_TABLE)
+	hal.SqlInit(ArchiveTable)
 
 	http.HandleFunc("/v1/archive", httpGetArchive)
 }
