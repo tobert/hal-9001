@@ -75,29 +75,30 @@ func (e *Evt) BrokerName() string {
 	return e.Broker.Name()
 }
 
-// fetch union of all matching settings from the database
-// for user, broker, room, and plugin
+// FindPrefs fetches the union of all matching settings from the database
+// for user, broker, room, and plugin.
 // Plugins can use the Prefs methods to filter from there.
 func (e *Evt) FindPrefs() Prefs {
 	broker := e.BrokerName()
 	plugin := e.instance.Plugin.Name
-	return FindPrefs(e.User, broker, e.Room, plugin, "")
+	return FindPrefs(e.User, broker, e.RoomId, plugin, "")
 }
 
-// gets the plugin instance's preferences
-func (e *Evt) InstanceSettings() []Pref {
+// InstanceSettings gets all the settings matching the settings defined
+// by the plugin's Settings field.
+func (e *Evt) InstanceSettings() Prefs {
 	broker := e.BrokerName()
 	plugin := e.instance.Plugin.Name
 
-	out := make([]Pref, 0)
+	out := make(Prefs, 0)
 
 	for _, stg := range e.instance.Plugin.Settings {
-		// ignore room-specific settings for other room
-		if stg.Room != "" && stg.Room != e.Room {
+		// ignore room-specific settings for other rooms
+		if stg.Room != "" && stg.Room != e.RoomId {
 			continue
 		}
 
-		pref := GetPref("", broker, e.Room, plugin, stg.Key, stg.Default)
+		pref := GetPref("", broker, e.RoomId, plugin, stg.Key, stg.Default)
 		out = append(out, pref)
 	}
 
