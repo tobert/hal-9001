@@ -3,6 +3,7 @@ package cross_the_streams
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/netflix/hal-9001/hal"
 )
@@ -13,10 +14,10 @@ func Register() {
 		Name:  "cross_the_streams",
 		Func:  crossStreams,
 		Regex: "", // get all messages
-		Settings: map[string]string{
-			"from_broker": "", // the string name of the source broker
-			"to_broker":   "", // the string name of the destination broker
-			"to_channel":  "", // the channel on the destination broker
+		//  source: Pref.Room / Pref.Broker
+		Settings: hal.Prefs{
+			hal.Pref{Plugin: "cross_the_streams", Key: "to.broker"},
+			hal.Pref{Plugin: "cross_the_streams", Key: "to.room"},
 		},
 	}
 
@@ -26,35 +27,31 @@ func Register() {
 // crossStreams looks at events it recieves and repeats them
 // to a different broker.
 func crossStreams(evt hal.Evt) {
-	broker := evt.Broker.Name()
-	settings := evt.InstanceSettings()
-	router := hal.Router()
+	prefs := evt.InstanceSettings()
+	tbPrefs := prefs.Key("to.broker")
+	trPrefs := prefs.Key("to.room")
 
-	// if the plugin is active without config, this should just be a harmless waste of time
-	if to, exists := settings["to_broker"]; exists {
-		if from, exists := settings["from_broker"]; exists {
+	// no matches, move on
+	if len(tbPrefs) == 0 || len(trPrefs) == 0 {
+		return
+	}
 
-			// might be better to require a to_channel but for now prefer convenience
-			var channel string
-			if channel, exists = settings["to_channel"]; exists {
-				channel = settings["to_channel"]
-			} else {
-				channel = evt.Room
-			}
+	toBroker := tbPrefs[0].Value
+	toRoomId := trPrefs[0].Value
 
-			if broker == from {
-				tb := router.GetBroker(to)
-				if tb != nil {
-					out := hal.Evt{
-						Body:   fmt.Sprintf("%s %s@%s: %s", evt.Time, evt.User, from, evt.Body),
-						Room:   channel,
-						User:   evt.User, // ignored (for now)
-						Time:   evt.Time,
-						Broker: tb,
-					}
-					tb.Send(out)
-				}
-			}
+	tb := hal.Router().GetBroker(toBroker)
+	if tb != nil {
+		toRoom := tb.RoomIdToName(toRoomId)
+		body := fmt.Sprintf("%s %s@%s: %s", evt.Time, evt.User, evt.Room, evt.Body)
+		out := hal.Evt{
+			Body:   body,
+			Room:   toRoom,
+			RoomId: toRoomId,
+			Time:   evt.Time,
+			Broker: tb,
 		}
+		tb.Send(out)
+	} else {
+		log.Printf("hal.Router does not know about a broker named %q", toBroker)
 	}
 }
