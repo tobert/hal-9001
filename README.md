@@ -21,7 +21,11 @@ It should build with older versions of Go but it has not been tested.
 
 # Building
 
-A few dependencies are required by Hal's core library and plugins.
+A few dependencies are required by Hal's core library and plugins. For
+building the examples/everything demo, you will need the following. Hal
+core requires at least the mysql driver to build. Everything else is
+a dependency of a plugin or broker and can be omitted if you don't import
+those.
 
 ```
 go get github.com/nlopes/slack
@@ -30,7 +34,38 @@ go get github.com/codegangsta/cli
 go get github.com/go-sql-driver/mysql
 ```
 
-# Plugins
+# Terminology
+
+### Event
+
+Hal's events (hal.Evt) are an abstraction of the messages/events that
+brokers produce/consume. An event has a Body, User, Room, and timestamp.
+
+The handle offers some convenience methods for replying to events and
+other tedious bits around processing them.
+
+### Broker
+
+A broker is a 2-way producer/consumer of events. The code that hooks
+hal up to Slack, Hipchat, and others are brokers. There is a hal.Broker
+interface that defines the required behavior of brokers.
+
+### Plugin
+
+A plugin is a function that processes events with metadata. Plugins do
+nothing until they are attached to a room in the plugin manager.
+
+### Instance
+
+An instance is a plugin that has been attached to a room.
+
+### Room
+
+Hal calls all channels/rooms/related concepts rooms. Mostly "room" was picked
+because calling things channels in Go code gets confusing when you're also
+using channels extensively.
+
+# Authoring Plugins
 
 Hal plugins should be in a package. You can have more than one plugin
 per package. Some ship with Hal, others are in their own repos and
