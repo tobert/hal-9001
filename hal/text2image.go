@@ -21,6 +21,7 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"log"
 	"strconv"
 	"unicode/utf8"
 )
@@ -6068,28 +6069,46 @@ func FixedFont() *FontData {
 	return &fd
 }
 
-// TODO: debug & test this - it's not working right now but I need
-// to commit and go home
+// ParseColor parses a 6-byte or 8-byte hex color string (HTML-style) and
+// returns a color.RGBA. If anything goes wrong during parsing, it returns
+// the default provided.
 func (fd *FontData) ParseColor(in string, def color.Color) color.Color {
-	// TODO: parse hex colors e.g. f79e10 (amber) or f79e10ff (with alpha)
-	// and return a color.RGBA if it succeeds
-	if len(in) == 6 || len(in) == 8 {
-		if r, err := strconv.ParseInt("0x"+in[0:2], 0, 32); err != nil {
-			if g, err := strconv.ParseInt("0x"+in[2:4], 0, 32); err != nil {
-				if b, err := strconv.ParseInt("0x"+in[4:6], 0, 32); err != nil {
-					var a int
-					if len(in) == 8 {
-						if x, err := strconv.ParseInt("0x"+in[6:8], 0, 32); err != nil {
-							a = int(x)
-						}
-					} else {
-						a = 255
-					}
-					return color.RGBA{R: uint8(r), G: uint8(g), B: uint8(b), A: uint8(a)}
-				}
-			}
-		}
+	if len(in) != 6 && len(in) != 8 {
+		return def
+	}
+	var r, g, b, a uint8
+
+	if r32, err := strconv.ParseInt("0x"+in[0:2], 0, 32); err == nil {
+		r = uint8(r32)
+	} else {
+		log.Println(err)
+		return def
 	}
 
-	return def
+	if g32, err := strconv.ParseInt("0x"+in[2:4], 0, 32); err == nil {
+		g = uint8(g32)
+	} else {
+		log.Println(err)
+		return def
+	}
+
+	if b32, err := strconv.ParseInt("0x"+in[4:6], 0, 32); err == nil {
+		b = uint8(b32)
+	} else {
+		log.Println(err)
+		return def
+	}
+
+	if len(in) == 8 {
+		if a32, err := strconv.ParseInt("0x"+in[6:8], 0, 32); err == nil {
+			a = uint8(a32)
+		} else {
+			log.Println(err)
+			return def
+		}
+	} else {
+		a = 255
+	}
+
+	return color.RGBA{R: uint8(r), G: uint8(g), B: uint8(b), A: uint8(a)}
 }
