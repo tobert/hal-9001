@@ -109,9 +109,15 @@ func cliList(ctx *cli.Context, evt hal.Evt, opts hal.Pref) {
 }
 
 func cliSet(ctx *cli.Context, evt hal.Evt, opts hal.Pref) {
-	pref := opts.Set()
-	// TODO: humanitarian formatting
-	evt.Reply(fmt.Sprintf("%v", pref))
+	pref := evt.FillPref(opts)
+	fmt.Printf("Setting pref: %q\n", pref.String())
+	err := pref.Set()
+	if err != nil {
+		evt.Replyf("Failed to set pref: %q", err)
+	} else {
+		data := pref.GetPrefs().Table()
+		evt.ReplyTable(data[0], data[1:])
+	}
 }
 
 func httpPrefs(w http.ResponseWriter, r *http.Request) {
