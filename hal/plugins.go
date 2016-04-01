@@ -271,7 +271,7 @@ func (pr *pluginRegistry) InactivePluginList() []*Plugin {
 }
 
 func (p *Plugin) String() string {
-	return fmt.Sprintf("%s/%s", p.Name, "TODO: fix this")
+	return p.Name
 }
 
 func (inst *Instance) String() string {
