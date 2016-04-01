@@ -85,14 +85,6 @@ func prefmgr(evt hal.Evt) {
 			},
 		},
 		{
-			Name:  "get",
-			Usage: "get a preference key",
-			Flags: []cli.Flag{keyFlag, pluginFlag, brokerFlag, channelFlag, userFlag},
-			Action: func(ctx *cli.Context) {
-				cliGet(ctx, evt, flags)
-			},
-		},
-		{
 			Name:  "set",
 			Usage: "set a preference key",
 			Flags: []cli.Flag{keyFlag, pluginFlag, brokerFlag, channelFlag, userFlag, valFlag},
@@ -114,14 +106,6 @@ func cliList(ctx *cli.Context, evt hal.Evt, opts hal.Pref) {
 	prefs := opts.Find()
 	data := prefs.Table()
 	evt.ReplyTable(data[0], data[1:])
-	//text := hal.AsciiTable(data[0], data[1:])
-	//evt.Reply(text)
-}
-
-func cliGet(ctx *cli.Context, evt hal.Evt, opts hal.Pref) {
-	pref := opts.Get()
-	// TODO: humanitarian formatting
-	evt.Replyf("%v", pref)
 }
 
 func cliSet(ctx *cli.Context, evt hal.Evt, opts hal.Pref) {
