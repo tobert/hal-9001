@@ -67,7 +67,7 @@ func AsciiTable(hdr []string, rows [][]string) string {
 	// horizontal rule
 	hr := strings.Join(hrcs, "")
 
-	buf := bytes.NewBufferString("```\n")
+	buf := bytes.NewBuffer([]byte{})
 
 	fmt.Fprint(buf, hr)
 
@@ -84,8 +84,6 @@ func AsciiTable(hdr []string, rows [][]string) string {
 	}
 
 	fmt.Fprintf(buf, hr)
-
-	fmt.Fprint(buf, "```\n")
 
 	return buf.String()
 }
