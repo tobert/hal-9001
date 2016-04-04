@@ -58,6 +58,14 @@ func (e *Evt) Replyf(msg string, a ...interface{}) {
 	e.Reply(fmt.Sprintf(msg, a...))
 }
 
+// Error replies to the event with the provided error.
+// Future: need to figure out if there's going to be a kind of error
+// handling module in Hal for making errors visible in a logging room,
+// possibly on a different broker...
+func (e *Evt) Error(err error) {
+	e.Reply(fmt.Sprintf("%s", err))
+}
+
 // Replyf is the same as Reply but allows for string formatting using
 // fmt.Sprintf()
 func (e *Evt) ReplyTable(hdr []string, rows [][]string) {
