@@ -41,15 +41,13 @@ func (e *Evt) Clone() Evt {
 
 // Reply is a helper that crafts a new event from the provided string
 // and initiates the reply on the broker attached to the event.
+// The message is routed according to preferences. If no preferences
+// are set for the user/room/plugin the response will go to the
+// room where the command originated.
+// TODO: document preferences here
 func (e *Evt) Reply(msg string) {
-	out := e.Clone()
-	out.Body = msg
-
-	if e.Broker != nil {
-		e.Broker.Send(out)
-	} else {
-		panic("hal.Evt.Reply called with nil Broker!")
-	}
+	// TODO: add routing
+	e.ReplyToRoom(msg)
 }
 
 // Replyf is the same as Reply but allows for string formatting using
@@ -66,8 +64,10 @@ func (e *Evt) Error(err error) {
 	e.Reply(fmt.Sprintf("%s", err))
 }
 
-// Replyf is the same as Reply but allows for string formatting using
-// fmt.Sprintf()
+// ReplyTable sends a table of data back, formatting it according to
+// preferences.
+// TODO: move code from brokers/slack/broker.go/SendTable here
+// TODO: document preferences here
 func (e *Evt) ReplyTable(hdr []string, rows [][]string) {
 	out := e.Clone() // may not be necessary
 
@@ -75,6 +75,19 @@ func (e *Evt) ReplyTable(hdr []string, rows [][]string) {
 		e.Broker.SendTable(out, hdr, rows)
 	} else {
 		panic("hal.Evt.ReplyTable called with nil Broker!")
+	}
+}
+
+// ReplyToRoom crafts a new event from the provided string
+// and sends it to the room the event originated from.
+func (e *Evt) ReplyToRoom(msg string) {
+	out := e.Clone()
+	out.Body = msg
+
+	if e.Broker != nil {
+		e.Broker.Send(out)
+	} else {
+		panic("hal.Evt.Reply called with nil Broker!")
 	}
 }
 
