@@ -114,7 +114,7 @@ func main() {
 	// TODO: remove the hard-coded room name or make it configurable
 	for _, broker := range router.Brokers() {
 		if len(pr.FindInstances(controlRoom, broker.Name(), "pluginmgr")) == 0 {
-			mgr := pr.GetPlugin("pluginmgr")
+			mgr, _ := pr.GetPlugin("pluginmgr")
 			mgrInst := mgr.Instance(controlRoom, broker)
 			mgrInst.Register()
 		}

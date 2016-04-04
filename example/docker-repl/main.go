@@ -28,9 +28,14 @@ func main() {
 	prefmgr.Register()
 
 	pr := hal.PluginRegistry()
-	pr.GetPlugin("pluginmgr").Instance(broker.Room, broker).Register()
-	pr.GetPlugin("prefmgr").Instance(broker.Room, broker).Register()
-	pr.GetPlugin("docker").Instance(broker.Room, broker).Register()
+	pmp, _ := pr.GetPlugin("pluginmgr")
+	pmp.Instance(broker.Room, broker).Register()
+
+	prmp, _ := pr.GetPlugin("prefmgr")
+	prmp.Instance(broker.Room, broker).Register()
+
+	dp, _ := pr.GetPlugin("docker")
+	dp.Instance(broker.Room, broker).Register()
 
 	router := hal.Router()
 	router.AddBroker(broker)

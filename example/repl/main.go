@@ -28,7 +28,8 @@ func main() {
 	uptime.Register()
 
 	pr := hal.PluginRegistry()
-	pr.GetPlugin("pluginmgr").Instance(broker.Room, broker).Register()
+	pmp, _ := pr.GetPlugin("pluginmgr")
+	pmp.Instance(broker.Room, broker).Register()
 
 	router := hal.Router()
 	router.AddBroker(broker)
