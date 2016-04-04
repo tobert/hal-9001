@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/codegangsta/cli"
 	"github.com/netflix/hal-9001/hal"
@@ -25,12 +26,31 @@ Examples:
 !plugin attach <plugin> --room <room>
 !plugin attach --regex ^!foo <plugin> <room>
 !plugin detach <plugin> <room>
+!plugin group list
+!plugin group add <group_name> <plugin_name>
+!plugin group del <group_name> <plugin_name>
 
 e.g.
 !plugin attach uptime --room CORE
 !plugin detach uptime --room CORE
 !plugin save
 `
+
+const PluginGroupTable = `
+CREATE TABLE IF NOT EXISTS plugin_groups (
+    group_name  VARCHAR(255),
+    plugin_name VARCHAR(255),
+    ts          TIMESTAMP,
+    PRIMARY KEY(group_name, plugin_name)
+)`
+
+type PluginGroupRow struct {
+	Group     string    `json:"group"`
+	Plugin    string    `json:"plugin"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+type PluginGroup []*PluginGroupRow
 
 // Register makes this plugin available to the system.
 func Register() {
@@ -41,6 +61,8 @@ func Register() {
 	}
 
 	plugin.Register()
+
+	hal.SqlInit(PluginGroupTable)
 
 	http.HandleFunc("/v1/plugins", httpPlugins)
 }
@@ -136,6 +158,27 @@ func pluginmgr(evt hal.Evt) {
 			Usage:       "detach a plugin from a room",
 			Subcommands: detachCmds,
 		},
+		{
+			Name:  "group",
+			Usage: "manage plugin groups",
+			Subcommands: []cli.Command{
+				{
+					Name:   "list",
+					Usage:  "list",
+					Action: func(c *cli.Context) { listGroupPlugin(c, &evt) },
+				},
+				{
+					Name:   "add",
+					Usage:  "add <group_name> <plugin_name>",
+					Action: func(c *cli.Context) { addGroupPlugin(c, &evt) },
+				},
+				{
+					Name:   "del",
+					Usage:  "del <group_name> <plugin_name>",
+					Action: func(c *cli.Context) { delGroupPlugin(c, &evt) },
+				},
+			},
+		},
 	}
 
 	err := app.Run(evt.BodyAsArgv())
@@ -208,8 +251,8 @@ func roomToId(evt *hal.Evt, room string) string {
 
 func attachPlugin(c *cli.Context, evt *hal.Evt, room, pluginName, regex string) {
 	pr := hal.PluginRegistry()
-	plugin := pr.GetPlugin(pluginName)
-	if plugin == nil {
+	plugin, err := pr.GetPlugin(pluginName)
+	if err != nil {
 		evt.Replyf("No such plugin: '%s'", plugin)
 		return
 	}
@@ -218,7 +261,7 @@ func attachPlugin(c *cli.Context, evt *hal.Evt, room, pluginName, regex string) 
 	inst := plugin.Instance(roomId, evt.Broker)
 	inst.RoomId = roomId
 	inst.Regex = regex
-	err := inst.Register()
+	err = inst.Register()
 	if err != nil {
 		evt.Replyf("Failed to launch plugin '%s' in room id '%s': %s", plugin, roomId, err)
 
@@ -241,6 +284,118 @@ func detachPlugin(c *cli.Context, evt *hal.Evt, room, plugin string) {
 	for _, inst := range instances {
 		inst.Unregister()
 		evt.Replyf("%q/%q unregistered", room, plugin)
+	}
+}
+
+func GetPluginGroup(group string) (PluginGroup, error) {
+	out := make(PluginGroup, 0)
+	sql := `SELECT group_name, plugin_name FROM plugin_groups`
+	params := []interface{}{}
+
+	if group != "" {
+		sql = sql + " WHERE group_name=?"
+		params = []interface{}{&group}
+	}
+
+	db := hal.SqlDB()
+	rows, err := db.Query(sql, params...)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		pgr := PluginGroupRow{}
+
+		// TODO: add timestamps back after making some helpers for time conversion
+		// (code that was here didn't handle NULL)
+		err := rows.Scan(&pgr.Group, &pgr.Plugin)
+		if err != nil {
+			log.Printf("PluginGroup row iteration failed: %s\n", err)
+			break
+		}
+
+		out = append(out, &pgr)
+	}
+
+	return out, nil
+}
+
+func (pgr *PluginGroupRow) Save() error {
+	sql := `INSERT INTO plugin_groups
+	        (group_name, plugin_name, ts) VALUES (?, ?, ?)`
+
+	db := hal.SqlDB()
+	_, err := db.Exec(sql, &pgr.Group, &pgr.Plugin, &pgr.Timestamp)
+	return err
+}
+
+func (pgr *PluginGroupRow) Delete() error {
+	sql := `DELETE FROM plugin_groups WHERE group_name=? AND plugin_name=?`
+
+	db := hal.SqlDB()
+	_, err := db.Exec(sql, &pgr.Group, &pgr.Plugin)
+	return err
+}
+
+func listGroupPlugin(c *cli.Context, evt *hal.Evt) {
+	pgs, err := GetPluginGroup("")
+	if err != nil {
+		evt.Replyf("Could not fetch plugin group list: %s", err)
+		return
+	}
+
+	tbl := make([][]string, len(pgs))
+	for i, pgr := range pgs {
+		tbl[i] = []string{pgr.Group, pgr.Plugin}
+	}
+
+	evt.ReplyTable([]string{"Group Name", "Plugin Name"}, tbl)
+}
+
+func addGroupPlugin(c *cli.Context, evt *hal.Evt) {
+	args := c.Args()
+	if len(args) != 2 {
+		evt.Replyf("group add requires 2 arguments, only %d were provided, <group_name> <plugin_name>", len(args))
+		return
+	}
+
+	pr := hal.PluginRegistry()
+	// make sure the plugin name is valid
+	plugin, err := pr.GetPlugin(args[1])
+	if err != nil {
+		evt.Error(err)
+		return
+	}
+
+	// no checking for group other than "can it be inserted as a string"
+	pgr := PluginGroupRow{
+		Group:     args[0],
+		Plugin:    plugin.Name,
+		Timestamp: time.Now(),
+	}
+
+	err = pgr.Save()
+	if err != nil {
+		evt.Replyf("failed to add %q to group %q: %s", pgr.Plugin, pgr.Group, err)
+	} else {
+		evt.Replyf("added %q to group %q", pgr.Plugin, pgr.Group)
+	}
+}
+
+func delGroupPlugin(c *cli.Context, evt *hal.Evt) {
+	args := c.Args()
+	if len(args) != 2 {
+		evt.Replyf("group add requires 2 arguments, only %d were provided, <group_name> <plugin_name>", len(args))
+		return
+	}
+
+	pgr := PluginGroupRow{Group: args[0], Plugin: args[1]}
+	err := pgr.Delete()
+	if err != nil {
+		evt.Replyf("failed to delete %q from group %q: %s", pgr.Plugin, pgr.Group, err)
+	} else {
+		evt.Replyf("deleted %q from group %q", pgr.Plugin, pgr.Group)
 	}
 }
 
