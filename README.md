@@ -153,6 +153,8 @@ fatal errors into error returns, code should be refactored to do so.
 * [in progress] a Docker plugin that runs code in Docker over stdio
     * exists, but is not ready to be released yet
 * integrate sshchat as a broker or an maybe an ssh server for admin stuff
+* build in a simple arg parser something like evt.Getopts()
+  along the lines of evt.BodyAsArgv()
 
 # AUTHOR
 
