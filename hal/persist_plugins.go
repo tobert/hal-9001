@@ -47,8 +47,8 @@ func (pr *pluginRegistry) LoadInstances() error {
 		found := pr.FindInstances(pname, bname, roomId)
 		if len(found) == 0 {
 			// instance is in the DB but not registered, do it now
-			plugin := pr.GetPlugin(pname)
-			if plugin == nil {
+			plugin, err := pr.GetPlugin(pname)
+			if err != nil {
 				log.Printf("%q is configured in the database but is not registered. Ignoring.", pname)
 				continue
 			}

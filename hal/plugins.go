@@ -1,6 +1,7 @@
 package hal
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"regexp"
@@ -194,17 +195,17 @@ func (pr *pluginRegistry) InstanceList() []*Instance {
 }
 
 // GetPlugin returns the plugin specified by its name string.
-func (pr *pluginRegistry) GetPlugin(name string) *Plugin {
+func (pr *pluginRegistry) GetPlugin(name string) (*Plugin, error) {
 	pr.mut.Lock()
 	defer pr.mut.Unlock()
 
 	for _, p := range pr.plugins {
 		if p.Name == name {
-			return p
+			return p, nil
 		}
 	}
 
-	return nil
+	return nil, errors.New(fmt.Sprintf("no such plugin: %q", name))
 }
 
 // FindInstances returns the plugin instances that match the provided
