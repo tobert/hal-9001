@@ -27,6 +27,15 @@ CREATE TABLE IF NOT EXISTS archive (
   PRIMARY KEY (ts,user,room)
 )`
 
+const ReactionTable = `
+CREATE TABLE IF NOT EXISTS reactions (
+  ts       TIMESTAMP,
+  user     VARCHAR(64),
+  room     VARCHAR(255),
+  reaction VARCHAR(64),
+  PRIMARY KEY (ts,user,room)
+)`
+
 func Register() {
 	archive := hal.Plugin{
 		Name: "message_archive",
@@ -34,14 +43,15 @@ func Register() {
 	}
 	archive.Register()
 
-	stars := hal.Plugin{
-		Name: "slack_star_tracker",
-		Func: slackArchiveStarAdded,
+	reactions := hal.Plugin{
+		Name: "slack_reaction_tracker",
+		Func: archiveReactionAdded,
 	}
-	stars.Register()
+	reactions.Register()
 
 	// apply the schema to the database as necessary
 	hal.SqlInit(ArchiveTable)
+	hal.SqlInit(ReactionTable)
 
 	http.HandleFunc("/v1/archive", httpGetArchive)
 }
@@ -59,7 +69,9 @@ func archiveRecorder(msg hal.Evt) {
 }
 
 // slackArchiveStarAdded records a star added event in the database.
-func slackArchiveStarAdded(evt hal.Evt) {
+func archiveReactionAdded(evt hal.Evt) {
+	// TODO: a typecheck before the dereference ...
+	// so's i can add a console /react command
 	sa := evt.Original.(slack.StarAddedEvent)
 	log.Printf("Star Added: %v\n", sa)
 }
