@@ -39,11 +39,14 @@ const PAGE_USAGE = `!page <alias> [optional message]
 
 Send an alert via Pagerduty with an optional custom message.
 
+Aliases that have a comma-separated list of service keys will result in one page going to each service key when the alias is paged.
+
 !page core
 !page core <message>
 !pagecore HELP ME YOU ARE MY ONLY HOPE
 
 !page add <alias> <service key>
+!page add <alias> <service key>,<service_key>,<service_key>,...
 !page rm <alias>
 !page list
 `
@@ -58,8 +61,6 @@ a subcommand.
 `
 
 const PAGE_DEFAULT_MESSAGE = `HAL: your presence is requested in the chat room.`
-
-const PAGE_ALIAS_KEY = `alias.%s`
 
 func page(msg hal.Evt) {
 	parts := msg.BodyAsArgv()
@@ -116,31 +117,40 @@ func pageAlias(msg hal.Evt, parts []string) {
 		return
 	}
 
-	// get the Pagerduty auth token from the secrets API
-	secrets := hal.Secrets()
-	token := secrets.Get(PAGERDUTY_TOKEN_KEY)
-	if token == "" {
-		msg.Replyf("Your Pagerduty auth token does not seem to be configured. Please add the %q secret.",
-			PAGERDUTY_TOKEN_KEY)
-		return
-	}
+	// the value can be a list of tokens, separated by commas
+	response := bytes.NewBuffer([]byte{})
+	for _, svckey := range strings.Split(pref.Value, ",") {
+		// get the Pagerduty auth token from the secrets API
+		secrets := hal.Secrets()
+		token := secrets.Get(PAGERDUTY_TOKEN_KEY)
+		if token == "" {
+			msg.Replyf("Your Pagerduty auth token does not seem to be configured. Please add the %q secret.",
+				PAGERDUTY_TOKEN_KEY)
+			return
+		}
 
-	// create the event and send it
-	pde := NewTrigger(pref.Value, pageMessage) // in ./pagerduty.go
-	resp, err := pde.Send(token)
-	if err != nil {
-		msg.Replyf("Error while communicating with Pagerduty. %d %s", resp.StatusCode, resp.Message)
-		return
+		// create the event and send it
+		pde := NewTrigger(svckey, pageMessage) // in ./pagerduty.go
+		resp, err := pde.Send(token)
+		if err != nil {
+			msg.Replyf("Error while communicating with Pagerduty. %d %s", resp.StatusCode, resp.Message)
+			return
+		}
+
+		fmt.Fprintf(response, "%s\n", resp.Message)
 	}
 
 	// TODO: add some boilerplate around this
-	msg.Reply(resp.Message)
+	msg.Reply(response.String())
 }
 
 func addAlias(msg hal.Evt, parts []string) {
-	if len(parts) != 2 {
+	if len(parts) < 2 {
 		msg.Replyf("!page add requires 2 arguments, e.g. !page add sysadmins XXXXXXX")
 		return
+	} else if len(parts) > 2 {
+		keys := strings.Replace(strings.Join(parts[1:], ","), ",,", ",", len(parts)-2)
+		parts = []string{parts[0], keys}
 	}
 
 	pref := msg.NewPref()
