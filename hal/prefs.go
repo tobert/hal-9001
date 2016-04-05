@@ -160,6 +160,7 @@ func (in *Pref) GetPrefs() Prefs {
 }
 
 func (in *Pref) get() Prefs {
+	db := SqlDB()
 	SqlInit(PREFS_TABLE)
 
 	sql := `SELECT user,room,broker,plugin,pkey,value
@@ -175,8 +176,6 @@ func (in *Pref) get() Prefs {
 		sql += " AND pkey=?"
 		params = append(params, &in.Key)
 	}
-
-	db := SqlDB()
 
 	rows, err := db.Query(sql, params...)
 	if err != nil {
@@ -212,7 +211,11 @@ func (in *Pref) get() Prefs {
 // Set writes the value and returns a new struct with the new value.
 func (in *Pref) Set() error {
 	db := SqlDB()
-	SqlInit(PREFS_TABLE)
+	err := SqlInit(PREFS_TABLE)
+	if err != nil {
+		log.Printf("Failed to initialize the prefs table: %s", err)
+		return err
+	}
 
 	sql := `INSERT INTO prefs
 						(value,user,room,broker,plugin,pkey)
@@ -225,7 +228,7 @@ func (in *Pref) Set() error {
 		&in.Value, &in.User, &in.Room, &in.Broker, &in.Plugin, &in.Key,
 	}
 
-	_, err := db.Exec(sql, params...)
+	_, err = db.Exec(sql, params...)
 	if err != nil {
 		log.Printf("Pref.Set() write failed: %s", err)
 		return err
@@ -237,7 +240,12 @@ func (in *Pref) Set() error {
 // Set writes the value and returns a new struct with the new value.
 func (in *Pref) Delete() error {
 	db := SqlDB()
-	SqlInit(PREFS_TABLE)
+
+	err := SqlInit(PREFS_TABLE)
+	if err != nil {
+		log.Printf("Failed to initialize the prefs table: %s", err)
+		return err
+	}
 
 	sql := `DELETE FROM prefs
 			WHERE user=?
@@ -247,7 +255,7 @@ func (in *Pref) Delete() error {
 			  AND pkey=?`
 
 	// TODO: verify only one row was deleted
-	_, err := db.Exec(sql, &in.User, &in.Room, &in.Broker, &in.Plugin, &in.Key)
+	_, err = db.Exec(sql, &in.User, &in.Room, &in.Broker, &in.Plugin, &in.Key)
 	if err != nil {
 		log.Printf("Pref.Delete() write failed: %s", err)
 		return err
@@ -262,6 +270,7 @@ func (in *Pref) Delete() error {
 // so it can potentially match a lot of rows.
 // Returns an empty list and logs upon errors.
 func (p Pref) Find() Prefs {
+	db := SqlDB()
 	SqlInit(PREFS_TABLE)
 
 	fields := make([]string, 0)
@@ -306,7 +315,6 @@ func (p Pref) Find() Prefs {
 
 	// TODO: add deterministic ordering at query time
 
-	db := SqlDB()
 	out := make(Prefs, 0)
 	rows, err := db.Query(q.String(), params...)
 	if err != nil {

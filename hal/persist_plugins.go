@@ -21,11 +21,16 @@ CREATE TABLE IF NOT EXISTS plugin_instances (
 // TODO: decide if it makes sense to persist settings or just pull the prefs
 // each time.
 func (pr *pluginRegistry) LoadInstances() error {
-	log.Printf("Loading plugin instances to the database.")
-
-	SqlInit(PLUGIN_INST_TABLE)
+	log.Printf("Loading plugin instances from the database.")
 
 	db := SqlDB()
+
+	err := SqlInit(PLUGIN_INST_TABLE)
+	if err != nil {
+		log.Printf("Failed to initialize the plugin_instances table: %s", err)
+		return err
+	}
+
 	rows, err := db.Query(`SELECT plugin, broker, room, regex FROM plugin_instances`)
 	if err != nil {
 		log.Printf("LoadInstances SQL query failed: %s", err)
@@ -89,7 +94,11 @@ func (pr *pluginRegistry) SaveInstances() error {
 	log.Printf("Saving plugin instances to the database.")
 	defer func() { log.Printf("Done saving plugin instances.") }()
 
-	SqlInit(PLUGIN_INST_TABLE)
+	err := SqlInit(PLUGIN_INST_TABLE)
+	if err != nil {
+		log.Printf("Failed to initialize the plugin_instances table: %s", err)
+		return err
+	}
 
 	instances := pr.InstanceList()
 

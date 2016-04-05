@@ -238,7 +238,10 @@ func (ss *SecretStore) SaveToDB() {
 // initTable runs the table initialization statement once
 func (ss *SecretStore) initTable() {
 	ss.itbl.Do(func() {
-		SqlInit(SECRETS_TABLE)
+		err := SqlInit(SECRETS_TABLE)
+		if err != nil {
+			log.Printf("Failed to initialize the secrets table: %s", err)
+		}
 	})
 }
 
