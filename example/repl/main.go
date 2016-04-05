@@ -3,6 +3,8 @@ package main
 import (
 	"github.com/chzyer/readline"
 
+	"gopkg.in/DATA-DOG/go-sqlmock.v1"
+
 	"github.com/netflix/hal-9001/brokers/console"
 	"github.com/netflix/hal-9001/hal"
 	"github.com/netflix/hal-9001/plugins/pluginmgr"
@@ -22,6 +24,15 @@ func main() {
 
 	bconf := console.Config{}
 	broker := bconf.NewBroker("cli")
+
+	// SqlInit calls will still throw errors at startup but
+	// it seems the program will continue so this will do for now
+	db, _, err := sqlmock.New()
+	if err != nil {
+		panic(err)
+	}
+	hal.ForceSqlDBHandle(db)
+	defer db.Close()
 
 	pluginmgr.Register()
 	prefmgr.Register()
