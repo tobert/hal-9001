@@ -25,20 +25,22 @@ type ArchiveEntry struct {
 // and instead rely on the timestamp/user/room for identity.
 const ArchiveTable = `
 CREATE TABLE IF NOT EXISTS archive (
-  ts       TIMESTAMP,
+  id       VARCHAR(255),
   user     VARCHAR(64),
   room     VARCHAR(255),
   broker   VARCHAR(255),
+  ts       TIMESTAMP,
   body     TEXT,
-  PRIMARY KEY (ts,user,room,broker)
+  PRIMARY KEY (id,user,room,broker)
 )`
 
 const ReactionTable = `
 CREATE TABLE IF NOT EXISTS reactions (
-  ts       TIMESTAMP,
+  id       VARCHAR(255),
   user     VARCHAR(64),
   room     VARCHAR(255),
   broker   VARCHAR(255),
+  ts       TIMESTAMP,
   reaction VARCHAR(64),
   PRIMARY KEY (ts,user,room,broker)
 )`
@@ -52,7 +54,7 @@ func Register() {
 
 	reactions := hal.Plugin{
 		Name: "reaction_tracker",
-		Func: archiveReactionAdded,
+		Func: archiveReaction,
 	}
 	reactions.Register()
 
@@ -66,23 +68,47 @@ func Register() {
 // ArchiveRecorder inserts every message received into the database for use
 // by other parts of the system.
 func archiveRecorder(evt hal.Evt) {
-	db := hal.SqlDB()
-
-	sql := `INSERT INTO archive (ts, user, room, broker, body) VALUES (?, ?, ?, ?, ?)`
-	_, err := db.Exec(sql, evt.Time, evt.User, evt.Room, evt.BrokerName(), evt.Body)
+	// TODO: push the id into the table after fixing up hal.Evt to pass through message id
+	tmpBrokenOnSlackId := fmt.Sprintf("%d", evt.Time.UnixNano())
+	sql := `INSERT INTO archive (id, user, room, broker, ts, body) VALUES (?, ?, ?, ?, ?, ?)`
+	_, err := hal.SqlDB().Exec(sql, tmpBrokenOnSlackId, evt.UserId, evt.RoomId, evt.BrokerName(), evt.Time, evt.Body)
 	if err != nil {
 		log.Printf("Could not insert event into archive: %s\n", err)
 	}
 }
 
-// archiveReactionAdded records a reaction event in the database.
-func archiveReactionAdded(evt hal.Evt) {
+// archiveReactionAdded switches on the type of the original message and calls a
+// broker-specific function to pull out the reaction and write it to the database.
+func archiveReaction(evt hal.Evt) {
 	switch evt.Original.(type) {
-	case slack.ReactionAddedEvent:
-		rae := evt.Original.(slack.ReactionAddedEvent)
-		log.Printf("Slack Reaction: %v\n", rae)
+	case *slack.ReactionAddedEvent:
+		log.Printf("adding reaction: (%T) %q\n", evt.Original, evt.Body)
+		rae := evt.Original.(*slack.ReactionAddedEvent)
+		insertReaction(evt.Time, rae.Item.Timestamp, evt.UserId, evt.RoomId, evt.BrokerName(), rae.Reaction)
+	case *slack.ReactionRemovedEvent:
+		log.Printf("deleting reaction: (%T) %q\n", evt.Original, evt.Body)
+		rre := evt.Original.(*slack.ReactionRemovedEvent)
+
+		// TODO: handle files & file comments
+		deleteReaction(rre.Item.Timestamp, evt.UserId, rre.Item.Channel, evt.BrokerName(), rre.Reaction)
 	default:
-		log.Printf("Unknown Reaction: %q\n", evt.Body)
+		return
+	}
+}
+
+func insertReaction(ts time.Time, id, user, room, broker, reaction string) {
+	sql := `INSERT INTO reactions (id,user,room,broker,ts,reaction) VALUES (?,?,?,?,?,?)`
+	_, err := hal.SqlDB().Exec(sql, id, user, room, broker, ts, reaction)
+	if err != nil {
+		log.Printf("Could not insert reaction into reactions table: %s\n", err)
+	}
+}
+
+func deleteReaction(id, user, room, broker, reaction string) {
+	sql := `DELETE FROM reactions WHERE id=? AND user=? AND room=? AND broker=? AND reaction=?`
+	_, err := hal.SqlDB().Exec(sql, id, user, room, broker, reaction)
+	if err != nil {
+		log.Printf("Could not delete reaction from reactions table: %s\n", err)
 	}
 }
 
