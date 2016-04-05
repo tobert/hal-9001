@@ -275,19 +275,20 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 }
 
 // slackTime converts the timestamp string to time.Time
-// cribbed from: https://github.com/nlopes/slack/commit/17d746b30caa733b519f79fe372fd509bd6fc9fd
 func slackTime(t string) time.Time {
 	if t == "" {
 		return time.Now()
 	}
 
-	floatN, err := strconv.ParseFloat(t, 64)
-	if err != nil {
-		log.Println("brokers/slack error parsing Slack time string %q:", t, err)
-		return time.Now()
-	}
+	// Slack advises not to parse the timestamp as a float.
+	// I tried it. Turns out that string mangling is more accurate than
+	// float conversions.
+	parts := strings.SplitN(t, ".", 2)
 
-	return time.Unix(int64(floatN), 0)
+	s, _ := strconv.ParseInt(parts[0], 10, 64)
+	ns, _ := strconv.ParseInt(parts[1], 10, 64)
+
+	return time.Unix(s, ns)
 }
 
 func (sb *Broker) FillUserCache() {
