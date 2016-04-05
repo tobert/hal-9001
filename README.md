@@ -32,6 +32,9 @@ go get github.com/nlopes/slack
 go get github.com/mattn/go-xmpp
 go get github.com/codegangsta/cli
 go get github.com/go-sql-driver/mysql
+
+# optional - currently only used in examples/repl
+go get gopkg.in/DATA-DOG/go-sqlmock.v1
 ```
 
 # Terminology
