@@ -41,6 +41,15 @@ func SqlDB() *sql.DB {
 	return sqldbSingleton
 }
 
+// ForceSqlDBHandle can be used to forcibly replace the DB handle with another
+// one, e.g. go-sqlmock. This is mainly here for tests, but it's also useful for
+// things like examples/repl to operate with no database.
+func ForceSqlDBHandle(db *sql.DB) {
+	// trigger the sync.Once so the init code doesn't fire
+	initSqlDbOnce.Do(func() {})
+	sqldbSingleton = db
+}
+
 // SqlInit executes the provided SQL once per runtime.
 // SqlInit does not care what's in the sql statements. It does not
 // interpret the SQL. Its only job is to execute the provided string.
