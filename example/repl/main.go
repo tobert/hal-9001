@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/chzyer/readline"
 
 	"gopkg.in/DATA-DOG/go-sqlmock.v1"
@@ -46,12 +49,29 @@ func main() {
 	router.AddBroker(broker)
 	go router.Route()
 
-	for {
-		line, err := rl.Readline()
-		if err != nil {
-			break
-		}
+	lines := make(chan string, 1)
 
-		broker.Line(line)
+	go func() {
+		for {
+			// prevent the prompt from being printed at the wrong time
+			// this is awful but good 'nuf for a demo
+			time.Sleep(time.Second/4)
+
+			line, err := rl.Readline()
+			if err != nil {
+				return
+			}
+
+			lines <- line
+		}
+	}()
+
+	for {
+		select {
+		case line := <-broker.Stdout:
+			fmt.Println(line)
+		case line := <-lines:
+			broker.Stdin <- line
+		}
 	}
 }
