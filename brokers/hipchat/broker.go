@@ -159,15 +159,18 @@ func (hb Broker) Stream(out chan *hal.Evt) {
 		case chat := <-incoming:
 			// Remote should look like "99999_roomName@conf.hipchat.com/User Name"
 			parts := strings.SplitN(chat.Remote, "/", 2)
+			now := time.Now()
 
 			if len(parts) == 2 {
+				// XMPP doesn't have IDs, use time like Slack
 				e := hal.Evt{
+					ID:       fmt.Sprintf("%d.%06d", now.Unix(), now.UnixNano()),
 					Body:     chat.Text,
 					Room:     hb.RoomIdToName(parts[0]),
 					RoomId:   parts[0],
 					User:     parts[1],
 					UserId:   chat.Remote,
-					Time:     time.Now(), // m.Stamp seems to be zeroed
+					Time:     now, // m.Stamp seems to be zeroed
 					Broker:   hb,
 					Original: &chat,
 				}

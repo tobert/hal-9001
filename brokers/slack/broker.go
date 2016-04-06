@@ -174,6 +174,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				m := msg.Data.(*slack.MessageEvent)
 				// slack channels = hal rooms, see hal-9001/hal/event.go
 				e := hal.Evt{
+					ID:       m.Timestamp,
 					Body:     m.Text,
 					Room:     sb.RoomIdToName(m.Channel),
 					RoomId:   m.Channel,
@@ -191,6 +192,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				user := sb.UserIdToName(sae.User)
 
 				e := hal.Evt{
+					ID:       sae.EventTimestamp,
 					Body:     fmt.Sprintf("%q added a star", user),
 					Room:     sb.RoomIdToName(sae.Item.Channel),
 					RoomId:   sae.Item.Channel,
@@ -208,6 +210,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				user := sb.UserIdToName(sre.User)
 
 				e := hal.Evt{
+					ID:       sre.EventTimestamp,
 					Body:     fmt.Sprintf("%q removed a star", user),
 					Room:     sb.RoomIdToName(sre.Item.Channel),
 					RoomId:   sre.Item.Channel,
@@ -225,6 +228,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				user := sb.UserIdToName(rae.User)
 
 				e := hal.Evt{
+					ID:       rae.EventTimestamp,
 					Body:     fmt.Sprintf("%q added reaction %q", user, rae.Reaction),
 					Room:     sb.RoomIdToName(rae.Item.Channel),
 					RoomId:   rae.Item.Channel,
@@ -242,6 +246,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				user := sb.UserIdToName(rre.User)
 
 				e := hal.Evt{
+					ID:       rre.EventTimestamp,
 					Body:     fmt.Sprintf("%q removed reaction %q", user, rre.Reaction),
 					Room:     sb.RoomIdToName(rre.Item.Channel),
 					RoomId:   rre.Item.Channel,

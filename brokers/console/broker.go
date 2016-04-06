@@ -2,6 +2,7 @@ package console
 
 import (
 	"bufio"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -89,14 +90,16 @@ func (cb Broker) SimpleStdout() {
 func (cb Broker) Stream(out chan *hal.Evt) {
 	for {
 		input := <-cb.Stdin
+		now := time.Now()
 
 		e := hal.Evt{
+			ID:       fmt.Sprintf("%d.%06d", now.Unix(), now.UnixNano()),
 			User:     cb.User,
 			UserId:   cb.User,
 			Room:     cb.Room,
 			RoomId:   cb.Room,
 			Body:     input,
-			Time:     time.Now(),
+			Time:     now,
 			Broker:   cb,
 			Original: &input,
 		}

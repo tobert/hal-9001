@@ -13,6 +13,7 @@ import (
 // isn't copied, at a minimum.
 // The original event should usually be attached to the Original
 type Evt struct {
+	ID       string      `json:"id"`      // ID for the event (assigned by upstream or broker)
 	Body     string      `json:"body"`    // body of the event, regardless of source
 	Room     string      `json:"room"`    // the room where the event originated
 	RoomId   string      `json:"room_id"` // the room id from the source broker
@@ -28,6 +29,7 @@ type Evt struct {
 // and a current timestamp. Body and Original will be empty.
 func (e *Evt) Clone() Evt {
 	out := Evt{
+		ID:     e.ID,
 		Room:   e.Room,
 		RoomId: e.RoomId,
 		User:   e.User,

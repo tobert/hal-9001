@@ -68,10 +68,8 @@ func Register() {
 // ArchiveRecorder inserts every message received into the database for use
 // by other parts of the system.
 func archiveRecorder(evt hal.Evt) {
-	// TODO: push the id into the table after fixing up hal.Evt to pass through message id
-	tmpBrokenOnSlackId := fmt.Sprintf("%d", evt.Time.UnixNano())
 	sql := `INSERT INTO archive (id, user, room, broker, ts, body) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err := hal.SqlDB().Exec(sql, tmpBrokenOnSlackId, evt.UserId, evt.RoomId, evt.BrokerName(), evt.Time, evt.Body)
+	_, err := hal.SqlDB().Exec(sql, evt.ID, evt.UserId, evt.RoomId, evt.BrokerName(), evt.Time, evt.Body)
 	if err != nil {
 		log.Printf("Could not insert event into archive: %s\n", err)
 	}
