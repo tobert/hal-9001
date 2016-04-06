@@ -17,6 +17,7 @@ import (
 	"github.com/netflix/hal-9001/plugins/pluginmgr"
 	"github.com/netflix/hal-9001/plugins/prefmgr"
 	"github.com/netflix/hal-9001/plugins/roster"
+	"github.com/netflix/hal-9001/plugins/seppuku"
 	"github.com/netflix/hal-9001/plugins/uptime"
 )
 
@@ -99,6 +100,7 @@ func main() {
 	pluginmgr.Register()
 	prefmgr.Register()
 	roster.Register()
+	seppuku.Register()
 	uptime.Register()
 
 	// start up the router goroutine
