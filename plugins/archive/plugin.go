@@ -13,6 +13,7 @@ import (
 
 // ArchiveEntry is a single event observed by the archive plugin.
 type ArchiveEntry struct {
+	ID        string    `json: id`
 	Timestamp time.Time `json: timestamp`
 	User      string    `json: user`
 	Room      string    `json: room`
@@ -131,12 +132,14 @@ func httpGetArchive(w http.ResponseWriter, r *http.Request) {
 func FetchArchive(limit int) ([]*ArchiveEntry, error) {
 	db := hal.SqlDB()
 
-	sql := `SELECT ts, user, room, broker, body
+	sql := `SELECT id, UNIX_TIMESTAMP(ts) AS ts, user, room, broker, body
 	          FROM archive
-			  WHERE ts > (NOW() - INTERVAL '1 day')
+			  WHERE ts < ? AND ts > ?
 			  ORDER BY ts DESC`
 
-	rows, err := db.Query(sql)
+	now := time.Now()
+	yesterday := now.Add(-time.Hour * 24)
+	rows, err := db.Query(sql, &now, &yesterday)
 	if err != nil {
 		log.Printf("archive query failed: %s\n", err)
 		return nil, err
@@ -148,11 +151,14 @@ func FetchArchive(limit int) ([]*ArchiveEntry, error) {
 	for rows.Next() {
 		ae := ArchiveEntry{}
 
-		err = rows.Scan(&ae.Timestamp, &ae.User, &ae.Room, &ae.Broker, &ae.Body)
+		var ts int64
+		err = rows.Scan(&ae.ID, &ts, &ae.User, &ae.Room, &ae.Broker, &ae.Body)
 		if err != nil {
 			log.Printf("Row iteration failed: %s\n", err)
 			return nil, err
 		}
+
+		ae.Timestamp = time.Unix(ts, 0)
 
 		aes = append(aes, &ae)
 	}
