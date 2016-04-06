@@ -172,6 +172,7 @@ func (hb Broker) Stream(out chan *hal.Evt) {
 					UserId:   chat.Remote,
 					Time:     now, // m.Stamp seems to be zeroed
 					Broker:   hb,
+					IsChat:   true,
 					Original: &chat,
 				}
 

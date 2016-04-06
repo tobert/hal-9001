@@ -101,6 +101,7 @@ func (cb Broker) Stream(out chan *hal.Evt) {
 			Body:     input,
 			Time:     now,
 			Broker:   cb,
+			IsChat:   false,
 			Original: &input,
 		}
 
@@ -116,6 +117,7 @@ func (cb Broker) Stream(out chan *hal.Evt) {
 					orig := SlashReaction(args[1])
 					e.Original = &orig
 				} else {
+					e.IsChat = true
 					e.Reply("/reaction requires exactly one argument!")
 				}
 			}

@@ -182,6 +182,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					UserId:   m.User,
 					Broker:   sb,
 					Time:     slackTime(m.Timestamp),
+					IsChat:   true,
 					Original: m,
 				}
 
@@ -200,6 +201,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					UserId:   sae.User,
 					Broker:   sb,
 					Time:     slackTime(sae.EventTimestamp),
+					IsChat:   false,
 					Original: sae,
 				}
 
@@ -218,6 +220,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					UserId:   sre.User,
 					Broker:   sb,
 					Time:     slackTime(sre.EventTimestamp),
+					IsChat:   false,
 					Original: sre,
 				}
 
@@ -236,6 +239,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					UserId:   rae.User,
 					Broker:   sb,
 					Time:     slackTime(rae.EventTimestamp),
+					IsChat:   false,
 					Original: rae,
 				}
 
@@ -254,6 +258,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					UserId:   rre.User,
 					Broker:   sb,
 					Time:     slackTime(rre.EventTimestamp),
+					IsChat:   false,
 					Original: rre,
 				}
 
