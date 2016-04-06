@@ -21,6 +21,7 @@ type Evt struct {
 	UserId   string      `json:"user_id"` // the user id from the source broker
 	Time     time.Time   `json:"time"`    // timestamp of the event
 	Broker   Broker      `json:"broker"`  // the broker the event came from
+	IsChat   bool        `json:"is_chat"` // lets the broker differentiate chats and other events
 	Original interface{} // the original message container (e.g. slack.MessageEvent)
 	instance *Instance   // used by the broker to provide plugin instance metadata
 }
@@ -36,6 +37,7 @@ func (e *Evt) Clone() Evt {
 		UserId: e.UserId,
 		Time:   time.Now(),
 		Broker: e.Broker,
+		IsChat: e.IsChat,
 	}
 
 	return out
