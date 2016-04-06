@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/netflix/hal-9001/hal"
@@ -19,6 +20,7 @@ type ArchiveEntry struct {
 	Room      string    `json:"room"`
 	Broker    string    `json:"broker"`
 	Body      string    `json:"body"`
+	Reactions []string  `json:"reactions"`
 }
 
 // ArchiveTable stores events for posterity.
@@ -69,6 +71,16 @@ func Register() {
 // ArchiveRecorder inserts every message received into the database for use
 // by other parts of the system.
 func archiveRecorder(evt hal.Evt) {
+	// ignore non-chat events for the archive (e.g. reaction added, etc.)
+	if !evt.IsChat {
+		return
+	}
+
+	// ignore bot commands prefixed with !
+	if strings.HasPrefix(strings.TrimSpace(evt.Body), "!") {
+		return
+	}
+
 	sql := `INSERT INTO archive (id, user, room, broker, ts, body) VALUES (?, ?, ?, ?, ?, ?)`
 	_, err := hal.SqlDB().Exec(sql, evt.ID, evt.UserId, evt.RoomId, evt.BrokerName(), evt.Time, evt.Body)
 	if err != nil {
@@ -79,6 +91,11 @@ func archiveRecorder(evt hal.Evt) {
 // archiveReactionAdded switches on the type of the original message and calls a
 // broker-specific function to pull out the reaction and write it to the database.
 func archiveReaction(evt hal.Evt) {
+	// ignore events marked as chats since they can't be reactions
+	if evt.IsChat {
+		return
+	}
+
 	switch evt.Original.(type) {
 	case *slack.ReactionAddedEvent:
 		log.Printf("adding reaction: (%T) %q\n", evt.Original, evt.Body)
@@ -132,10 +149,23 @@ func httpGetArchive(w http.ResponseWriter, r *http.Request) {
 func FetchArchive(limit int) ([]*ArchiveEntry, error) {
 	db := hal.SqlDB()
 
-	sql := `SELECT id, UNIX_TIMESTAMP(ts) AS ts, user, room, broker, body
-	          FROM archive
-			  WHERE ts < ? AND ts > ?
-			  ORDER BY ts DESC`
+	// joining reactions in here for now - might be better to let the client do it
+	// but for now get something working
+	// This pulls back multiple rows if there are multiple reactions. The row iteration
+	// below uses a map to dedupe the archive rows and put reactions into a list.
+	// This might be better written with GROUP_CONCAT later...
+	sql := `SELECT a.id AS id,
+	               UNIX_TIMESTAMP(a.ts) AS ts,
+				   a.user AS user,
+				   a.room AS room,
+				   a.broker AS broker,
+				   a.body AS body,
+				   IFNULL(r.reaction,"") AS reaction
+	          FROM archive a
+			  LEFT OUTER JOIN reactions r ON ( r.id = a.id AND r.room = a.room )
+			  WHERE a.ts < ? AND a.ts > ?
+			  GROUP BY a.id
+			  ORDER BY a.ts DESC`
 
 	now := time.Now()
 	yesterday := now.Add(-time.Hour * 24)
@@ -146,21 +176,49 @@ func FetchArchive(limit int) ([]*ArchiveEntry, error) {
 	}
 	defer rows.Close()
 
-	aes := []*ArchiveEntry{}
+	entries := make(map[string]*ArchiveEntry)
 
 	for rows.Next() {
-		ae := ArchiveEntry{}
-
 		var ts int64
-		err = rows.Scan(&ae.ID, &ts, &ae.User, &ae.Room, &ae.Broker, &ae.Body)
+		var id, room, user, broker, body, reaction string
+		err = rows.Scan(&id, &ts, &user, &room, &broker, &body, &reaction)
 		if err != nil {
 			log.Printf("Row iteration failed: %s\n", err)
 			return nil, err
 		}
 
-		ae.Timestamp = time.Unix(ts, 0)
+		if entry, exists := entries[id]; exists {
+			if reaction != "" {
+				entry.Reactions = append(entry.Reactions, reaction)
+			}
+		} else {
+			ae := ArchiveEntry{
+				ID:        id,
+				Timestamp: time.Unix(ts, 0),
+				Broker:    broker,
+				Body:      body,
+				Reactions: []string{},
+			}
 
-		aes = append(aes, &ae)
+			if reaction != "" {
+				ae.Reactions = append(ae.Reactions, reaction)
+			}
+
+			// convert ids to names
+			broker := hal.Router().GetBroker(ae.Broker)
+			ae.Room = broker.RoomIdToName(room)
+			ae.User = broker.UserIdToName(user)
+
+			entries[id] = &ae
+		}
+	}
+
+	// hmm might want to sort these before sending...
+	aes := make([]*ArchiveEntry, len(entries))
+	var i int
+	for _, ae := range entries {
+		aes[i] = ae
+		i++
 	}
 
 	return aes, nil
