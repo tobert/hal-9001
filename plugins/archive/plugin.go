@@ -13,12 +13,12 @@ import (
 
 // ArchiveEntry is a single event observed by the archive plugin.
 type ArchiveEntry struct {
-	ID        string    `json: id`
-	Timestamp time.Time `json: timestamp`
-	User      string    `json: user`
-	Room      string    `json: room`
-	Broker    string    `json: broker`
-	Body      string    `json: body`
+	ID        string    `json:"id"`
+	Timestamp time.Time `json:"timestamp"`
+	User      string    `json:"user"`
+	Room      string    `json:"room"`
+	Broker    string    `json:"broker"`
+	Body      string    `json:"body"`
 }
 
 // ArchiveTable stores events for posterity.
