@@ -13,6 +13,7 @@ import (
 
 	"github.com/netflix/hal-9001/plugins/archive"
 	"github.com/netflix/hal-9001/plugins/autoresponder"
+	"github.com/netflix/hal-9001/plugins/mark"
 	"github.com/netflix/hal-9001/plugins/pagerduty"
 	"github.com/netflix/hal-9001/plugins/pluginmgr"
 	"github.com/netflix/hal-9001/plugins/prefmgr"
@@ -96,6 +97,7 @@ func main() {
 	// the plugin registry's LoadInstances() (used below)
 	archive.Register()
 	autoresponder.Register()
+	mark.Register()
 	pagerduty.Register()
 	pluginmgr.Register()
 	prefmgr.Register()
