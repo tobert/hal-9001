@@ -19,6 +19,15 @@ and its plugins.
 
 It should build with older versions of Go but it has not been tested.
 
+# Creating your own bot
+
+The easiest place to start is with the examples in the examples directory. Take
+a look at what's there and copy the main.go of your favorite into a new repo
+and start editing it to your taste. The examples/everything/main.go has the most
+coverage of Hal's features.
+
+TODO: add more of a tutorial here / on the wiki
+
 # Building
 
 A few dependencies are required by Hal's core library and plugins. For
