@@ -178,7 +178,7 @@ fatal errors into error returns, code should be refactored to do so.
 * revive/update the Docker plugin
 * update constants to match the Go standards
 
-# FUTURE IDEAS
+# Future Ideas
 
 * [in progress] a Docker plugin that runs code in Docker over stdio
     * exists, but is not ready to be released yet
@@ -186,10 +186,17 @@ fatal errors into error returns, code should be refactored to do so.
 * build in a simple arg parser something like evt.Getopts()
   along the lines of evt.BodyAsArgv()
 
-# AUTHOR
+# Community
+
+The hangops slack seems like as good a place as any to start out.
+Bot presence coming soon.
+
+https://hangops.slack.com/messages/hal-9001/
+
+# Author
 
 Al Tobey <atobey@netflix.com>
 
-# LICENSE
+# License
 
 Apache 2
