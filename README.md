@@ -48,6 +48,20 @@ go get github.com/go-sql-driver/mysql
 go get gopkg.in/DATA-DOG/go-sqlmock.v1
 ```
 
+# Using Hal in chat
+
+Most bots built with hal start the pluginmgr plugin first. The pluginmgr
+allows users to enable and configure plugins from inside the chat system.
+
+e.g.
+
+```
+!plugin attach uptime
+!plugin detach uptime
+!plugin attach uptime --regex ^[[:space:]]*!up
+!plugin list
+```
+
 # Terminology
 
 ### Event
