@@ -167,12 +167,12 @@ fatal errors into error returns, code should be refactored to do so.
 
 # TODO
 
-* implement proper REST patterns for HTTP endpoints
-* work on the TODOs sprinkled throughout the code
-* provide more examples, e.g. slack-only, hipchat-only, console + slack
-* logging hooks to redirect logs to a channel
-* revive/update the Docker plugin
-* update constants to match the Go standards
+- [ ] implement sensible REST patterns for HTTP endpoints
+- [ ] work on the TODOs sprinkled throughout the code
+- [ ] provide more examples, e.g. slack-only, hipchat-only, console + slack
+- [ ] logging hooks to redirect logs to a channel
+- [ ] revive/update the Docker plugin
+- [ ] update constants to match the Go standards
 
 # Future Ideas
 
