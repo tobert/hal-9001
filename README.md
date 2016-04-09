@@ -5,13 +5,9 @@ and its plugins.
 
 # Goals
 
-* make easy things easy and hard things possible
-    * check out the uptime plugin for easy
-* provide full access to low-level APIs to plugins
-    * e.g. Slack plugins can get access to raw events and the full API
-    * support multiple event sources with full API pass-through
-* provide infrastructure for incident management plugins
-    * e.g. reaction tracking, archiving, alternate approaches to presence
+* make easy things easy and hard things accessible
+* 15 minutes from getting started to a working bot
+* optimize for long-term maintenance
 
 # Requirements
 
