@@ -46,6 +46,9 @@ func SqlDB() *sql.DB {
 			log.Fatalf("Could not connect to database: %s\n", err)
 		}
 
+		// make sure the connection is in full utf-8 mode
+		sqldbSingleton.Exec("SET NAMES utf8mb4")
+
 		err = sqldbSingleton.Ping()
 		if err != nil {
 			log.Fatalf("Pinging database failed: %s\n", err)
@@ -67,29 +70,40 @@ func ForceSqlDBHandle(db *sql.DB) {
 }
 
 // SqlInit executes the provided SQL once per runtime.
-// SqlInit does not care what's in the sql statements. It does not
-// interpret the SQL. Its only job is to execute the provided string.
 // Execution is not tracked across restarts so statements still need
 // to use CREATE TABLE IF NOT EXISTS or other methods of achieving
 // idempotent execution. Errors are returned unmodified, including
 // primary key violations, so you may ignore them as needed.
-func SqlInit(sql_txt string) error {
+func SqlInit(sqlTxt string) error {
 	db := SqlDB()
 
 	// avoid a database round-trip by checking an in-memory cache
 	// fall through and hit the DB on cold cache
-	if _, exists := sqlInitCache[sql_txt]; exists {
+	if _, exists := sqlInitCache[sqlTxt]; exists {
 		return nil
 	}
 
+	// clean up a little
+	sqlTxt = strings.TrimSpace(sqlTxt)
+	sqlTxt = strings.TrimSuffix(sqlTxt, ";")
+
+	// check if it's a simple create table, add engine/charset if unspecified
+	lowSql := strings.ToLower(sqlTxt)
+	if strings.HasPrefix(lowSql, "create table") && strings.HasSuffix(lowSql, ")") {
+		// looks like no engine or charset was specified, add it
+		// "utf8" has incomplete support.  "utf8mb4" provides full utf8 support
+		// https://mathiasbynens.be/notes/mysql-utf8mb4
+		sqlTxt = sqlTxt + " ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+	}
+
 	// execute the statement
-	_, err := db.Exec(sql_txt)
+	_, err := db.Exec(sqlTxt)
 	if err != nil {
-		log.Printf("SqlInit() failed on statement '%s':\n%s", sql_txt, err)
+		log.Printf("SqlInit() failed on statement '%s':\n%s", sqlTxt, err)
 		return err
 	}
 
-	sqlInitCache[sql_txt] = struct{}{}
+	sqlInitCache[sqlTxt] = struct{}{}
 
 	return nil
 }

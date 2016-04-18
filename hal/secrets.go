@@ -43,10 +43,10 @@ var secrets SecretStore
 // uses VARBINARY instead of BINARY to avoid null termination issues.
 const SECRETS_TABLE = `
 CREATE TABLE IF NOT EXISTS secrets (
-	pkey  VARBINARY(256) NOT NULL,   -- plaintext key
+	pkey  VARCHAR(191)     NOT NULL, -- plaintext key
 	sval  VARBINARY(16384) NOT NULL, -- AES/GCM sealed value
-	nonce VARBINARY(12) NOT NULL,    -- GCM nonce for the value
-	ts     TIMESTAMP,                -- timestamp, for debugging/cleanup
+	nonce VARBINARY(12)    NOT NULL, -- GCM nonce for the value
+	ts    TIMESTAMP,                 -- timestamp, for debugging/cleanup
 	PRIMARY KEY(pkey)
 )`
 

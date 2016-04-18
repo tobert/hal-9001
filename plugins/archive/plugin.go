@@ -44,10 +44,10 @@ type ArchiveEntry struct {
 // and instead rely on the timestamp/user/room for identity.
 const ArchiveTable = `
 CREATE TABLE IF NOT EXISTS archive (
-  id       VARCHAR(255),
-  user     VARCHAR(64),
-  room     VARCHAR(255),
-  broker   VARCHAR(255),
+  id       VARCHAR(191),
+  user     VARCHAR(191),
+  room     VARCHAR(191),
+  broker   VARCHAR(191),
   ts       TIMESTAMP,
   body     TEXT,
   PRIMARY KEY (id,user,room,broker)
@@ -55,12 +55,12 @@ CREATE TABLE IF NOT EXISTS archive (
 
 const ReactionTable = `
 CREATE TABLE IF NOT EXISTS reactions (
-  id       VARCHAR(255),
-  user     VARCHAR(64),
-  room     VARCHAR(255),
-  broker   VARCHAR(255),
+  id       VARCHAR(191),
+  user     VARCHAR(191),
+  room     VARCHAR(191),
+  broker   VARCHAR(191),
   ts       TIMESTAMP,
-  reaction VARCHAR(64),
+  reaction VARCHAR(191),
   PRIMARY KEY (ts,user,room,broker)
 )`
 

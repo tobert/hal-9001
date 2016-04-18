@@ -46,12 +46,12 @@ type qFrag struct {
 // suitable for quick & dirty markov-style chatterbot stuff
 const BLABBERWORDS_TABLE = `
 CREATE TABLE IF NOT EXISTS blabberwords (
-  word     VARCHAR(64),  -- the word seen in the room
-  user     VARCHAR(64),  -- the user who said it
-  room     VARCHAR(64),  -- the chat room it was said in
-  next     VARCHAR(64),  -- the word after it
-  count    int,          -- how many times this pair has been seen
-  ts       TIMESTAMP,    -- when it was last said (not indexed for now)
+  word     VARCHAR(191),  -- the word seen in the room
+  user     VARCHAR(191),  -- the user who said it
+  room     VARCHAR(191),  -- the chat room it was said in
+  next     VARCHAR(191),  -- the word after it
+  count    int,           -- how many times this pair has been seen
+  ts       TIMESTAMP,     -- when it was last said (not indexed for now)
   PRIMARY KEY (word, user, room, next)
 )`
 

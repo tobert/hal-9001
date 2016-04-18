@@ -32,12 +32,12 @@ import (
 // key field is called pkey because key is a reserved word
 const PREFS_TABLE = `
 CREATE TABLE IF NOT EXISTS prefs (
-	 user    VARCHAR(32) DEFAULT "",
-	 room    VARCHAR(32) DEFAULT "",
-	 broker  VARCHAR(32) DEFAULT "",
-	 plugin  VARCHAR(32) DEFAULT "",
-	 pkey    VARCHAR(32) NOT NULL,
-	 value   TEXT,
+	 user    VARCHAR(191) DEFAULT "",
+	 room    VARCHAR(191) DEFAULT "",
+	 broker  VARCHAR(191) DEFAULT "",
+	 plugin  VARCHAR(191) DEFAULT "",
+	 pkey    VARCHAR(191) NOT NULL,
+	 value   MEDIUMTEXT,
 	 PRIMARY KEY(user, room, broker, plugin, pkey)
 )`
 

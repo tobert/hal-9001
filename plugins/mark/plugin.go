@@ -38,9 +38,9 @@ type Mark struct {
 const MarkTable = `
 CREATE TABLE IF NOT EXISTS marks (
   ts       TIMESTAMP,
-  user     VARCHAR(64),
-  room     VARCHAR(255),
-  broker   VARCHAR(255),
+  user     VARCHAR(191),
+  room     VARCHAR(191),
+  broker   VARCHAR(191),
   note     TEXT,
   PRIMARY KEY (ts,user,room,broker)
 )`

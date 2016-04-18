@@ -54,8 +54,8 @@ e.g.
 
 const PluginGroupTable = `
 CREATE TABLE IF NOT EXISTS plugin_groups (
-    group_name  VARCHAR(255),
-    plugin_name VARCHAR(255),
+    group_name  VARCHAR(191),
+    plugin_name VARCHAR(191),
     ts          TIMESTAMP,
     PRIMARY KEY(group_name, plugin_name)
 )`

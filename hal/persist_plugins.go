@@ -22,10 +22,10 @@ import (
 
 const PLUGIN_INST_TABLE = `
 CREATE TABLE IF NOT EXISTS plugin_instances (
-	plugin  varchar(255) NOT NULL,
-	broker  varchar(255) NOT NULL,
-	room    varchar(255) NOT NULL,
-	regex   varchar(255) NOT NULL DEFAULT "",
+	plugin  varchar(191) NOT NULL,
+	broker  varchar(191) NOT NULL,
+	room    varchar(191) NOT NULL,
+	regex   varchar(191) NOT NULL DEFAULT "",
 	ts      TIMESTAMP,
 	PRIMARY KEY(plugin, broker, room)
 )
