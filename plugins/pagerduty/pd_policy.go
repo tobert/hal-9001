@@ -65,11 +65,12 @@ type Service struct {
 
 func GetEscalationPolicies(token, domain string) ([]EscalationPolicy, error) {
 	policies := make([]EscalationPolicy, 0)
-	epresp := EscalationPolicyResponse{}
 	offset := 0
 	limit := 100
 
 	for {
+		epresp := EscalationPolicyResponse{}
+
 		url := pagedUrl("/api/v1/escalation_policies/on_call", domain, offset, limit)
 
 		resp, err := authenticatedGet(url, token, "")
