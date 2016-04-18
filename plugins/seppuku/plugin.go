@@ -28,14 +28,40 @@ func Register() {
 	p := hal.Plugin{
 		Name:  "seppuku",
 		Func:  seppuku,
-		Regex: "^!seppuku",
+		Regex: "^[[:space:]]*!(seppuku|切腹)",
 	}
 	p.Register()
+
+	z := hal.Plugin{
+		Name:  "zombie",
+		Func:  zombie,
+		Regex: "^[[:space:]]*!(zombie|ゾンビ)",
+	}
+	z.Register()
 }
 
+// seppuku instructs the bot to die.
+// you probably don't want this on in production - if you do, a supervisor
+// is highly recommended
 func seppuku(evt hal.Evt) {
-	evt.Reply("sayonara")
+	evt.Reply("さようなら")
 	time.Sleep(2 * time.Second)
-	log.Printf("exiting due to !sayonara command from %s in %s/%s", evt.User, evt.BrokerName(), evt.Room)
+	log.Printf("exiting due to %q command from %s in %s/%s", evt.Body, evt.User, evt.BrokerName(), evt.Room)
 	os.Exit(1337)
+}
+
+// zombie disables all plugins but seppuku and stays running.
+// useful for putting a bot deployed under a supervisor out of comission
+// so a local copy can be tested without interference - put the bot into zombie
+// mode then when you're ready for it to die, instruct it to seppuku
+func zombie(evt hal.Evt) {
+	pr := hal.PluginRegistry()
+
+	for _, inst := range pr.InstanceList() {
+		if inst.Plugin.Name != "seppuku" {
+			inst.Unregister()
+		}
+	}
+
+	evt.Reply("まったネクストライフ")
 }
