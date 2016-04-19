@@ -191,6 +191,8 @@ func rmAlias(msg hal.Evt, parts []string) {
 	pref.User = "" // filled in by NewPref and unwanted
 	pref.Key = aliasKey(parts[0])
 	pref.Delete()
+
+	msg.Replyf("Removed alias %q", parts[0])
 }
 
 func listAlias(msg hal.Evt) {
@@ -198,8 +200,7 @@ func listAlias(msg hal.Evt) {
 	pref.User = "" // filled in by NewPref and unwanted
 	prefs := pref.GetPrefs()
 	data := prefs.Table()
-	text := hal.AsciiTable(data[0], data[1:])
-	msg.Reply(text)
+	msg.ReplyTable(data[0], data[1:])
 }
 
 func aliasKey(alias string) string {
