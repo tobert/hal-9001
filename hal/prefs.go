@@ -32,13 +32,18 @@ import (
 // key field is called pkey because key is a reserved word
 const PREFS_TABLE = `
 CREATE TABLE IF NOT EXISTS prefs (
+	 id      INT NOT NULL AUTO_INCREMENT, -- only used for deleting/updating by id
 	 user    VARCHAR(191) DEFAULT "",
 	 room    VARCHAR(191) DEFAULT "",
 	 broker  VARCHAR(191) DEFAULT "",
 	 plugin  VARCHAR(191) DEFAULT "",
 	 pkey    VARCHAR(191) NOT NULL,
 	 value   MEDIUMTEXT,
-	 PRIMARY KEY(user, room, broker, plugin, pkey)
+	 INDEX(id), -- required by mysql for non-PK auto_increment
+	 -- InnoDB limits indexes to 767 bytes so have the PK only index the first
+	 -- 32 characters of each column as a compromise
+	 -- (5 cols * 4 bytes * 32 chars = 640)
+	 PRIMARY KEY(user(32), room(32), broker(32), plugin(32), pkey(32))
 )`
 
 /*
@@ -74,6 +79,7 @@ type Pref struct {
 	Default string
 	Success bool
 	Error   error
+	Id      int
 }
 
 type Prefs []Pref
@@ -145,6 +151,15 @@ func FindPrefs(user, broker, room, plugin, key string) Prefs {
 	return pref.Find()
 }
 
+// RmPrefId removes a preference from the database by its numeric id.
+func RmPrefId(id int) error {
+	db := SqlDB()
+	SqlInit(PREFS_TABLE)
+
+	_, err := db.Exec("DELETE FROM prefs WHERE id=?", &id)
+	return err
+}
+
 // Get retrieves a value from the database. If the database returns
 // an error, Success will be false and the Error field will be populated.
 func (in *Pref) Get() Pref {
@@ -179,7 +194,7 @@ func (in *Pref) get() Prefs {
 	db := SqlDB()
 	SqlInit(PREFS_TABLE)
 
-	sql := `SELECT user,room,broker,plugin,pkey,value
+	sql := `SELECT user,room,broker,plugin,pkey,value,id
 	        FROM prefs
 	        WHERE user=?
 			  AND room=?
@@ -206,7 +221,7 @@ func (in *Pref) get() Prefs {
 	for rows.Next() {
 		p := *in
 
-		err := rows.Scan(&p.User, &p.Room, &p.Broker, &p.Plugin, &p.Key, &p.Value)
+		err := rows.Scan(&p.User, &p.Room, &p.Broker, &p.Plugin, &p.Key, &p.Value, &p.Id)
 
 		if err != nil {
 			log.Printf("Returning default due to row iteration failure: %s", err)
@@ -317,7 +332,7 @@ func (p Pref) Find() Prefs {
 		params = append(params, p.Key)
 	}
 
-	q := bytes.NewBufferString("SELECT user,room,broker,plugin,pkey,value\n")
+	q := bytes.NewBufferString("SELECT user,room,broker,plugin,pkey,value,id\n")
 	q.WriteString("FROM prefs\n")
 
 	// TODO: maybe it's silly to make it easy for Find() to get all preferences
@@ -342,7 +357,7 @@ func (p Pref) Find() Prefs {
 
 	for rows.Next() {
 		row := Pref{}
-		err = rows.Scan(&row.User, &row.Room, &row.Broker, &row.Plugin, &row.Key, &row.Value)
+		err = rows.Scan(&row.User, &row.Room, &row.Broker, &row.Plugin, &row.Key, &row.Value, &row.Id)
 		// improbable in practice - follows previously mentioned conventions for errors
 		if err != nil {
 			log.Printf("Fetching a row failed: %s\n", err)
@@ -442,7 +457,7 @@ func (prefs Prefs) Key(key string) Prefs {
 // ready to hand off to e.g. hal.AsciiTable()
 func (prefs Prefs) Table() [][]string {
 	out := make([][]string, 1)
-	out[0] = []string{"User", "Room", "Broker", "Plugin", "Key", "Value"}
+	out[0] = []string{"User", "Room", "Broker", "Plugin", "Key", "Value", "ID"}
 
 	for _, pref := range prefs {
 		m := []string{
@@ -452,6 +467,7 @@ func (prefs Prefs) Table() [][]string {
 			pref.Plugin,
 			pref.Key,
 			pref.Value,
+			fmt.Sprintf("%d", pref.Id),
 		}
 
 		out = append(out, m)
@@ -471,7 +487,8 @@ func (p *Pref) String() string {
 	Default: %q,
 	Success: %t,
 	Error:   %v,
-}`, p.User, p.Room, p.Broker, p.Plugin, p.Key, p.Value, p.Default, p.Success, p.Error)
+	Id:      %d,
+}`, p.User, p.Room, p.Broker, p.Plugin, p.Key, p.Value, p.Default, p.Success, p.Error, p.Id)
 
 }
 
