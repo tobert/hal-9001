@@ -28,10 +28,10 @@ import (
 
 const NAME = "prefmgr"
 
-const HELP = `Listing keys with no filter will list all keys visible to the active user and channel.
+const HELP = `Listing keys with no filter will list all keys visible to the active user and room.
 
 !prefs list --key KEY
-!prefs list --user USER --chan CHANNEL --plugin PLUGIN --key KEY --def DEFAULT
+!prefs list --user USER --room CHANNEL --plugin PLUGIN --key KEY --def DEFAULT
 `
 
 func Register() {
@@ -51,36 +51,42 @@ func prefmgr(evt hal.Evt) {
 	valFlag := cli.StringFlag{
 		Name:        "value",
 		Destination: &flags.Value,
+		Value:       "",
 		Usage:       "the value",
 	}
 
 	keyFlag := cli.StringFlag{
 		Name:        "key",
 		Destination: &flags.Key,
+		Value:       "",
 		Usage:       "the preference key to match",
 	}
 
 	pluginFlag := cli.StringFlag{
 		Name:        "plugin",
 		Destination: &flags.Plugin,
+		Value:       "",
 		Usage:       "select only prefs for the provided plugin",
 	}
 
 	brokerFlag := cli.StringFlag{
 		Name:        "broker",
 		Destination: &flags.Broker,
+		Value:       "",
 		Usage:       "select only prefs for the provided broker",
 	}
 
-	channelFlag := cli.StringFlag{
-		Name:        "channel",
+	roomFlag := cli.StringFlag{
+		Name:        "room",
 		Destination: &flags.Room,
-		Usage:       "select only prefs for the provided channel",
+		Value:       "",
+		Usage:       "select only prefs for the provided room",
 	}
 
 	userFlag := cli.StringFlag{
 		Name:        "user",
 		Destination: &flags.User,
+		Value:       "",
 		Usage:       "select only prefs for the provided user",
 	}
 
@@ -95,7 +101,7 @@ func prefmgr(evt hal.Evt) {
 		{
 			Name:  "list",
 			Usage: "list available preferences",
-			Flags: []cli.Flag{keyFlag, pluginFlag, brokerFlag, channelFlag, userFlag},
+			Flags: []cli.Flag{keyFlag, pluginFlag, brokerFlag, roomFlag, userFlag},
 			Action: func(ctx *cli.Context) {
 				cliList(ctx, evt, flags)
 			},
@@ -103,7 +109,7 @@ func prefmgr(evt hal.Evt) {
 		{
 			Name:  "set",
 			Usage: "set a preference key",
-			Flags: []cli.Flag{keyFlag, pluginFlag, brokerFlag, channelFlag, userFlag, valFlag},
+			Flags: []cli.Flag{keyFlag, pluginFlag, brokerFlag, roomFlag, userFlag, valFlag},
 			Action: func(ctx *cli.Context) {
 				cliSet(ctx, evt, flags)
 			},
@@ -125,13 +131,22 @@ func cliList(ctx *cli.Context, evt hal.Evt, opts hal.Pref) {
 }
 
 func cliSet(ctx *cli.Context, evt hal.Evt, opts hal.Pref) {
-	pref := evt.FillPref(opts)
-	fmt.Printf("Setting pref: %q\n", pref.String())
-	err := pref.Set()
+	if opts.Key == "" {
+		evt.Reply("--key is required to set prefs")
+		return
+	}
+
+	if opts.Value == "" {
+		evt.Reply("--value is required to set prefs")
+		return
+	}
+
+	fmt.Printf("Setting pref: %q\n", opts.String())
+	err := opts.Set()
 	if err != nil {
 		evt.Replyf("Failed to set pref: %q", err)
 	} else {
-		data := pref.GetPrefs().Table()
+		data := opts.GetPrefs().Table()
 		evt.ReplyTable(data[0], data[1:])
 	}
 }
