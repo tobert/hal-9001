@@ -257,8 +257,8 @@ func roomToId(evt *hal.Evt, room string) string {
 	// try to resolve a roomId with the broker, falling back to the name
 	if evt.Broker != nil {
 		roomId := evt.Broker.RoomNameToId(room)
-		if roomId == "" {
-			return room
+		if roomId != "" {
+			return roomId
 		}
 	}
 
