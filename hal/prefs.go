@@ -28,9 +28,9 @@ import (
 // Order of precendence for prefs:
 // user -> room -> broker -> plugin -> global -> default
 
-// PREFS_TABLE contains the SQL to create the prefs table
+// PrefsTable contains the SQL to create the prefs table
 // key field is called pkey because key is a reserved word
-const PREFS_TABLE = `
+const PrefsTable = `
 CREATE TABLE IF NOT EXISTS prefs (
 	 id      INT NOT NULL AUTO_INCREMENT, -- only used for deleting/updating by id
 	 user    VARCHAR(191) DEFAULT "",
@@ -154,7 +154,7 @@ func FindPrefs(user, broker, room, plugin, key string) Prefs {
 // RmPrefId removes a preference from the database by its numeric id.
 func RmPrefId(id int) error {
 	db := SqlDB()
-	SqlInit(PREFS_TABLE)
+	SqlInit(PrefsTable)
 
 	_, err := db.Exec("DELETE FROM prefs WHERE id=?", &id)
 	return err
@@ -192,7 +192,7 @@ func (in *Pref) GetPrefs() Prefs {
 
 func (in *Pref) get() Prefs {
 	db := SqlDB()
-	SqlInit(PREFS_TABLE)
+	SqlInit(PrefsTable)
 
 	sql := `SELECT user,room,broker,plugin,pkey,value,id
 	        FROM prefs
@@ -242,7 +242,7 @@ func (in *Pref) get() Prefs {
 // Set writes the value and returns a new struct with the new value.
 func (in *Pref) Set() error {
 	db := SqlDB()
-	err := SqlInit(PREFS_TABLE)
+	err := SqlInit(PrefsTable)
 	if err != nil {
 		log.Printf("Failed to initialize the prefs table: %s", err)
 		return err
@@ -272,7 +272,7 @@ func (in *Pref) Set() error {
 func (in *Pref) Delete() error {
 	db := SqlDB()
 
-	err := SqlInit(PREFS_TABLE)
+	err := SqlInit(PrefsTable)
 	if err != nil {
 		log.Printf("Failed to initialize the prefs table: %s", err)
 		return err
@@ -302,7 +302,7 @@ func (in *Pref) Delete() error {
 // Returns an empty list and logs upon errors.
 func (p Pref) Find() Prefs {
 	db := SqlDB()
-	SqlInit(PREFS_TABLE)
+	SqlInit(PrefsTable)
 
 	fields := make([]string, 0)
 	params := make([]interface{}, 0)
