@@ -75,7 +75,10 @@ func (c Config) NewBroker(name string) Broker {
 	}
 
 	for jid, name := range c.Rooms {
-		client.JoinMUC(jid, name)
+		_, err = client.JoinMUCNoHistory(jid, name)
+		if err != nil {
+			log.Fatalf("Could not join room %q/%q: %s", name, jid, err)
+		}
 	}
 
 	hb := Broker{
@@ -120,7 +123,7 @@ func (hb Broker) SendTable(evt hal.Evt, hdr []string, rows [][]string) {
 func (hb *Broker) Subscribe(room, alias string) {
 	// TODO: take a room name and somehow look up the goofy MUC name
 	// e.g. client.JoinMUC("99999_roomName@conf.hipchat.com", "Bot Name")
-	hb.Client.JoinMUC(room, alias)
+	hb.Client.JoinMUCNoHistory(room, alias)
 	hb.Config.Rooms[room] = alias
 }
 
