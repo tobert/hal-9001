@@ -70,16 +70,16 @@ CREATE TABLE IF NOT EXISTS prefs (
 // Pref is a key/value pair associated with a combination of user, plugin,
 // borker, or room.
 type Pref struct {
-	User    string
-	Plugin  string
-	Broker  string
-	Room    string
-	Key     string
-	Value   string
-	Default string
-	Success bool
-	Error   error
-	Id      int
+	User    string `json:"user"`
+	Plugin  string `json:"plugin"`
+	Broker  string `json:"broker"`
+	Room    string `json:"room"`
+	Key     string `json:"key"`
+	Value   string `json:"value"`
+	Default string `json:"default"`
+	Success bool   `json:"-"`
+	Error   error  `json:"-"`
+	Id      int    `json:"id"`
 }
 
 type Prefs []Pref
