@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/codegangsta/cli"
 	"github.com/netflix/hal-9001/hal"
@@ -114,6 +115,13 @@ func prefmgr(evt hal.Evt) {
 				cliSet(ctx, evt, flags)
 			},
 		},
+		{
+			Name:  "rm",
+			Usage: "delete a preference key by id. e.g. !prefs rm 1",
+			Action: func(ctx *cli.Context) {
+				cliRm(ctx, evt)
+			},
+		},
 	}
 
 	err := app.Run(evt.BodyAsArgv())
@@ -161,6 +169,27 @@ func cliSet(ctx *cli.Context, evt hal.Evt, opts hal.Pref) {
 	} else {
 		data := opts.GetPrefs().Table()
 		evt.ReplyTable(data[0], data[1:])
+	}
+}
+
+func cliRm(ctx *cli.Context, evt hal.Evt) {
+	args := ctx.Args()
+	if len(args) != 1 {
+		evt.Reply("!prefs rm requires exactly one argument.")
+		return
+	}
+
+	id, err := strconv.Atoi(args[0])
+	if err != nil {
+		evt.Replyf("Failed to delete pref: %q does not seem to be an integer. %s", args[0], err)
+		return
+	}
+
+	err = hal.RmPrefId(id)
+	if err != nil {
+		evt.Replyf("Failed to delete pref with id %d: %s", id, err)
+	} else {
+		evt.Replyf("Deleted pref id %d.", id)
 	}
 }
 
