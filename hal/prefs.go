@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 )
 
@@ -387,6 +388,13 @@ func (prefs Prefs) Clone() Prefs {
 	return out
 }
 
+// One returns the most-specific preference from the Prefs according
+// to the precedence order of user>room>broker>plugin>global.
+func (prefs Prefs) One() Pref {
+	sort.Sort(prefs)
+	return prefs[0]
+}
+
 // User filters the preference list by user, returning a new Prefs
 // e.g. uprefs = prefs.User("adent")
 func (prefs Prefs) User(user string) Prefs {
@@ -454,7 +462,7 @@ func (prefs Prefs) Key(key string) Prefs {
 	return out
 }
 
-// ready to hand off to e.g. hal.AsciiTable()
+// Table returns Prefs as a 2d list ready to hand off to e.g. hal.AsciiTable()
 func (prefs Prefs) Table() [][]string {
 	out := make([][]string, 1)
 	out[0] = []string{"User", "Room", "Broker", "Plugin", "Key", "Value", "ID"}
@@ -474,6 +482,32 @@ func (prefs Prefs) Table() [][]string {
 	}
 
 	return out
+}
+
+func (ps Prefs) Len() int           { return len(ps) }
+func (ps Prefs) Swap(i, j int)      { ps[i], ps[j] = ps[j], ps[i] }
+func (ps Prefs) Less(i, j int) bool { return ps[i].precedence() < ps[j].precedence() }
+
+func (p *Pref) precedence() int {
+	if !p.Success {
+		return 0
+	}
+	if p.User != "" {
+		return 5
+	}
+	if p.Room != "" {
+		return 4
+	}
+	if p.Broker != "" {
+		return 3
+	}
+	if p.Plugin != "" {
+		return 2
+	}
+	if p.Key != "" {
+		return 1
+	}
+	return 0
 }
 
 func (p *Pref) String() string {
