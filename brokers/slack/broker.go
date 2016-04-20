@@ -40,6 +40,7 @@ import (
 type Broker struct {
 	Client  *slack.Client     // slack API object
 	RTM     *slack.RTM        // slack RTM object
+	UserId  string            // slack Bot user ID (for preventing loops)
 	inst    string            // broker instance name
 	i2u     map[string]string // id->name cache
 	i2c     map[string]string // id->name cache
@@ -181,13 +182,24 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 		case msg := <-sb.RTM.IncomingEvents:
 			switch ev := msg.Data.(type) {
 			case *slack.HelloEvent:
-				log.Println("brokers/slack ignoring HelloEvent")
+				log.Println("brokers/slack HelloEvent")
 
 			case *slack.ConnectedEvent:
-				log.Printf("brokers/slack ignoring ConnectedEvent")
+				info := sb.RTM.GetInfo()
+				sb.UserId = info.User.ID
+
+				log.Printf("brokers/slack ConnectedEvent - retreived bot ID %q", sb.UserId)
 
 			case *slack.MessageEvent:
 				m := msg.Data.(*slack.MessageEvent)
+
+				log.Printf("MessageEvent.Text: %q", m.Text)
+
+				if m.User == sb.UserId {
+					log.Printf("ignoring MessageEvent from bot with id %s", sb.UserId)
+					continue // ignore bot-created events
+				}
+
 				// slack channels = hal rooms, see hal-9001/hal/event.go
 				e := hal.Evt{
 					ID:       m.Timestamp,
@@ -206,6 +218,12 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 
 			case *slack.StarAddedEvent:
 				sae := msg.Data.(*slack.StarAddedEvent)
+
+				if sae.User == sb.UserId {
+					log.Printf("ignoring event from bot with id %s", sb.UserId)
+					continue // ignore bot-created events
+				}
+
 				user := sb.UserIdToName(sae.User)
 
 				e := hal.Evt{
@@ -225,6 +243,12 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 
 			case *slack.StarRemovedEvent:
 				sre := msg.Data.(*slack.StarRemovedEvent)
+
+				if sre.User == sb.UserId {
+					log.Printf("ignoring event from bot with id %s", sb.UserId)
+					continue // ignore bot-created events
+				}
+
 				user := sb.UserIdToName(sre.User)
 
 				e := hal.Evt{
@@ -244,6 +268,12 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 
 			case *slack.ReactionAddedEvent:
 				rae := msg.Data.(*slack.ReactionAddedEvent)
+
+				if rae.User == sb.UserId {
+					log.Printf("ignoring event from bot with id %s", sb.UserId)
+					continue // ignore bot-created events
+				}
+
 				user := sb.UserIdToName(rae.User)
 
 				e := hal.Evt{
@@ -263,6 +293,12 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 
 			case *slack.ReactionRemovedEvent:
 				rre := msg.Data.(*slack.ReactionRemovedEvent)
+
+				if rre.User == sb.UserId {
+					log.Printf("ignoring event from bot with id %s", sb.UserId)
+					continue // ignore bot-created events
+				}
+
 				user := sb.UserIdToName(rre.User)
 
 				e := hal.Evt{
@@ -284,6 +320,12 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				// ignored
 
 			case *slack.LatencyReport:
+				// ignored
+
+			case *slack.FileCreatedEvent, *slack.FilePublicEvent, *slack.FileSharedEvent:
+				// ignored
+
+			case *slack.PrefChangeEvent:
 				// ignored
 
 			case *slack.RTMError:
