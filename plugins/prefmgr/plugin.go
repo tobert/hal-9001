@@ -141,6 +141,19 @@ func cliSet(ctx *cli.Context, evt hal.Evt, opts hal.Pref) {
 		return
 	}
 
+	// shorthand for "current room/user/broker" !pref set --user * --room * --broker *
+	if opts.User == "*" {
+		opts.User = evt.UserId
+	}
+
+	if opts.Room == "*" {
+		opts.Room = evt.RoomId
+	}
+
+	if opts.Broker == "*" {
+		opts.Broker = evt.BrokerName()
+	}
+
 	fmt.Printf("Setting pref: %q\n", opts.String())
 	err := opts.Set()
 	if err != nil {
