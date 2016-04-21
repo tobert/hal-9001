@@ -19,6 +19,7 @@ package hal
 import (
 	"fmt"
 	"log"
+	"runtime/debug"
 	"sync"
 )
 
@@ -140,6 +141,7 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 		if r := recover(); r != nil {
 			log.Printf("recovered panic in plugin %q\n", pname)
 			log.Printf("panic: %q", r)
+			debug.PrintStack()
 		}
 	}()
 
