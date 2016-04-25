@@ -22,6 +22,7 @@ type Broker interface {
 	Name() string
 	Send(evt Evt)
 	SendTable(evt Evt, header []string, rows [][]string)
+	SendDM(evt Evt)
 	RoomIdToName(id string) (name string)
 	RoomNameToId(name string) (id string)
 	UserIdToName(id string) (name string)

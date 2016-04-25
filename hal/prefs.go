@@ -149,7 +149,7 @@ func FindPrefs(user, broker, room, plugin, key string) Prefs {
 		Plugin: plugin,
 		Key:    key,
 	}
-	return pref.Find()
+	return pref.find(false)
 }
 
 // RmPrefId removes a preference from the database by its numeric id.
@@ -297,16 +297,39 @@ func (in *Pref) Delete() error {
 }
 
 // Find retrieves all preferences from the database that match any field in the
-// handle's fields.
+// handle's fields. If the Key field is set, it is matched first.
+// The resulting list is sorted before it is returned.
 // Unlike Get(), empty string fields are not included in the (generated) query
 // so it can potentially match a lot of rows.
 // Returns an empty list and logs upon errors.
 func (p Pref) Find() Prefs {
+	return p.find(false)
+}
+
+func (p Pref) FindKey(key string) Prefs {
+	p.Key = key
+	return p.find(true)
+}
+
+// FindKey is like Find() but the provide key is required.
+func FindKey(key string) Prefs {
+	p := Pref{Key: key}
+	return p.find(true)
+}
+
+func (p Pref) find(keyRequired bool) Prefs {
 	db := SqlDB()
 	SqlInit(PrefsTable)
 
 	fields := make([]string, 0)
 	params := make([]interface{}, 0)
+
+	// NOTE: the order of these statements is important!
+	if keyRequired {
+		// ok for it to be "" to match no key, but still required
+		// query is appended below
+		params = append(params, p.Key)
+	}
 
 	if p.User != "" {
 		fields = append(fields, "user=?")
@@ -328,7 +351,7 @@ func (p Pref) Find() Prefs {
 		params = append(params, p.Plugin)
 	}
 
-	if p.Key != "" {
+	if !keyRequired && p.Key != "" {
 		fields = append(fields, "pkey=?")
 		params = append(params, p.Key)
 	}
@@ -336,16 +359,25 @@ func (p Pref) Find() Prefs {
 	q := bytes.NewBufferString("SELECT user,room,broker,plugin,pkey,value,id\n")
 	q.WriteString("FROM prefs\n")
 
+	if keyRequired || len(fields) > 0 {
+		q.WriteString("\nWHERE ")
+	}
+
+	if keyRequired {
+		q.WriteString("pkey=? AND (")
+	}
+
 	// TODO: maybe it's silly to make it easy for Find() to get all preferences
 	// but let's cross that bridge when we come to it
 	if len(fields) > 0 {
-		q.WriteString("\nWHERE ")
 		// might make sense to add a param to this func to make it easy to
 		// switch this between AND/OR for unions/intersections
 		q.WriteString(strings.Join(fields, "\n  OR "))
 	}
 
-	// TODO: add deterministic ordering at query time
+	if keyRequired {
+		q.WriteString("\n)")
+	}
 
 	out := make(Prefs, 0)
 	rows, err := db.Query(q.String(), params...)
@@ -373,6 +405,8 @@ func (p Pref) Find() Prefs {
 		out = append(out, row)
 	}
 
+	sort.Sort(out)
+
 	return out
 }
 
@@ -390,9 +424,21 @@ func (prefs Prefs) Clone() Prefs {
 
 // One returns the most-specific preference from the Prefs according
 // to the precedence order of user>room>broker>plugin>global.
+//
 func (prefs Prefs) One() Pref {
+	if len(prefs) == 0 {
+		return Pref{Success: false}
+	}
+
 	sort.Sort(prefs)
 	return prefs[0]
+}
+
+// SetKey returns a copy of the pref with the key set to the provided string.
+// Useful for chaining e.g. fooPrefs := p.SetKey("foo").Find().
+func (pref Pref) SetKey(key string) Pref {
+	pref.Key = key // already a copy
+	return pref
 }
 
 // User filters the preference list by user, returning a new Prefs

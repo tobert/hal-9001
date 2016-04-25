@@ -110,6 +110,11 @@ func (hb Broker) Send(evt hal.Evt) {
 	}
 }
 
+// TODO: implement this - if Atlassian ever re-publishes the API docs.
+func (hb Broker) SendDM(e hal.Evt) {
+	panic("SendDM not implemented in Hipchat yet.")
+}
+
 func (hb Broker) SendTable(evt hal.Evt, hdr []string, rows [][]string) {
 	out := evt.Clone()
 	// TODO: verify if this works for bots - works fine in the client

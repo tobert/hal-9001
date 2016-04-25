@@ -60,7 +60,10 @@ func (cb Broker) Name() string {
 
 func (cb Broker) Send(e hal.Evt) {
 	cb.Stdout <- e.Body
-	//cb.Stdout <- fmt.Sprintf("%s/%s: %s\n", e.User, e.Room, e.Body)
+}
+
+func (cb Broker) SendDM(e hal.Evt) {
+	cb.Stdout <- e.Body
 }
 
 func (cb Broker) SendTable(e hal.Evt, hdr []string, rows [][]string) {

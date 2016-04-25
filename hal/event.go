@@ -66,7 +66,16 @@ func (e *Evt) Clone() Evt {
 // room where the command originated.
 // TODO: document preferences here
 func (e *Evt) Reply(msg string) {
-	// TODO: add routing
+	replyVia := e.AsPref().FindKey("reply-via-dm").One()
+
+	// One() sets Success to false for no results.
+	if replyVia.Success {
+		if replyVia.Value == "true" {
+			e.ReplyDM(msg)
+			return
+		}
+	}
+
 	e.ReplyToRoom(msg)
 }
 
@@ -96,6 +105,14 @@ func (e *Evt) ReplyTable(hdr []string, rows [][]string) {
 	} else {
 		panic("hal.Evt.ReplyTable called with nil Broker!")
 	}
+}
+
+// ReplyDM makes it convenient to reply to a user via DM. The user is drawn
+// from the event's UserId field and passed to the broker's SendDM() method.
+func (e *Evt) ReplyDM(msg string) {
+	out := e.Clone()
+	out.Body = msg
+	e.Broker.SendDM(out)
 }
 
 // ReplyToRoom crafts a new event from the provided string
@@ -146,36 +163,14 @@ func (e *Evt) InstanceSettings() Prefs {
 	return out
 }
 
-// NewPref creates a new pref struct with user, room, broker, and plugin
-// set using metadata from the event.
-func (e *Evt) NewPref() Pref {
-	return Pref{
-		User:   e.User,
+// AsPref returns a a pref with user, room, broker, and plugin set using data
+// from the event handle.
+func (e *Evt) AsPref() Pref {
+	p := Pref{
+		User:   e.UserId,
 		Room:   e.RoomId,
 		Broker: e.BrokerName(),
 		Plugin: e.instance.Plugin.Name,
-	}
-}
-
-// FillPref returns a copy of the provided pref with user, room, broker,
-// and plugin set using data from the event handle for any of those fields
-// that don't already have a value. e.g. if the input has a room set it will
-// be left alone and the other fields will be set.
-func (e *Evt) FillPref(p Pref) Pref {
-	if p.User == "" {
-		p.User = e.User
-	}
-
-	if p.Room == "" {
-		p.Room = e.RoomId
-	}
-
-	if p.Broker == "" {
-		p.Broker = e.BrokerName()
-	}
-
-	if p.Plugin == "" {
-		p.Plugin = e.instance.Plugin.Name
 	}
 
 	return p
@@ -207,5 +202,5 @@ func (e *Evt) BodyAsArgv() []string {
 }
 
 func (e *Evt) String() string {
-	return fmt.Sprintf("%s/%s@%s: %s", e.User, e.Room, e.Time.String(), e.Body)
+	return fmt.Sprintf("User: %q Room: %q Time: %q Body: %q", e.User, e.Room, e.Time.String(), e.Body)
 }

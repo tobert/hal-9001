@@ -46,6 +46,7 @@ type Broker struct {
 	i2c     map[string]string // id->name cache
 	u2i     map[string]string // name->id cache
 	c2i     map[string]string // name->id cache
+	imcs    map[string]string // userId -> channelId im channels
 	idRegex *regexp.Regexp    // compiled RE to match user/room ids
 }
 
@@ -66,6 +67,7 @@ func (c Config) NewBroker(name string) Broker {
 		i2c:     make(map[string]string),
 		u2i:     make(map[string]string),
 		c2i:     make(map[string]string),
+		imcs:    make(map[string]string),
 		idRegex: regexp.MustCompile("^[UC][A-Z0-9]{8}$"),
 	}
 
@@ -86,6 +88,36 @@ func (sb Broker) Name() string {
 func (sb Broker) Send(evt hal.Evt) {
 	om := sb.RTM.NewOutgoingMessage(evt.Body, evt.RoomId)
 	sb.RTM.SendMessage(om)
+}
+
+func (sb Broker) SendDM(evt hal.Evt) {
+	evt.Room = ""
+	evt.RoomId = ""
+
+	log.Printf("slackBroker.SendDM(%s)", evt.String())
+
+	if roomId, exists := sb.imcs[evt.UserId]; exists {
+		// cache hit
+		// TODO: verify what happens if the destination user has closed the DM
+		evt.RoomId = roomId
+	} else {
+		// try to open the channel, cache it if it works
+		_, _, roomId, err := sb.RTM.OpenIMChannel(evt.UserId)
+		if err != nil {
+			log.Printf("Error from RTM.OpenIMChannel(%q): %s", evt.UserId, err)
+		} else {
+			sb.imcs[evt.UserId] = roomId
+			sb.i2c[roomId] = evt.UserId // TODO: verify this isn't a stupid idea
+			evt.RoomId = roomId
+		}
+	}
+
+	if evt.RoomId != "" {
+		sb.Send(evt)
+	} else {
+		log.Printf("SendDM() failed because it couldn't identify a DM RoomID!")
+		log.Printf("Failed message: %q", evt.String())
+	}
 }
 
 func (sb Broker) SendTable(evt hal.Evt, hdr []string, rows [][]string) {
@@ -435,10 +467,13 @@ func (sb Broker) RoomIdToName(id string) string {
 		if strings.HasPrefix(id, "G") {
 			grp, err := sb.Client.GetGroupInfo(id)
 			if err != nil {
-				log.Printf("brokers/slack could not retrieve group info for '%s' via API: %s\n", id, err)
+				log.Printf("brokers/slack could not retrieve room info for '%s' via API: %s\n", id, err)
 				return ""
 			}
 			name = grp.Name
+		} else if strings.HasPrefix(id, "D") {
+			log.Println("brokers/slack DM CHANNELS ARE A WORK IN PROGRESS")
+			//log.Printf("brokers/slack could not retrieve room info for '%s' via API: %s\n", id, err)
 		} else {
 			room, err := sb.Client.GetChannelInfo(id)
 			if err != nil {

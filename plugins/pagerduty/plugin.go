@@ -115,7 +115,7 @@ func pageAlias(msg hal.Evt, parts []string) {
 	}
 
 	// map alias name to PD token via prefs
-	qpref := msg.NewPref()
+	qpref := msg.AsPref()
 	qpref.User = ""
 	qpref.Key = aliasKey(parts[0])
 	pref := qpref.Get()
@@ -169,8 +169,8 @@ func addAlias(msg hal.Evt, parts []string) {
 		parts = []string{parts[0], keys}
 	}
 
-	pref := msg.NewPref()
-	pref.User = "" // filled in by NewPref and unwanted
+	pref := msg.AsPref()
+	pref.User = "" // filled in by AsPref and unwanted
 	pref.Key = aliasKey(parts[0])
 	pref.Value = parts[1]
 	err := pref.Set()
@@ -187,8 +187,8 @@ func rmAlias(msg hal.Evt, parts []string) {
 		return
 	}
 
-	pref := msg.NewPref()
-	pref.User = "" // filled in by NewPref and unwanted
+	pref := msg.AsPref()
+	pref.User = "" // filled in by AsPref and unwanted
 	pref.Key = aliasKey(parts[0])
 	pref.Delete()
 
@@ -196,8 +196,8 @@ func rmAlias(msg hal.Evt, parts []string) {
 }
 
 func listAlias(msg hal.Evt) {
-	pref := msg.NewPref()
-	pref.User = "" // filled in by NewPref and unwanted
+	pref := msg.AsPref()
+	pref.User = "" // filled in by AsPref and unwanted
 	prefs := pref.GetPrefs()
 	data := prefs.Table()
 	msg.ReplyTable(data[0], data[1:])
