@@ -43,15 +43,15 @@ func Register() {
 }
 
 // the hal.secrets key that should contain the pagerduty auth token
-const PAGERDUTY_TOKEN_KEY = `pagerduty.token`
+const PagerdutyTokenKey = `pagerduty.token`
 
 // the hal.secrets key that should contain the pagerduty account domain
-const PAGERDUTY_DOMAIN_KEY = `pagerduty.domain`
+const PagerdutyDomainKey = `pagerduty.domain`
 
 // the key name used for caching the full escalation policy
-const POLICY_CACHE_KEY = `pagerduty.policy_cache`
+const PolicyCacheKey = `pagerduty.policy_cache`
 
-const PAGE_USAGE = `!page <alias> [optional message]
+const PageUsage = `!page <alias> [optional message]
 
 Send an alert via Pagerduty with an optional custom message.
 
@@ -67,7 +67,7 @@ Aliases that have a comma-separated list of service keys will result in one page
 !page list
 `
 
-const ONCALL_USAGE = `!oncall <alias>
+const OncallUsage = `!oncall <alias>
 
 Find out who is oncall. If only one argument is provided, it must match
 a known alias for a Pagerduty service. Otherwise, it is expected to be
@@ -90,13 +90,13 @@ func page(msg hal.Evt) {
 
 	// should be 2 parts now, "!page" and the target team
 	if parts[0] != "!page" || len(parts) < 2 {
-		msg.Reply(PAGE_USAGE)
+		msg.Reply(PageUsage)
 		return
 	}
 
 	switch parts[1] {
 	case "h", "help":
-		msg.Reply(PAGE_USAGE)
+		msg.Reply(PageUsage)
 	case "add":
 		addAlias(msg, parts[2:])
 	case "rm":
@@ -115,10 +115,8 @@ func pageAlias(msg hal.Evt, parts []string) {
 	}
 
 	// map alias name to PD token via prefs
-	qpref := msg.AsPref()
-	qpref.User = ""
-	qpref.Key = aliasKey(parts[0])
-	pref := qpref.Get()
+	key := aliasKey(parts[0])
+	pref := msg.AsPref().FindKey(key).One()
 
 	// make sure the query succeeded
 	if !pref.Success {
@@ -138,10 +136,10 @@ func pageAlias(msg hal.Evt, parts []string) {
 	for _, svckey := range strings.Split(pref.Value, ",") {
 		// get the Pagerduty auth token from the secrets API
 		secrets := hal.Secrets()
-		token := secrets.Get(PAGERDUTY_TOKEN_KEY)
+		token := secrets.Get(PagerdutyTokenKey)
 		if token == "" {
 			msg.Replyf("Your Pagerduty auth token does not seem to be configured. Please add the %q secret.",
-				PAGERDUTY_TOKEN_KEY)
+				PagerdutyTokenKey)
 			return
 		}
 
@@ -173,6 +171,7 @@ func addAlias(msg hal.Evt, parts []string) {
 	pref.User = "" // filled in by AsPref and unwanted
 	pref.Key = aliasKey(parts[0])
 	pref.Value = parts[1]
+
 	err := pref.Set()
 	if err != nil {
 		msg.Replyf("Write failed: %s", err)
@@ -211,25 +210,25 @@ func oncall(msg hal.Evt) {
 	parts := msg.BodyAsArgv()
 
 	if len(parts) == 1 {
-		msg.Reply(ONCALL_USAGE)
+		msg.Reply(OncallUsage)
 		return
 	} else if len(parts) != 2 {
-		msg.Replyf("%s: invalid command.\n%s", parts[0], ONCALL_USAGE)
+		msg.Replyf("%s: invalid command.\n%s", parts[0], OncallUsage)
 		return
 	}
 
 	secrets := hal.Secrets()
-	token := secrets.Get(PAGERDUTY_TOKEN_KEY)
+	token := secrets.Get(PagerdutyTokenKey)
 	if token == "" {
 		msg.Replyf("Your Pagerduty auth token does not seem to be configured. Please add the %q secret.",
-			PAGERDUTY_TOKEN_KEY)
+			PagerdutyTokenKey)
 		return
 	}
 
-	domain := secrets.Get(PAGERDUTY_DOMAIN_KEY)
+	domain := secrets.Get(PagerdutyDomainKey)
 	if domain == "" {
 		msg.Replyf("Your Pagerduty domain does not seem to be configured. Please add the %q secret.",
-			PAGERDUTY_DOMAIN_KEY)
+			PagerdutyDomainKey)
 		return
 	}
 
@@ -239,9 +238,8 @@ func oncall(msg hal.Evt) {
 
 	// see if there's a copy cached
 	policies := []EscalationPolicy{}
-	ttl := time.Duration(0)
-	if hal.Cache().Exists(POLICY_CACHE_KEY) {
-		ttl, _ = hal.Cache().Get(POLICY_CACHE_KEY, &policies)
+	if hal.Cache().Exists(PolicyCacheKey) {
+		ttl, _ := hal.Cache().Get(PolicyCacheKey, &policies)
 		// TODO: maybe hal.Cache().Get should be careful to not modify the pointer if the ttl is expired...
 		if ttl == 0 {
 			policies = []EscalationPolicy{}
@@ -259,7 +257,7 @@ func oncall(msg hal.Evt) {
 			return
 		}
 
-		hal.Cache().Set(POLICY_CACHE_KEY, &policies, time.Hour)
+		hal.Cache().Set(PolicyCacheKey, &policies, time.Hour)
 	}
 
 	want := strings.ToLower(parts[1])
@@ -299,7 +297,7 @@ func oncall(msg hal.Evt) {
 }
 
 func formatOncallReply(wanted string, policies []EscalationPolicy) string {
-	age := int(hal.Cache().Age(POLICY_CACHE_KEY).Seconds())
+	age := int(hal.Cache().Age(PolicyCacheKey).Seconds())
 
 	buf := bytes.NewBufferString(fmt.Sprintf("Results for %q (%d seconds ago)\n", wanted, age))
 
