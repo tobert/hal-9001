@@ -123,6 +123,16 @@ func (hb Broker) SendTable(evt hal.Evt, hdr []string, rows [][]string) {
 	hb.Send(out)
 }
 
+func (hb Broker) LooksLikeRoomId(room string) bool {
+	log.Println("brokers/hipchat/LooksLikeRoomId() is a stub that always returns true!")
+	return true
+}
+
+func (hb Broker) LooksLikeUserId(user string) bool {
+	log.Println("brokers/hipchat/LooksLikeUserId() is a stub that always returns true!")
+	return true
+}
+
 // Subscribe joins a room with the given alias.
 // These names are specific to how Hipchat does things.
 func (hb *Broker) Subscribe(room, alias string) {

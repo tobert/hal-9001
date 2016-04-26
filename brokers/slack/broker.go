@@ -54,21 +54,26 @@ type Config struct {
 	Token string
 }
 
+var LooksLikeIdRE *regexp.Regexp
+
+func init() {
+	LooksLikeIdRE = regexp.MustCompile(`^[UCD]\w{8}$`)
+}
+
 func (c Config) NewBroker(name string) Broker {
 	client := slack.New(c.Token)
 	// TODO: check for failures and log.Fatalf()
 	rtm := client.NewRTM()
 
 	sb := Broker{
-		Client:  client,
-		RTM:     rtm,
-		inst:    name,
-		i2u:     make(map[string]string),
-		i2c:     make(map[string]string),
-		u2i:     make(map[string]string),
-		c2i:     make(map[string]string),
-		imcs:    make(map[string]string),
-		idRegex: regexp.MustCompile("^[UC][A-Z0-9]{8}$"),
+		Client: client,
+		RTM:    rtm,
+		inst:   name,
+		i2u:    make(map[string]string),
+		i2c:    make(map[string]string),
+		u2i:    make(map[string]string),
+		c2i:    make(map[string]string),
+		imcs:   make(map[string]string),
 	}
 
 	// fill the caches at startup to cut down on API requests
@@ -194,9 +199,25 @@ func (sb Broker) SendAsImage(evt hal.Evt) {
 	}
 }
 
+func (sb Broker) LooksLikeRoomId(room string) bool {
+	if _, exists := sb.i2c[room]; exists {
+		return true
+	}
+
+	return LooksLikeIdRE.MatchString(room)
+}
+
+func (sb Broker) LooksLikeUserId(user string) bool {
+	if _, exists := sb.i2u[user]; exists {
+		return true
+	}
+
+	return LooksLikeIdRE.MatchString(user)
+}
+
 // checks the cache to see if the room is known to this broker
 func (sb Broker) HasRoom(room string) bool {
-	if sb.idRegex.MatchString(room) {
+	if LooksLikeIdRE.MatchString(room) {
 		_, exists := sb.i2c[room]
 		return exists
 	} else {

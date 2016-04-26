@@ -70,6 +70,14 @@ func (cb Broker) SendTable(e hal.Evt, hdr []string, rows [][]string) {
 	cb.Stdout <- hal.Utf8Table(hdr, rows)
 }
 
+func (cb Broker) LooksLikeRoomId(room string) bool {
+	return true
+}
+
+func (cb Broker) LooksLikeUserId(user string) bool {
+	return true
+}
+
 // SimpleStdin will loop forever reading stdin and publish each line
 // as an event in the console broker.
 // e.g. go cbroker.SimpleStdin()

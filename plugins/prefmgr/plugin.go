@@ -162,6 +162,15 @@ func cliSet(ctx *cli.Context, evt hal.Evt, opts hal.Pref) {
 		opts.Broker = evt.BrokerName()
 	}
 
+	if opts.Room != "" {
+		if !evt.Broker.LooksLikeRoomId(opts.Room) {
+			opts.Room = evt.Broker.RoomNameToId(opts.Room)
+		}
+	}
+
+	// TODO: check plugin name validity
+	// TODO: check broker name validity
+
 	fmt.Printf("Setting pref: %q\n", opts.String())
 	err := opts.Set()
 	if err != nil {
