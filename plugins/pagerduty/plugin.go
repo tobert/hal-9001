@@ -78,6 +78,8 @@ a subcommand.
 
 const PAGE_DEFAULT_MESSAGE = `HAL: your presence is requested in the chat room.`
 
+const cacheExpire = time.Minute * 10
+
 func page(msg hal.Evt) {
 	parts := msg.BodyAsArgv()
 
@@ -257,7 +259,8 @@ func oncall(msg hal.Evt) {
 			return
 		}
 
-		hal.Cache().Set(PolicyCacheKey, &policies, time.Hour)
+		// TODO: make this configurable via prefs
+		hal.Cache().Set(PolicyCacheKey, &policies, cacheExpire)
 	}
 
 	want := strings.ToLower(parts[1])
@@ -321,13 +324,13 @@ func formatOncallReply(wanted string, policies []EscalationPolicy) string {
 func formatTimes(st, et *time.Time) string {
 	var start, end string
 	if st != nil {
-		start = st.Local().Format("2006-01-02T15:04MST")
+		start = st.Local().Format("2006-01-02")
 	} else {
 		return "always on call"
 	}
 
 	if et != nil {
-		end = et.Local().Format("2006-01-02T15:04MST")
+		end = et.Local().Format("2006-01-02")
 	} else {
 		return "always on call"
 	}
