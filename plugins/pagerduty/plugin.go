@@ -76,7 +76,7 @@ a subcommand.
 !oncall core
 `
 
-const PAGE_DEFAULT_MESSAGE = `HAL: your presence is requested in the chat room.`
+const PageDefaultMessage = `HAL: your presence is requested in the chat room.`
 
 const cacheExpire = time.Minute * 10
 
@@ -111,7 +111,7 @@ func page(msg hal.Evt) {
 }
 
 func pageAlias(msg hal.Evt, parts []string) {
-	pageMessage := PAGE_DEFAULT_MESSAGE
+	pageMessage := PageDefaultMessage
 	if len(parts) > 1 {
 		pageMessage = strings.Join(parts, " ")
 	}
