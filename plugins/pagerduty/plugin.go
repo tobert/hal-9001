@@ -37,6 +37,7 @@ func Register() {
 	oc := hal.Plugin{
 		Name:  "oncall",
 		Func:  oncall,
+		Init:  cacheInit,
 		Regex: "^[[:space:]]*!oncall",
 	}
 	oc.Register()
@@ -79,6 +80,12 @@ a subcommand.
 const PageDefaultMessage = `HAL: your presence is requested in the chat room.`
 
 const cacheExpire = time.Minute * 10
+
+// TODO: for now there is just one cache and periodic function, but once that is changed
+// to allow multiple pagerduty domains/tokens, this will need to be split as well
+const PeriodicFuncName = "pagerduty-cache-update-frequency"
+
+const DefaultCacheInterval = "1h"
 
 func page(msg hal.Evt) {
 	parts := msg.BodyAsArgv()
@@ -130,6 +137,13 @@ func pageAlias(msg hal.Evt, parts []string) {
 	// if qpref.Get returned the default, the alias was not found
 	if pref.Value == "" {
 		msg.Replyf("Alias %q not recognized. Try !page add <alias> <service key>", parts[0])
+		return
+	}
+
+	// make sure the hal secrets are set up
+	err := checkSecrets()
+	if err != nil {
+		msg.Error(err)
 		return
 	}
 
@@ -219,52 +233,40 @@ func oncall(msg hal.Evt) {
 		return
 	}
 
-	secrets := hal.Secrets()
-	token := secrets.Get(PagerdutyTokenKey)
-	if token == "" {
-		msg.Replyf("Your Pagerduty auth token does not seem to be configured. Please add the %q secret.",
-			PagerdutyTokenKey)
+	// make sure the pagerduty token and domain are setup in hal.Secrets
+	err := checkSecrets()
+	if err != nil {
+		msg.Error(err)
 		return
 	}
 
-	domain := secrets.Get(PagerdutyDomainKey)
-	if domain == "" {
-		msg.Replyf("Your Pagerduty domain does not seem to be configured. Please add the %q secret.",
-			PagerdutyDomainKey)
+	msg.Replyf("Command: %q", parts[1])
+
+	if parts[1] == "cache-now" {
+		msg.Reply("Updating Pagerduty policy cache now.")
+		cacheNow()
+		msg.Reply("Pagerduty policy cache update complete.")
+		return
+	} else if parts[1] == "cache-status" {
+		age := int(hal.Cache().Age(PolicyCacheKey).Seconds())
+		next := time.Time{}
+		status := "broken"
+		pf := hal.GetPeriodicFunc(PeriodicFuncName)
+		if pf != nil {
+			next = pf.Last().Add(pf.Interval)
+			status = pf.Status()
+		}
+		msg.Replyf("The cache is %d seconds old. Auto-update is %s and its next update is at %s.",
+			age, status, next.Format(time.UnixDate))
 		return
 	}
 
 	// TODO: look at the aliases set up for !page and try for an exact match
 	// before doing fuzzy search -- move fuzzy search to a "search" subcommand
 	// so it's clear that it is not precise
-
-	// see if there's a copy cached
-	policies := []EscalationPolicy{}
-	if hal.Cache().Exists(PolicyCacheKey) {
-		ttl, _ := hal.Cache().Get(PolicyCacheKey, &policies)
-		// TODO: maybe hal.Cache().Get should be careful to not modify the pointer if the ttl is expired...
-		if ttl == 0 {
-			policies = []EscalationPolicy{}
-		}
-	}
-
-	// when the cache fails, hit the API
-	if len(policies) == 0 {
-		msg.Reply("No cache available. Please wait, downloading policies from PagerDuty...")
-		// get all of the defined policies
-		var err error
-		policies, err = GetEscalationPolicies(token, domain)
-		if err != nil {
-			msg.Replyf("REST call to Pagerduty failed: %s", err)
-			return
-		}
-
-		// TODO: make this configurable via prefs
-		hal.Cache().Set(PolicyCacheKey, &policies, cacheExpire)
-	}
-
 	want := strings.ToLower(parts[1])
 	matches := make([]EscalationPolicy, 0)
+	policies := getPolicyCache(false)
 
 	// search over all policies looking for matching policy name, escalation
 	// rule name, or service name
@@ -297,6 +299,97 @@ func oncall(msg hal.Evt) {
 
 	reply := formatOncallReply(want, matches)
 	msg.Reply(reply)
+}
+
+func checkSecrets() error {
+	secrets := hal.Secrets()
+	token := secrets.Get(PagerdutyTokenKey)
+	if token == "" {
+		return fmt.Errorf("Your Pagerduty auth token does not seem to be configured. Please add the %q secret.", PagerdutyTokenKey)
+	}
+
+	domain := secrets.Get(PagerdutyDomainKey)
+	if domain == "" {
+		return fmt.Errorf("Your Pagerduty domain does not seem to be configured. Please add the %q secret.", PagerdutyDomainKey)
+	}
+
+	return nil
+}
+
+func getPolicyCache(forceUpdate bool) []EscalationPolicy {
+	// see if there's a copy cached
+	policies := []EscalationPolicy{}
+	if hal.Cache().Exists(PolicyCacheKey) {
+		ttl, _ := hal.Cache().Get(PolicyCacheKey, &policies)
+		// TODO: maybe hal.Cache().Get should be careful to not modify the pointer if the ttl is expired...
+		if ttl == 0 || forceUpdate {
+			policies = []EscalationPolicy{}
+		}
+	}
+
+	// the cache exists and is still valid, return it now
+	if len(policies) > 0 {
+		return policies
+	}
+
+	// TODO: consider making the token key per-room so different rooms can use different tokens
+	// doing this will require a separate cache object per token...
+	secrets := hal.Secrets()
+	token := secrets.Get(PagerdutyTokenKey)
+	domain := secrets.Get(PagerdutyDomainKey)
+
+	// log and noop if the secrets aren't configured (yet)
+	// the user-facing commands will report if they are missing
+	if token == "" || domain == "" {
+		log.Printf("pagerduty: Either the %s or %s is not set up in hal.Secrets. Returning empty list.",
+			PagerdutyTokenKey, PagerdutyDomainKey)
+		return []EscalationPolicy{}
+	}
+
+	// get all of the defined policies
+	var err error
+	policies, err = GetEscalationPolicies(token, domain)
+	if err != nil {
+		log.Printf("Returning empty list. REST call to Pagerduty failed: %s", err)
+		return []EscalationPolicy{}
+	}
+
+	// TODO: make this configurable via prefs
+	hal.Cache().Set(PolicyCacheKey, &policies, cacheExpire)
+
+	return policies
+}
+
+func cacheInit(i *hal.Instance) {
+	freqPref := hal.GetPref("", "", i.RoomId, "pagerduty", "cache-update-frequency", DefaultCacheInterval)
+
+	td, err := time.ParseDuration(freqPref.Value)
+	if err != nil {
+		log.Panicf("BUG: could not parse freq stored in db: %q", freqPref.Value)
+	}
+
+	log.Printf("cacheInit called for pagerduty...")
+
+	pf := hal.GetPeriodicFunc(PeriodicFuncName)
+	if pf != nil {
+		if pf.Status() != "running" {
+			pf.Start()
+		}
+	} else {
+		pf = &hal.PeriodicFunc{
+			Name:     PeriodicFuncName,
+			Interval: td,
+			Function: cacheNow,
+		}
+		pf.Register()
+		pf.Start()
+	}
+
+	// TODO: add a command to stop, etc.
+}
+
+func cacheNow() {
+	getPolicyCache(true)
 }
 
 func formatOncallReply(wanted string, policies []EscalationPolicy) string {
