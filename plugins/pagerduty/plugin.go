@@ -395,7 +395,8 @@ func cacheNow() {
 func formatOncallReply(wanted string, policies []EscalationPolicy) string {
 	age := int(hal.Cache().Age(PolicyCacheKey).Seconds())
 
-	buf := bytes.NewBufferString(fmt.Sprintf("Results for %q (%d seconds ago)\n", wanted, age))
+	intro := fmt.Sprintf("%d results for %q (%d seconds ago)\n", len(policies), wanted, age)
+	buf := bytes.NewBufferString(intro)
 
 	for _, policy := range policies {
 		buf.WriteString(policy.Name)
