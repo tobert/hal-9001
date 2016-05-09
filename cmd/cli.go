@@ -58,12 +58,11 @@ type Cmd struct {
 
 // does anyone else feel weird writing ParamInsts?
 type CmdInst struct {
-	Cmd        *Cmd              `json:"command"`
-	SubCmdInst *CmdInst          `json:"subcommand"`
-	ParamInsts []*ParamInst      `json:"parameters"`
-	Remainder  []string          `json:"remainder"` // args left over after parsing, usually empty
-	args       map[string]string // used by the parser
-	parent     *CmdInst          // used by the parser
+	Cmd        *Cmd         `json:"command"`
+	SubCmdInst *CmdInst     `json:"subcommand"`
+	ParamInsts []*ParamInst `json:"parameters"`
+	Remainder  []string     `json:"remainder"` // args left over after parsing, usually empty
+	parent     *CmdInst     // used by the parser
 }
 
 // Param defines a parameter of a command.
@@ -136,7 +135,8 @@ func (c *Cmd) AddParam(key, def string, required bool) *Cmd           { return c
 func (c *Cmd) AddAlias(name, alias string) *Cmd                       { return c }
 func (c *Cmd) AddUsage(name, usage string) *Cmd                       { return c }
 func (c *Cmd) AddPParam(position int, def string, required bool) *Cmd { return c }
-func (c *Cmd) AddCmd(name string) *Cmd                                { return c }
+func (c *Cmd) AddCmd(name string) *Cmd {
+}
 
 // GetParam gets a parameter by its key. Returns nil for no match.
 // Only processes the handle, no recursion.
@@ -242,6 +242,8 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 			continue
 		}
 
+		log.Printf("i, arg = %d, %q", i, arg)
+
 		var key, value, next string
 
 		if i+1 < len(argv) {
@@ -268,6 +270,9 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 			current.SubCmdInst = &inst
 			current = &inst
 			continue
+		} else {
+			current.Remainder = append(current.remainder(), arg)
+			continue
 		}
 
 		// remove leading dashes
@@ -279,6 +284,8 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 			Found: true,
 			Value: value,
 		}
+
+		log.Printf("current: %+q KEY: %q", current, key)
 
 		// always prefer matching the current subcmd
 		// TODO: check aliases, possibly in GetParam
@@ -301,13 +308,14 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 	// are attached to the wrong cmdinst and will be moved to the first parent
 	// that has a matching parameter definition
 	// e.g. !prefs --room core set
-	for current = &top; true; current = top.SubCmdInst {
+	for current = &top; true; current = current.SubCmdInst {
 		if current == nil {
 			break
 		}
 
 		pis := current.paraminsts()
 		for j, inst := range pis {
+			log.Printf("j: %d, inst: %+v", j, inst)
 			// Cmd is already set, nothing to do here
 			if inst.Cmd != nil {
 				continue
@@ -317,9 +325,9 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 			for search := &top; true; search = search.SubCmdInst {
 				if search == nil {
 					break
-				}
-
-				if param := search.GetParam(inst.Param.Key); param != nil {
+				} else if inst.Param == nil {
+					log.Printf("inst.param is nil!")
+				} else if param := search.GetParam(inst.Param.Key); param != nil {
 					// set the correct command & param pointers
 					inst.Cmd = search.Cmd
 					inst.Param = param.Param
@@ -393,7 +401,7 @@ func (c *CmdInst) SubCmdToken() string {
 // Param gets a parameter instance by its key.
 func (c *CmdInst) GetParam(key string) *ParamInst {
 	for _, p := range c.paraminsts() {
-		if p.Param.Key == key {
+		if p.Param != nil && p.Param.Key == key {
 			return p
 		}
 	}
@@ -407,6 +415,14 @@ func (c *CmdInst) paraminsts() []*ParamInst {
 	}
 
 	return c.ParamInsts
+}
+
+func (c *CmdInst) remainder() []string {
+	if c.Remainder == nil {
+		c.Remainder = make([]string, 0)
+	}
+
+	return c.Remainder
 }
 
 func (p *Param) Instance(value string, cmd *Cmd) *ParamInst {
@@ -624,82 +640,3 @@ func (p *ParamInst) DefBool(def bool) bool {
 	}
 	return out
 }
-
-func example(evt hal.Evt) {
-	// example 1
-	oc := Cmd{
-		Token:      "oncall",
-		MustSubCmd: true,
-		Usage:      "search Pagerduty escalation policies for a string",
-		SubCmds: []*Cmd{
-			NewCmd("cache-status"),
-			NewCmd("cache-interval").AddPParam(0, "1h", true),
-			NewCmd("*"), // everything else is a search string
-		},
-	}
-
-	oc.GetSubCmd("cache-status").Usage = "check the status of the background caching job"
-	oc.GetSubCmd("cache-interval").Usage = "set the background caching job interval"
-	oc.GetSubCmd("*").Usage = "create a mark in time with an (optional) text note"
-	// hmm maybe we can abuse varargs a bit without ruining safety....
-	// basically achieves a type-safe kwargs...
-	// NewCmd("*", Usage{"create a mark in time with an (optional) text note"})
-
-	oci := oc.Process(evt.BodyAsArgv())
-
-	switch oci.SubCmdToken() {
-	case "cache-status":
-		cacheStatus(&evt)
-	case "cache-interval":
-		cacheInterval(&evt, oci)
-	case "*":
-		search(&evt, oci)
-	}
-
-	// example 2
-	// Alias: requiring explicit aliases instead of guessing seems right
-	pc := NewCmd("prefs")
-	pc.AddCmd("set").
-		AddParam("key", "", true).
-		AddAlias("key", "k"). // vertically aligned for your viewing pleasure
-		AddParam("value", "", true).
-		AddAlias("value", "v").
-		AddParam("room", "", false).
-		AddAlias("room", "r").
-		AddUsage("room", "Set the room ID").
-		AddParam("user", "", false).
-		AddAlias("user", "u").
-		AddParam("broker", "", false).
-		AddAlias("broker", "b")
-	// ^ in an init func, stuff below in the callback
-
-	cmd := pc.Process(evt.BodyAsArgv())
-	pref := hal.Pref{
-		Key:    cmd.GetParam("key").MustString(),
-		Value:  cmd.GetParam("value").MustString(),
-		Room:   cmd.GetParam("room").DefString(evt.RoomId),
-		User:   cmd.GetParam("user").DefString(evt.UserId),
-		Broker: cmd.GetParam("borker").DefString(evt.BrokerName()),
-	}
-
-	switch cmd.SubCmdToken() {
-	case "set":
-		pref.Set()
-		evt.Reply("saved!")
-	case "get":
-		got := pref.Get()
-		tbl := hal.Prefs{got}.Table()
-		evt.ReplyTable(tbl[0], tbl[1:])
-	case "find":
-		prefs := pref.Find()
-		tbl := prefs.Table()
-		evt.ReplyTable(tbl[0], tbl[1:])
-	}
-
-}
-
-// stubs for example
-func cacheStatus(evt *hal.Evt)                 {}
-func cacheInterval(evt *hal.Evt, oci *CmdInst) {}
-func search(evt *hal.Evt, oci *CmdInst)        {}
-func setPref(evt *hal.Evt, oci *CmdInst)       {}
