@@ -206,13 +206,6 @@ func (c *Cmd) KeyParam(required bool) *Cmd {
 	return c
 }
 
-// TODO: these are stubs
-func (c *Cmd) AddUserParam(def string, required bool) *Cmd   { return c }
-func (c *Cmd) AddRoomParam(def string, required bool) *Cmd   { return c }
-func (c *Cmd) AddBrokerParam(def string, required bool) *Cmd { return c }
-func (c *Cmd) AddPluginParam(def string, required bool) *Cmd { return c }
-func (c *Cmd) AddIdParam(def string, required bool) *Cmd     { return c }
-
 // parse a list of argv-style strings (0 is always the command name e.g. []string{"prefs"})
 // foo bar --baz
 // foo --bar baz --version
