@@ -240,8 +240,6 @@ func oncall(msg hal.Evt) {
 		return
 	}
 
-	msg.Replyf("Command: %q", parts[1])
-
 	if parts[1] == "cache-now" {
 		msg.Reply("Updating Pagerduty policy cache now.")
 		cacheNow()
