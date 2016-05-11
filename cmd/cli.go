@@ -85,18 +85,25 @@ type ParamInst struct {
 	key   string `json:"key"`     // the parsed key (e.g. --foo: key = foo)
 }
 
+// RequiredParamNotFound is returned when a parameter has Required=true
+// and a method was used to access the value but no value was set in the
+// command.
 type RequiredParamNotFound struct {
 	Param *Param
 }
 
+// Error fulfills the Error interface.
 func (e RequiredParamNotFound) Error() string {
 	return fmt.Sprintf("Parameter %q is required but not set.", e.Param.Key)
 }
 
+// UnsupportedTimeFormatError is returned when a provided time string cannot
+// be parsed with one of the pre-defined time formats.
 type UnsupportedTimeFormatError struct {
 	Value string
 }
 
+// Error fulfills the Error interface.
 func (e UnsupportedTimeFormatError) Error() string {
 	return fmt.Sprintf("Time string %q does not appear to be in a supported format.", e.Value)
 }
