@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/netflix/hal-9001/hal"
 )
 
 /* hal.Cmd, hal.Param, hal.CmdInst, and hal.ParamInst are handles for hal's
@@ -62,17 +60,19 @@ type CmdInst struct {
 	SubCmdInst *CmdInst     `json:"subcommand"`
 	ParamInsts []*ParamInst `json:"parameters"`
 	Remainder  []string     `json:"remainder"` // args left over after parsing, usually empty
-	parent     *CmdInst     // used by the parser
 }
 
 // Param defines a parameter of a command.
 type Param struct {
-	Key      string `json:"key"`
-	Usage    string `json:"usage"`
-	Required bool   `json:"required"`
-	Boolean  bool   `json:"boolean"` // true for flags that default "true" with no arg
-	ValidRE  string `json:"validation_re2"`
+	Key      string   `json:"key"`      // the "foo" in --foo, -f, foo=bar
+	Position int      `json:"position"` // positional arg index
+	Usage    string   `json:"usage"`    // usage string for generating help
+	Required bool     `json:"required"` // whether or not this parameter is required
+	Boolean  bool     `json:"boolean"`  // true for flags that default "true" with no arg
+	ValidRE  string   `json:"validre"`  // a regular expression for validity checking
+	Aliases  []string `json:"aliases"`  // parameter aliases, e.g. foo => f
 	validre  *regexp.Regexp
+	cmd      *Cmd
 }
 
 // ParamInst is an instance of a (parsed) parameter.
@@ -129,13 +129,70 @@ func (c *Cmd) params() []*Param {
 	return c.Params
 }
 
-// chaining methods - see example() below
-// TODO: these are stubs
-func (c *Cmd) AddParam(key, def string, required bool) *Cmd           { return c }
-func (c *Cmd) AddAlias(name, alias string) *Cmd                       { return c }
-func (c *Cmd) AddUsage(name, usage string) *Cmd                       { return c }
-func (c *Cmd) AddPParam(position int, def string, required bool) *Cmd { return c }
-func (c *Cmd) AddCmd(name string) *Cmd {
+// AddParam creates and adds a parameter to the command handle and returns
+// the new parameter.
+func (c *Cmd) AddParam(key string, required bool) *Param {
+	p := Param{
+		Key:      key,
+		Required: required,
+		cmd:      c,
+	}
+
+	c.Params = append(c.params(), &p)
+
+	return &p
+}
+
+// AddPParam adds a positional parameter to the command and returns the
+// new parameter.
+func (c *Cmd) AddPParam(position int, required bool) *Param {
+	p := Param{
+		Position: position,
+		Required: required,
+		cmd:      c,
+	}
+
+	c.Params = append(c.params(), &p)
+
+	return &p
+}
+
+// AddAlias adds an alias to the parameter and returns the paramter.
+func (p *Param) AddAlias(key, alias string) *Param {
+	p.Aliases = append(p.aliases(), alias)
+	return p
+}
+
+// AddUsage sets the usage string for the command. Returns the command.
+func (c *Cmd) AddUsage(usage string) *Cmd {
+	c.Usage = usage
+	return c
+}
+
+// AddUsage sets the usage string for the paremeter. Returns the parameter.
+func (p *Param) AddUsage(usage string) *Param {
+	p.Usage = usage
+	return p
+}
+
+// Cmd returns the command the parameter belongs to. Only really useful for
+// chained methods since it will panic if the private command field isn't set.
+func (p *Param) Cmd() *Cmd {
+	if p.cmd == nil {
+		panic("Can't call Cmd() on this Param because p.cmd is nil!")
+	}
+
+	return p.cmd
+}
+
+// AddCmd adds a subcommand to the handle and returns the new (sub-)command.
+func (c *Cmd) AddCmd(token string) *Cmd {
+	sub := Cmd{
+		Token: token,
+		Prev:  c,
+	}
+
+	return &sub
 }
 
 // GetParam gets a parameter by its key. Returns nil for no match.
@@ -187,23 +244,6 @@ func (c *Cmd) GetSubCmd(token string) *Cmd {
 	}
 
 	return nil
-}
-
-// KeyParam adds "key" parameter with validation and can be chained.
-// TODO: if there are going to be a few of these, maybe they should be generated.
-func (c *Cmd) KeyParam(required bool) *Cmd {
-	p := Param{
-		Key:      "key",
-		ValidRE:  "^key$",
-		Usage:    "--key/-k the key string",
-		Required: required,
-	}
-
-	p.validre = regexp.MustCompile("^key$")
-
-	c.Params = append(c.Params, &p)
-
-	return c
 }
 
 // parse a list of argv-style strings (0 is always the command name e.g. []string{"prefs"})
@@ -338,7 +378,9 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 	return &top
 }
 
-func looksLikeBoolValue(val string) bool {
+// looksLikeBool checks to see if the provided value contains "true" or "false"
+// in any case combination.
+func looksLikeBool(val string) bool {
 	lcval := strings.ToLower(val)
 
 	if strings.Contains(lcval, "true") {
@@ -349,14 +391,10 @@ func looksLikeBoolValue(val string) bool {
 		return true
 	}
 
-	// TODO: do we really want this?
-	//if val == "1" || val == "0" {
-	//	return true
-	//}
-
 	return false
 }
 
+// looksLikeParam returns true if there is a leading - or an = in the string.
 func looksLikeParam(key string) bool {
 	if strings.HasPrefix(key, "-") {
 		return true
@@ -367,6 +405,7 @@ func looksLikeParam(key string) bool {
 	}
 }
 
+// FindSubCmd looks for a subcommand defined with the provided token.
 func (c *Cmd) FindSubCmd(token string) *Cmd {
 	for _, sc := range c.subcmds() {
 		if sc.Token == token {
@@ -377,17 +416,19 @@ func (c *Cmd) FindSubCmd(token string) *Cmd {
 	return nil
 }
 
+// HasSubCmd returns whether or not the proivded token is defined as a subcommand.
 func (c *Cmd) HasSubCmd(token string) bool {
 	sc := c.FindSubCmd(token)
 	return sc != nil
 }
 
-// SubCmdKey returns the subcommand's key string. Returns empty string
+// SubCmdToken returns the subcommand's token string. Returns empty string
 // if there is no subcommand.
 func (c *CmdInst) SubCmdToken() string {
 	if c.SubCmdInst != nil {
 		return c.SubCmdInst.Cmd.Token
 	}
+
 	return ""
 }
 
@@ -402,6 +443,8 @@ func (c *CmdInst) GetParam(key string) *ParamInst {
 	return nil
 }
 
+// paraminsts initializes the ParamInsts list on the fly and returns it.
+// e.g. c.ParamInsts = append(c.paraminsts(), pi)
 func (c *CmdInst) paraminsts() []*ParamInst {
 	if c.ParamInsts == nil {
 		c.ParamInsts = make([]*ParamInst, 0)
@@ -410,6 +453,8 @@ func (c *CmdInst) paraminsts() []*ParamInst {
 	return c.ParamInsts
 }
 
+// paraminsts initializes the Remainder list on the fly and returns it.
+// e.g. c.Remainder = append(c.remainder(), arg)
 func (c *CmdInst) remainder() []string {
 	if c.Remainder == nil {
 		c.Remainder = make([]string, 0)
@@ -418,6 +463,8 @@ func (c *CmdInst) remainder() []string {
 	return c.Remainder
 }
 
+// Instance creates an instance of the parameter with the provided value and bound
+// to the provided Cmd.
 func (p *Param) Instance(value string, cmd *Cmd) *ParamInst {
 	pi := ParamInst{
 		Param: p,
@@ -426,6 +473,16 @@ func (p *Param) Instance(value string, cmd *Cmd) *ParamInst {
 		Cmd:   cmd,
 	}
 	return &pi
+}
+
+// aliases is an internal shortcut to initialize the aliases list on an
+// as-needed basis.
+func (p *Param) aliases() []string {
+	if p.Aliases == nil {
+		p.Aliases = make([]string, 0)
+	}
+
+	return p.Aliases
 }
 
 // String returns the value as a string. If the param is required and it was
@@ -454,6 +511,8 @@ func (p *ParamInst) Int() (int, error) {
 	return int(val), err // warning: doesn't handle overflow
 }
 
+// Float returns the value of the parameter as a float. If the value cannot
+// be converted, an error will be returned. See: strconv.ParseFloat
 func (p *ParamInst) Float() (float64, error) {
 	if !p.Found {
 		if p.Param.Required {
@@ -466,6 +525,10 @@ func (p *ParamInst) Float() (float64, error) {
 	return strconv.ParseFloat(p.Value, 64)
 }
 
+// Bool returns the value of the parameter as a bool.
+// If the value is required and not set, returns RequiredParamNotFound.
+// If the value cannot be converted, an error will be returned.
+// See: strconv.ParseBool
 func (p *ParamInst) Bool() (bool, error) {
 	if !p.Found {
 		if p.Param.Required {
@@ -479,6 +542,11 @@ func (p *ParamInst) Bool() (bool, error) {
 	return strconv.ParseBool(stripped)
 }
 
+// Duration returns the value of the parameter as a Go time.Duration.
+// Day and Week (e.g. "1w", "1d") are converted to 168 and 24 hours respectively.
+// If the value is required and not set, returns RequiredParamNotFound.
+// If the value cannot be converted, an error will be returned.
+// See: time.ParseDuration
 func (p *ParamInst) Duration() (time.Duration, error) {
 	duration := p.Value
 	empty := time.Duration(0)
@@ -509,6 +577,12 @@ func (p *ParamInst) Duration() (time.Duration, error) {
 	}
 }
 
+// Time returns the value of the parameter as a Go time.Time.
+// Many formats are attempted before giving up.
+// If the value is required and not set, returns RequiredParamNotFound.
+// If the value cannot be converted, an error will be returned.
+// See: TimeFormats in this package
+// See: time.ParseDuration
 func (p *ParamInst) Time() (time.Time, error) {
 	if !p.Found {
 		if p.Param.Required {

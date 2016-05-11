@@ -13,7 +13,7 @@ func TestCmd(t *testing.T) {
 		Usage:      "search Pagerduty escalation policies for a string",
 		SubCmds: []*Cmd{
 			NewCmd("cache-status"),
-			NewCmd("cache-interval").AddPParam(0, "1h", true),
+			NewCmd("cache-interval").AddPParam(0, true).Cmd(),
 			NewCmd("*"), // everything else is a search string
 		},
 	}
@@ -47,22 +47,17 @@ func TestCmd(t *testing.T) {
 	// Alias: requiring explicit aliases instead of guessing seems right
 	pc := NewCmd("prefs")
 	pc.AddCmd("set").
-		AddParam("key", "", true).
-		AddAlias("key", "k"). // vertically aligned for your viewing pleasure
-		AddParam("value", "", true).
-		AddAlias("value", "v").
-		AddParam("room", "", false).
-		AddAlias("room", "r").
-		AddUsage("room", "Set the room ID").
-		AddParam("user", "", false).
-		AddAlias("user", "u").
-		AddParam("broker", "", false).
-		AddAlias("broker", "b")
+		AddParam("key", true).AddAlias("key", "k").
+		Cmd().AddParam("value", true).AddAlias("value", "v").
+		Cmd().AddParam("room", false).AddAlias("room", "r").
+		Cmd().AddParam("user", false).AddAlias("user", "u").
+		Cmd().AddParam("broker", false).AddAlias("broker", "b")
 	// ^ in an init func, stuff below in the callback
 
 	//cmd := pc.Process(evt.BodyAsArgv())
 	argv2 := strings.Split("prefs set --room * --user foo --broker console --key ohai --value nevermind", " ")
 	pc.Process(argv2)
+
 	/*
 		pref := hal.Pref{
 			Key:    cmd.GetParam("key").MustString(),
