@@ -3,6 +3,7 @@ package hal
 import (
 	"strings"
 	"testing"
+	//"github.com/davecgh/go-spew/spew"
 )
 
 func TestCmd(t *testing.T) {
@@ -26,22 +27,25 @@ func TestCmd(t *testing.T) {
 	// NewCmd("*", Usage{"create a mark in time with an (optional) text note"})
 
 	// evt.BodyAsArgv()
-	oc.Process([]string{"!oncall", "help"})
-	oc.Process([]string{"!oncall", "h"})
-	oc.Process([]string{"!oncall", "sre"})
-	oc.Process([]string{"!oncall", "cache-status"})
-	oc.Process([]string{"!oncall", "cache-interval"})
+	var res *CmdInst
+	res = oc.Process([]string{"!oncall", "help"})
+	// TODO: add help functionality and auto-wire it
+	res = oc.Process([]string{"!oncall", "h"})
 
-	/*
-		switch oci.SubCmdToken() {
-		case "cache-status":
-			cacheStatus(&evt)
-		case "cache-interval":
-			cacheInterval(&evt, oci)
-		case "*":
-			search(&evt, oci)
-		}
-	*/
+	res = oc.Process([]string{"!oncall", "sre"})
+	if len(res.Remainder) != 1 || res.Remainder[0] != "sre" {
+		t.Fail()
+	}
+
+	res = oc.Process([]string{"!oncall", "cache-status"})
+	if res.SubCmdToken() != "cache-status" {
+		t.Fail()
+	}
+
+	res = oc.Process([]string{"!oncall", "cache-interval"})
+	if res.SubCmdToken() != "cache-interval" {
+		t.Fail()
+	}
 
 	// example 2
 	// Alias: requiring explicit aliases instead of guessing seems right
@@ -52,34 +56,55 @@ func TestCmd(t *testing.T) {
 		Cmd().AddParam("room", false).AddAlias("room", "r").
 		Cmd().AddParam("user", false).AddAlias("user", "u").
 		Cmd().AddParam("broker", false).AddAlias("broker", "b")
-	// ^ in an init func, stuff below in the callback
 
-	//cmd := pc.Process(evt.BodyAsArgv())
+	pc.AddCmd("get").
+		AddParam("key", true).AddAlias("key", "k").
+		Cmd().AddParam("value", true).AddAlias("value", "v").
+		Cmd().AddParam("room", false).AddAlias("room", "r").
+		Cmd().AddParam("user", false).AddAlias("user", "u").
+		Cmd().AddParam("broker", false).AddAlias("broker", "b")
+
 	argv2 := strings.Split("prefs set --room * --user foo --broker console --key ohai --value nevermind", " ")
-	pc.Process(argv2)
+	res = pc.Process(argv2)
 
-	/*
-		pref := hal.Pref{
-			Key:    cmd.GetParam("key").MustString(),
-			Value:  cmd.GetParam("value").MustString(),
-			Room:   cmd.GetParam("room").DefString(evt.RoomId),
-			User:   cmd.GetParam("user").DefString(evt.UserId),
-			Broker: cmd.GetParam("borker").DefString(evt.BrokerName()),
-		}
+	//spew.Dump(res)
 
-		switch cmd.SubCmdToken() {
-		case "set":
-			pref.Set()
-			evt.Reply("saved!")
-		case "get":
-			got := pref.Get()
-			tbl := hal.Prefs{got}.Table()
-			evt.ReplyTable(tbl[0], tbl[1:])
-		case "find":
-			prefs := pref.Find()
-			tbl := prefs.Table()
-			evt.ReplyTable(tbl[0], tbl[1:])
-		}
-	*/
+	if len(res.Remainder) != 0 {
+		t.Error("There should not be any remainder")
+	}
+	if res.SubCmdToken() != "set" {
+		t.Errorf("wrong subcommand. Expected %q, got %q", "set", res.SubCmdToken())
+	}
+	if res.SubCmdInst == nil {
+		t.Error("result.SubCmdInst is nil when it should be an instance for 'set'")
+		t.FailNow()
+	}
+	subcmd := res.SubCmdInst
+	if subcmd.GetParamInst("room").MustString() != "*" {
+		t.Errorf("wrong room, expected *, got %q", subcmd.GetParamInst("room").MustString())
+	}
+	if subcmd.GetParamInst("key").MustString() != "ohai" {
+		t.Errorf("wrong key, expected 'ohai', got %q", subcmd.GetParamInst("key").MustString())
+	}
+	if subcmd.GetParamInst("value").MustString() != "nevermind" {
+		t.Errorf("wrong value, expected 'nevermind', got %q", subcmd.GetParamInst("value").MustString())
+	}
 
+	// again with out-of-order parameters
+	argv3 := strings.Split("prefs --user bob --key testing get --value lol", " ")
+	res = pc.Process(argv3)
+	if len(res.Remainder) != 0 {
+		t.Error("There should not be any remainder")
+	}
+	if res.SubCmdToken() != "get" {
+		t.Errorf("wrong subcommand. Expected 'get', got %q", res.SubCmdToken())
+	}
+	if res.SubCmdInst == nil {
+		t.Error("result.SubCmdInst is nil when it should be an instance for 'get'")
+		t.FailNow()
+	}
+	subcmd = res.SubCmdInst
+	if subcmd.GetParamInst("key").MustString() != "testing" {
+		t.Errorf("wrong key, expected 'testing', got %q", subcmd.GetParamInst("key").MustString())
+	}
 }

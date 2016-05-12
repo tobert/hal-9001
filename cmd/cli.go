@@ -82,7 +82,7 @@ type ParamInst struct {
 	Value string `json:"value"`   // provided value or the default
 	Cmd   *Cmd   `json:"command"` // the command the parameter is attached to
 	Arg   string `json:"arg"`     // the original/unmodified argument (e.g. --foo, -f)
-	key   string `json:"key"`     // the parsed key (e.g. --foo: key = foo)
+	Key   string `json:"key"`     // the key, e.g. "foo"
 }
 
 // RequiredParamNotFound is returned when a parameter has Required=true
@@ -199,6 +199,8 @@ func (c *Cmd) AddCmd(token string) *Cmd {
 		Prev:  c,
 	}
 
+	c.SubCmds = append(c.subcmds(), &sub)
+
 	return &sub
 }
 
@@ -266,8 +268,14 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 	// against the command definition and returns a CmdInst with all of the
 	// available data parsed and ready to use with CmdInst/ParamInst methods.
 
-	top := CmdInst{Cmd: c, Remainder: []string{}} // the top-level command
-	current := &top                               // the subcommand - replaced if a subcommand is discovered
+	// the top-level command instance
+	topInst := CmdInst{
+		Cmd:       c,
+		Remainder: []string{},
+	}
+
+	// the current subcommand - changes during parsing
+	curInst := &topInst
 
 	if len(argv) == 1 {
 		log.Panicf("TODO: handle commands with no arguments gracefully")
@@ -275,114 +283,105 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 	}
 
 	var skipNext bool
+	var looseParams []*ParamInst
 
+	// first pass: extract subcommands and parameters
 	for i, arg := range argv[1:] {
 		if skipNext {
 			skipNext = false
 			continue
 		}
 
-		log.Printf("i, arg = %d, %q", i, arg)
-
 		var key, value, next string
+		var nextExists bool
 
-		if i+1 < len(argv) {
-			next = argv[i+1]
+		if i+2 < len(argv) {
+			next = argv[i+2]
+			nextExists = true
+		} else {
+			nextExists = false
 		}
 
 		if strings.Contains(arg, "=") {
-			kv := strings.SplitN(arg, "=", 2)
+			// looks like a key=value or --key=value parameter
 			// could be --foo=bar but all that matters is the "foo"
 			// could be --foo=true for .Boolean=true and that's fine too
-			key = kv[0]
+			kv := strings.SplitN(arg, "=", 2)
+			key = strings.TrimLeft(kv[0], "-")
 			value = kv[1]
-		} else if strings.HasPrefix(arg, "-") {
+		} else if looksLikeParam(arg) {
+			// looks like a parameter
 			// e.g. --foo bar -f bar
-			key = arg
-			if !looksLikeParam(next) {
+			key = strings.TrimLeft(arg, "-")
+			if nextExists && !looksLikeParam(next) {
 				value = next
 				skipNext = true
+			} else {
+				log.Printf("next arg, %q, appears to be a parameter", next)
 			}
-		} else if current.Cmd.HasSubCmd(arg) {
-			// advance to the next subcommand
-			sub := current.Cmd.FindSubCmd(arg)
+		} else if curInst.Cmd.HasSubCmd(arg) {
+			// arg seems to be a subcommand token
+			// retreive the Cmd handle, create a command instance for the
+			// subcommand, then install it in the return tree
+			sub := curInst.Cmd.FindSubCmd(arg)
 			inst := CmdInst{Cmd: sub, Remainder: []string{}}
-			current.SubCmdInst = &inst
-			current = &inst
+			curInst.SubCmdInst = &inst
+
+			// advance to the next subcommand
+			curInst = &inst
 			continue
 		} else {
-			current.Remainder = append(current.remainder(), arg)
+			// leftover args go in .Remainder
+			curInst.Remainder = append(curInst.remainder(), arg)
 			continue
 		}
 
-		// remove leading dashes
-		key = strings.TrimLeft(key, "-")
-
 		inst := ParamInst{
-			key:   key,
+			Key:   key,
 			Arg:   arg,
 			Found: true,
 			Value: value,
 		}
 
-		log.Printf("current: %+q KEY: %q", current, key)
-
 		// always prefer matching the current subcmd
 		// TODO: check aliases, possibly in GetParam
-		// TODO: consider renaming GetParam or at least some kind of internal one that
-		// makes reading the code less confusing
-		if pi := current.GetParam(key); pi != nil {
-			inst.Cmd = current.Cmd
-			inst.Param = pi.Param
-		}
+		if p := curInst.Cmd.GetParam(key); p != nil {
+			inst.Param = p
+			inst.Cmd = p.Cmd()
 
-		// TODO: search upwards towards top to see if the cmd/subcmd has the parameter
-		// and set Cmd/Param as above
-
-		// some param instances will have Cmd/Param unset which is cleared up below
-
-		current.ParamInsts = append(current.paraminsts(), &inst)
-	}
-
-	// at this point, parameters for subcommands that came before their subcommand
-	// are attached to the wrong cmdinst and will be moved to the first parent
-	// that has a matching parameter definition
-	// e.g. !prefs --room core set
-	for current = &top; true; current = current.SubCmdInst {
-		if current == nil {
-			break
-		}
-
-		pis := current.paraminsts()
-		for j, inst := range pis {
-			log.Printf("j: %d, inst: %+v", j, inst)
-			// Cmd is already set, nothing to do here
-			if inst.Cmd != nil {
-				continue
-			}
-
-			// search from the first cmd downwards and assign to the first match
-			for search := &top; true; search = search.SubCmdInst {
-				if search == nil {
-					break
-				} else if inst.Param == nil {
-					log.Printf("inst.param is nil!")
-				} else if param := search.GetParam(inst.Param.Key); param != nil {
-					// set the correct command & param pointers
-					inst.Cmd = search.Cmd
-					inst.Param = param.Param
-
-					// add to the new list
-					search.ParamInsts = append(search.paraminsts(), inst)
-
-					// remove from the old list
-					current.ParamInsts = append(pis[:j], pis[j+1:]...)
-				}
-			}
+			curInst.ParamInsts = append(curInst.paraminsts(), &inst)
+		} else {
+			// not a parameter for the current subcommand, probably out of order or invalid
+			// the subcommand might not be known yet. defer matching until all args are parsed
+			looseParams = append(looseParams, &inst)
 		}
 	}
 
-	return &top
+	// process out-of-order (and invalid) parameters in a second pass
+	for _, inst := range looseParams {
+		var found bool
+
+		// search from the top CmdInst -> down and take the first match
+		for search := &topInst; search != nil; search = search.SubCmdInst {
+			if p := search.Cmd.GetParam(inst.Key); p != nil {
+				inst.Param = p
+				inst.Cmd = p.Cmd()
+
+				search.ParamInsts = append(search.paraminsts(), inst)
+
+				found = true
+
+				break
+			}
+		}
+
+		// TODO: handle invalid parameters gracefully
+		if !found {
+			log.Panicf("Bug or invalid parameter %q", inst.Key)
+		}
+	}
+
+	return &topInst
 }
 
 // looksLikeBool checks to see if the provided value contains "true" or "false"
@@ -423,6 +422,8 @@ func (c *Cmd) FindSubCmd(token string) *Cmd {
 	return nil
 }
 
+// Param gets a parameter instance by its key.
+
 // HasSubCmd returns whether or not the proivded token is defined as a subcommand.
 func (c *Cmd) HasSubCmd(token string) bool {
 	sc := c.FindSubCmd(token)
@@ -440,12 +441,14 @@ func (c *CmdInst) SubCmdToken() string {
 }
 
 // Param gets a parameter instance by its key.
-func (c *CmdInst) GetParam(key string) *ParamInst {
+func (c *CmdInst) GetParamInst(key string) *ParamInst {
 	for _, p := range c.paraminsts() {
 		if p.Param != nil && p.Param.Key == key {
 			return p
 		}
 	}
+
+	log.Panicf("%q.GetParamInst(%q) found not match", c.Cmd.Token, key)
 
 	return nil
 }
@@ -620,17 +623,14 @@ func (p *ParamInst) Time() (time.Time, error) {
 }
 
 // MustString returns the value as a string. If it was required/not-set,
-// panic ensues. Empty string is returned for not-required/not-set.
+// panic ensues. Empty string may be returned for not-required+not-set.
 func (p *ParamInst) MustString() string {
-	if p.Param.Required {
-		out, err := p.String()
-		if err != nil {
-			panic(err)
-		}
-		return out
-	} else {
-		return p.DefString("")
+	out, err := p.String()
+	if p.Param.Required && err != nil {
+		panic(err)
 	}
+
+	return out
 }
 
 // DefString returns the value as a string. Rules:
