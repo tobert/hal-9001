@@ -50,6 +50,7 @@ type Cmd struct {
 	Usage      string   `json:"usage"`
 	Params     []*Param `json:"parameters"`
 	SubCmds    []*Cmd   `json:"subcommands"`
+	Aliases    []string `json:"aliases"`
 	Prev       *Cmd     // parent command, nil for root
 	MustSubCmd bool     // a subcommand is always required
 }
@@ -114,6 +115,7 @@ func NewCmd(token string) *Cmd {
 		Token:   token,
 		Params:  make([]*Param, 0),
 		SubCmds: make([]*Cmd, 0),
+		Aliases: make([]string, 0),
 	}
 	return &cmd
 }
@@ -134,6 +136,15 @@ func (c *Cmd) params() []*Param {
 	}
 
 	return c.Params
+}
+
+// aliases makes sure the Aliases list is initialized and returns the list.
+func (c *Cmd) aliases() []string {
+	if c.Aliases == nil {
+		c.Aliases = make([]string, 0)
+	}
+
+	return c.Aliases
 }
 
 // AddParam creates and adds a parameter to the command handle and returns
@@ -159,13 +170,22 @@ func (c *Cmd) AddPParam(position int, required bool) *Param {
 		cmd:      c,
 	}
 
+	// NOTE: since it's currently OK to mix named and positional parameters
+	// (a decision I have not fully considered and may change)
+	// positional parameters are not necessarily at the index of their position!
 	c.Params = append(c.params(), &p)
 
 	return &p
 }
 
+// AddAlias adds an alias to the command and returns the paramter.
+func (c *Cmd) AddAlias(alias string) *Cmd {
+	c.Aliases = append(c.aliases(), alias)
+	return c
+}
+
 // AddAlias adds an alias to the parameter and returns the paramter.
-func (p *Param) AddAlias(key, alias string) *Param {
+func (p *Param) AddAlias(alias string) *Param {
 	p.Aliases = append(p.aliases(), alias)
 	return p
 }
@@ -192,6 +212,12 @@ func (p *Param) Cmd() *Cmd {
 	return p.cmd
 }
 
+// Cmd returns the command it was called on. It does nothing and exists to
+// make it possible to format chained calls nicely.
+func (c *Cmd) Cmd() *Cmd {
+	return c
+}
+
 // AddCmd adds a subcommand to the handle and returns the new (sub-)command.
 func (c *Cmd) AddCmd(token string) *Cmd {
 	sub := Cmd{
@@ -214,6 +240,12 @@ func (c *Cmd) GetParam(key string) *Param {
 	}
 
 	return nil
+}
+
+// GetPParam gets a positional parameter by its index.
+func (c *Cmd) GetPParam(pos int) *Param {
+	list := c.params()
+	return list[pos]
 }
 
 func (c *Cmd) HasParam(key string) bool {
@@ -417,6 +449,13 @@ func (c *Cmd) FindSubCmd(token string) *Cmd {
 		if sc.Token == token {
 			return sc
 		}
+
+		// Check aliases too. Usually 0-2 elements.
+		for _, alias := range sc.aliases() {
+			if alias == token {
+				return sc
+			}
+		}
 	}
 
 	return nil
@@ -451,6 +490,30 @@ func (c *CmdInst) GetParamInst(key string) *ParamInst {
 	log.Panicf("%q.GetParamInst(%q) found not match", c.Cmd.Token, key)
 
 	return nil
+}
+
+// GetPParamInst gets a positional parameter instance by its index.
+func (c *CmdInst) GetPParamInst(pos int) *ParamInst {
+	for _, p := range c.paraminsts() {
+		if p.Param != nil && p.Param.Position == pos {
+			return p
+		}
+	}
+
+	log.Panicf("%q.GetPParamInst(%d) found not match", c.Cmd.Token, pos)
+
+	return nil
+}
+
+// ParamKeys returns a list of the parameter keys suitable for range loops.
+func (c *CmdInst) ParamKeys() []string {
+	out := make([]string, len(c.paraminsts()))
+
+	for i, param := range c.paraminsts() {
+		out[i] = param.Key
+	}
+
+	return out
 }
 
 // paraminsts initializes the ParamInsts list on the fly and returns it.
@@ -713,4 +776,12 @@ func (p *ParamInst) DefBool(def bool) bool {
 		return def
 	}
 	return out
+}
+
+func (c *Cmd) RenderUsage(msg string) string {
+	return msg + "\nnot implemented yet"
+}
+
+func (c *CmdInst) RenderUsage(msg string) string {
+	return c.Cmd.RenderUsage(msg)
 }

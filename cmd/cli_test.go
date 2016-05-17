@@ -51,18 +51,19 @@ func TestCmd(t *testing.T) {
 	// Alias: requiring explicit aliases instead of guessing seems right
 	pc := NewCmd("prefs")
 	pc.AddCmd("set").
-		AddParam("key", true).AddAlias("key", "k").
-		Cmd().AddParam("value", true).AddAlias("value", "v").
-		Cmd().AddParam("room", false).AddAlias("room", "r").
-		Cmd().AddParam("user", false).AddAlias("user", "u").
-		Cmd().AddParam("broker", false).AddAlias("broker", "b")
+		AddUsage("set a pref").
+		Cmd().AddParam("key", true).AddAlias("k").AddUsage("ohai!").
+		Cmd().AddParam("value", true).AddAlias("v").
+		Cmd().AddParam("room", false).AddAlias("r").
+		Cmd().AddParam("user", false).AddAlias("u").
+		Cmd().AddParam("broker", false).AddAlias("b")
 
 	pc.AddCmd("get").
-		AddParam("key", true).AddAlias("key", "k").
-		Cmd().AddParam("value", true).AddAlias("value", "v").
-		Cmd().AddParam("room", false).AddAlias("room", "r").
-		Cmd().AddParam("user", false).AddAlias("user", "u").
-		Cmd().AddParam("broker", false).AddAlias("broker", "b")
+		Cmd().AddParam("key", true).AddAlias("k").
+		Cmd().AddParam("value", true).AddAlias("v").
+		Cmd().AddParam("room", false).AddAlias("r").
+		Cmd().AddParam("user", false).AddAlias("u").
+		Cmd().AddParam("broker", false).AddAlias("b")
 
 	argv2 := strings.Split("prefs set --room * --user foo --broker console --key ohai --value nevermind", " ")
 	res = pc.Process(argv2)
