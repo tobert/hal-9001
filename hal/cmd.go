@@ -306,13 +306,13 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 		Remainder: []string{},
 	}
 
+	// no arguments were provided
+	if len(argv) == 1 {
+		return &topInst
+	}
+
 	// the current subcommand - changes during parsing
 	curInst := &topInst
-
-	if len(argv) == 1 {
-		log.Panicf("TODO: handle commands with no arguments gracefully")
-		return nil
-	}
 
 	var skipNext bool
 	var looseParams []*ParamInst
