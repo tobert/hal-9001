@@ -7,7 +7,7 @@ import (
 )
 
 func TestCmd(t *testing.T) {
-	// example 1
+	// example 1 - smoke test
 	oc := Cmd{
 		Token:      "oncall",
 		MustSubCmd: true,
@@ -22,13 +22,14 @@ func TestCmd(t *testing.T) {
 	oc.GetSubCmd("cache-status").Usage = "check the status of the background caching job"
 	oc.GetSubCmd("cache-interval").Usage = "set the background caching job interval"
 	oc.GetSubCmd("*").Usage = "create a mark in time with an (optional) text note"
-	// hmm maybe we can abuse varargs a bit without ruining safety....
-	// basically achieves a type-safe kwargs...
-	// NewCmd("*", Usage{"create a mark in time with an (optional) text note"})
 
 	// evt.BodyAsArgv()
 	var res *CmdInst
+	// make sure a command with no args doesn't blow up
+	res = oc.Process([]string{"!oncall"})
+
 	res = oc.Process([]string{"!oncall", "help"})
+
 	// TODO: add help functionality and auto-wire it
 	res = oc.Process([]string{"!oncall", "h"})
 
@@ -89,6 +90,16 @@ func TestCmd(t *testing.T) {
 	}
 	if subcmd.GetParamInst("value").MustString() != "nevermind" {
 		t.Errorf("wrong value, expected 'nevermind', got %q", subcmd.GetParamInst("value").MustString())
+	}
+	// check that defaults are working
+	dval := "1234"
+	rds := subcmd.GetParamInst("room").DefString(dval)
+	if rds != dval {
+		t.Errorf("DefString returned %q, expected %q", rds, dval)
+	}
+	irds := subcmd.GetParamInst("room").DefInt(999)
+	if irds != 999 {
+		t.Errorf("DefString returned %d, expected 999", irds)
 	}
 
 	// again with out-of-order parameters
