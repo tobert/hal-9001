@@ -122,6 +122,10 @@ func NewCmd(token string) *Cmd {
 
 // subcmds makes sure the SubCmds list is initialized and returns the list.
 func (c *Cmd) subcmds() []*Cmd {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if c.SubCmds == nil {
 		c.SubCmds = make([]*Cmd, 0)
 	}
@@ -131,6 +135,10 @@ func (c *Cmd) subcmds() []*Cmd {
 
 // params makes sure the Params list is initialized and returns the list.
 func (c *Cmd) params() []*Param {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if c.Params == nil {
 		c.Params = make([]*Param, 0)
 	}
@@ -140,6 +148,10 @@ func (c *Cmd) params() []*Param {
 
 // aliases makes sure the Aliases list is initialized and returns the list.
 func (c *Cmd) aliases() []string {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if c.Aliases == nil {
 		c.Aliases = make([]string, 0)
 	}
@@ -150,6 +162,10 @@ func (c *Cmd) aliases() []string {
 // AddParam creates and adds a parameter to the command handle and returns
 // the new parameter.
 func (c *Cmd) AddParam(key string, required bool) *Param {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	p := Param{
 		Key:      key,
 		Required: required,
@@ -164,6 +180,10 @@ func (c *Cmd) AddParam(key string, required bool) *Param {
 // AddPParam adds a positional parameter to the command and returns the
 // new parameter.
 func (c *Cmd) AddPParam(position int, required bool) *Param {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	p := Param{
 		Position: position,
 		Required: required,
@@ -180,24 +200,40 @@ func (c *Cmd) AddPParam(position int, required bool) *Param {
 
 // AddAlias adds an alias to the command and returns the paramter.
 func (c *Cmd) AddAlias(alias string) *Cmd {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	c.Aliases = append(c.aliases(), alias)
 	return c
 }
 
 // AddAlias adds an alias to the parameter and returns the paramter.
 func (p *Param) AddAlias(alias string) *Param {
+	if p == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	p.Aliases = append(p.aliases(), alias)
 	return p
 }
 
 // AddUsage sets the usage string for the command. Returns the command.
 func (c *Cmd) AddUsage(usage string) *Cmd {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	c.Usage = usage
 	return c
 }
 
 // AddUsage sets the usage string for the paremeter. Returns the parameter.
 func (p *Param) AddUsage(usage string) *Param {
+	if p == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	p.Usage = usage
 	return p
 }
@@ -205,8 +241,12 @@ func (p *Param) AddUsage(usage string) *Param {
 // Cmd returns the command the parameter belongs to. Only really useful for
 // chained methods since it will panic if the private command field isn't set.
 func (p *Param) Cmd() *Cmd {
+	if p == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if p.cmd == nil {
-		panic("Can't call Cmd() on this Param because p.cmd is nil!")
+		panic("Can't call Cmd() on this Param because it is not attached to a Cmd!")
 	}
 
 	return p.cmd
@@ -215,11 +255,19 @@ func (p *Param) Cmd() *Cmd {
 // Cmd returns the command it was called on. It does nothing and exists to
 // make it possible to format chained calls nicely.
 func (c *Cmd) Cmd() *Cmd {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	return c
 }
 
 // AddCmd adds a subcommand to the handle and returns the new (sub-)command.
 func (c *Cmd) AddCmd(token string) *Cmd {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	sub := Cmd{
 		Token: token,
 		Prev:  c,
@@ -233,6 +281,10 @@ func (c *Cmd) AddCmd(token string) *Cmd {
 // GetParam gets a parameter by its key. Returns nil for no match.
 // Only processes the handle, no recursion.
 func (c *Cmd) GetParam(key string) *Param {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	for _, p := range c.params() {
 		if p.Key == key {
 			return p
@@ -244,11 +296,19 @@ func (c *Cmd) GetParam(key string) *Param {
 
 // GetPParam gets a positional parameter by its index.
 func (c *Cmd) GetPParam(pos int) *Param {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	list := c.params()
 	return list[pos]
 }
 
 func (c *Cmd) HasParam(key string) bool {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	for _, p := range c.params() {
 		if p.Key == key {
 			return true
@@ -261,6 +321,10 @@ func (c *Cmd) HasParam(key string) bool {
 // FindParam recursively finds any parameter defined in the command or its
 // subcommands and returns the param. nil on miss.
 func (c *Cmd) FindParam(key string) (*Cmd, *Param) {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	p := c.GetParam(key)
 	if p != nil {
 		return c, p
@@ -278,6 +342,10 @@ func (c *Cmd) FindParam(key string) (*Cmd, *Param) {
 
 // GetSubCmd gets a subcommand by its token. Returns nil for no match.
 func (c *Cmd) GetSubCmd(token string) *Cmd {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	for _, s := range c.subcmds() {
 		if s.Token == token {
 			return s
@@ -299,11 +367,15 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 	// a hand-coded argument processor that evaluates the provided argv list
 	// against the command definition and returns a CmdInst with all of the
 	// available data parsed and ready to use with CmdInst/ParamInst methods.
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
 
 	// the top-level command instance
 	topInst := CmdInst{
-		Cmd:       c,
-		Remainder: []string{},
+		Cmd:        c,
+		Remainder:  []string{},
+		ParamInsts: []*ParamInst{},
 	}
 
 	// no arguments were provided
@@ -445,6 +517,10 @@ func looksLikeParam(key string) bool {
 
 // FindSubCmd looks for a subcommand defined with the provided token.
 func (c *Cmd) FindSubCmd(token string) *Cmd {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	for _, sc := range c.subcmds() {
 		if sc.Token == token {
 			return sc
@@ -461,10 +537,12 @@ func (c *Cmd) FindSubCmd(token string) *Cmd {
 	return nil
 }
 
-// Param gets a parameter instance by its key.
-
 // HasSubCmd returns whether or not the proivded token is defined as a subcommand.
 func (c *Cmd) HasSubCmd(token string) bool {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	sc := c.FindSubCmd(token)
 	return sc != nil
 }
@@ -472,6 +550,10 @@ func (c *Cmd) HasSubCmd(token string) bool {
 // SubCmdToken returns the subcommand's token string. Returns empty string
 // if there is no subcommand.
 func (c *CmdInst) SubCmdToken() string {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if c.SubCmdInst != nil {
 		return c.SubCmdInst.Cmd.Token
 	}
@@ -481,6 +563,10 @@ func (c *CmdInst) SubCmdToken() string {
 
 // Param gets a parameter instance by its key.
 func (c *CmdInst) GetParamInst(key string) *ParamInst {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	for _, p := range c.paraminsts() {
 		if p.Param != nil && p.Param.Key == key {
 			return p
@@ -494,6 +580,10 @@ func (c *CmdInst) GetParamInst(key string) *ParamInst {
 
 // GetPParamInst gets a positional parameter instance by its index.
 func (c *CmdInst) GetPParamInst(pos int) *ParamInst {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	for _, p := range c.paraminsts() {
 		if p.Param != nil && p.Param.Position == pos {
 			return p
@@ -507,6 +597,10 @@ func (c *CmdInst) GetPParamInst(pos int) *ParamInst {
 
 // ParamKeys returns a list of the parameter keys suitable for range loops.
 func (c *CmdInst) ParamKeys() []string {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	out := make([]string, len(c.paraminsts()))
 
 	for i, param := range c.paraminsts() {
@@ -519,8 +613,15 @@ func (c *CmdInst) ParamKeys() []string {
 // paraminsts initializes the ParamInsts list on the fly and returns it.
 // e.g. c.ParamInsts = append(c.paraminsts(), pi)
 func (c *CmdInst) paraminsts() []*ParamInst {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if c.ParamInsts == nil {
+		log.Println("it's nil!")
 		c.ParamInsts = make([]*ParamInst, 0)
+	} else {
+		log.Printf("it's not nil! %+q", c.ParamInsts)
 	}
 
 	return c.ParamInsts
@@ -529,6 +630,10 @@ func (c *CmdInst) paraminsts() []*ParamInst {
 // paraminsts initializes the Remainder list on the fly and returns it.
 // e.g. c.Remainder = append(c.remainder(), arg)
 func (c *CmdInst) remainder() []string {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if c.Remainder == nil {
 		c.Remainder = make([]string, 0)
 	}
@@ -539,6 +644,10 @@ func (c *CmdInst) remainder() []string {
 // Instance creates an instance of the parameter with the provided value and bound
 // to the provided Cmd.
 func (p *Param) Instance(value string, cmd *Cmd) *ParamInst {
+	if p == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	pi := ParamInst{
 		Param: p,
 		Found: true,
@@ -551,6 +660,10 @@ func (p *Param) Instance(value string, cmd *Cmd) *ParamInst {
 // aliases is an internal shortcut to initialize the aliases list on an
 // as-needed basis.
 func (p *Param) aliases() []string {
+	if p == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if p.Aliases == nil {
 		p.Aliases = make([]string, 0)
 	}
@@ -561,6 +674,10 @@ func (p *Param) aliases() []string {
 // String returns the value as a string. If the param is required and it was
 // not set, RequiredParamNotFound is returned.
 func (p *ParamInst) String() (string, error) {
+	if p == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if !p.Found && p.Param.Required {
 		return "", RequiredParamNotFound{p.Param}
 	}
@@ -572,6 +689,10 @@ func (p *ParamInst) String() (string, error) {
 // not set, RequiredParamNotFound is returned. Additionally, any errors in
 // conversion are returned.
 func (p *ParamInst) Int() (int, error) {
+	if p == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if !p.Found {
 		if p.Param.Required {
 			return 0, RequiredParamNotFound{p.Param}
@@ -587,6 +708,10 @@ func (p *ParamInst) Int() (int, error) {
 // Float returns the value of the parameter as a float. If the value cannot
 // be converted, an error will be returned. See: strconv.ParseFloat
 func (p *ParamInst) Float() (float64, error) {
+	if p == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if !p.Found {
 		if p.Param.Required {
 			return 0, RequiredParamNotFound{p.Param}
@@ -603,6 +728,10 @@ func (p *ParamInst) Float() (float64, error) {
 // If the value cannot be converted, an error will be returned.
 // See: strconv.ParseBool
 func (p *ParamInst) Bool() (bool, error) {
+	if p == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if !p.Found {
 		if p.Param.Required {
 			return false, RequiredParamNotFound{p.Param}
@@ -621,6 +750,10 @@ func (p *ParamInst) Bool() (bool, error) {
 // If the value cannot be converted, an error will be returned.
 // See: time.ParseDuration
 func (p *ParamInst) Duration() (time.Duration, error) {
+	if p == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	duration := p.Value
 	empty := time.Duration(0)
 
@@ -657,6 +790,10 @@ func (p *ParamInst) Duration() (time.Duration, error) {
 // See: TimeFormats in this package
 // See: time.ParseDuration
 func (p *ParamInst) Time() (time.Time, error) {
+	if p == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if !p.Found {
 		if p.Param.Required {
 			return time.Time{}, RequiredParamNotFound{p.Param}
@@ -688,6 +825,10 @@ func (p *ParamInst) Time() (time.Time, error) {
 // MustString returns the value as a string. If it was required/not-set,
 // panic ensues. Empty string may be returned for not-required+not-set.
 func (p *ParamInst) MustString() string {
+	if p == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	out, err := p.String()
 	if p.Param.Required && err != nil {
 		panic(err)
@@ -702,6 +843,10 @@ func (p *ParamInst) MustString() string {
 // If the param is set and the value is "*", return the provided default.
 // If the param is set, return the value.
 func (p *ParamInst) DefString(def string) string {
+	if p == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if !p.Found {
 		if p.Param.Required {
 			// not set, required
@@ -723,6 +868,10 @@ func (p *ParamInst) DefString(def string) string {
 
 // DefInt returns the value as an int. See DefString for the rules.
 func (p *ParamInst) DefInt(def int) int {
+	if p == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if !p.Found {
 		if p.Param.Required {
 			return def
@@ -742,6 +891,10 @@ func (p *ParamInst) DefInt(def int) int {
 
 // DefFloat returns the value as a float. See DefString for the rules.
 func (p *ParamInst) DefFloat(def float64) float64 {
+	if p == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if !p.Found {
 		if p.Param.Required {
 			return def
@@ -761,6 +914,10 @@ func (p *ParamInst) DefFloat(def float64) float64 {
 
 // DefBool returns the value as a bool. See DefString for the rules.
 func (p *ParamInst) DefBool(def bool) bool {
+	if p == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	if !p.Found {
 		if p.Param.Required {
 			return def
@@ -779,9 +936,17 @@ func (p *ParamInst) DefBool(def bool) bool {
 }
 
 func (c *Cmd) RenderUsage(msg string) string {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	return msg + "\nnot implemented yet"
 }
 
 func (c *CmdInst) RenderUsage(msg string) string {
+	if c == nil {
+		panic("BUG: method called on nil handle")
+	}
+
 	return c.Cmd.RenderUsage(msg)
 }
