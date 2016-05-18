@@ -1,9 +1,9 @@
 package hal
 
 import (
+	"github.com/davecgh/go-spew/spew"
 	"strings"
 	"testing"
-	//"github.com/davecgh/go-spew/spew"
 )
 
 func TestCmd(t *testing.T) {
@@ -119,4 +119,21 @@ func TestCmd(t *testing.T) {
 	if subcmd.GetParamInst("key").MustString() != "testing" {
 		t.Errorf("wrong key, expected 'testing', got %q", subcmd.GetParamInst("key").MustString())
 	}
+
+	argv4 := []string{"!prefs", "rm", "4"}
+	res = pc.Process(argv4)
+	spew.Dump(res)
+	if res.SubCmdToken() != "rm" {
+		t.Errorf("wrong subcommand parsed. Expected rm, got %q", res.SubCmdToken())
+	}
+	pp := res.SubCmdInst.GetPParamInst(0)
+	if pp.Value != "4" {
+		t.Errorf("wrong value from positional parameter. got %q, expected %q", pp, "4")
+	}
+
+	// make sure it doesn't blow up on invalid subcmd
+	argv5 := []string{"!prefs", "asdfasdfasdfasdf", "asdf"}
+	res = pc.Process(argv5)
+	// at this point res.SubCmdInst is nil ... *sigh*
+	res.SubCmdInst.GetPParamInst(0)
 }
