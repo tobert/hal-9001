@@ -3,29 +3,19 @@ package hal
 import (
 	"fmt"
 	"log"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
 
-/* hal.Cmd, hal.Param, hal.CmdInst, and hal.ParamInst are handles for hal's
- * command parsing. While it's possible to use the standard library flags or an
- * off-the-github command-line parser, they have proven to be clunky and often
- * hacky to use. This API is purpose-built for building bot plugins, where folks
- * expect a little more flexibility and the ability to use events as context.
- * Rules (as they form)!
- *   1. Cmd and Param are parsed in the order they were defined.
- *   2a. "*" as user input means "whatever, from the current context" e.g. --room *
- *   2b. "*" as a Cmd.Token means "anything and everything remaining in argv"
+/* While it's possible to use the standard library flags or an off-the-github
+ * command-line parser, they have proven to be clunky and often hacky to use.
+ * This API is purpose-built for building bot plugins, focusing on doing the
+ * tedious parts of parsing commands without getting in the way.
+ * Rules:
+ *   1. "*" as user input means "whatever, from the current context" e.g. --room *
+ *   2. "*" as a Cmd.Token means "anything and everything remaining in argv"
  */
-
-// common REs for Param.ValidRE
-const IntRE = `^\d+$`
-const FloatRE = `^(\d+|\d+.\d+)$`
-const BoolRE = `(?i:^(true|false)$)`
-const CmdRE = `^!\w+$`
-const SubCmdRE = `^\w+$`
 
 // supported time formats for ParamInst.Time()
 var TimeFormats = [...]string{
@@ -40,62 +30,138 @@ var TimeFormats = [...]string{
 // Cmd models a tree of commands and subcommands along with their parameters.
 // The tree will almost always be 1 or 2 levels deep. Deeper is possible but
 // unlikely to be much higher, KISS.
-//
-// Key is the command name, e.g.
-// "!uptime" => Cmd{"uptime"}
-// "!mark ohai" => Cmd{Token: "mark", Cmds: []Cmd{Cmd{"*"}}}
-// "!prefs set" => Cmd{Token: "prefs", MustSubCmd: true, Cmds: []Cmd{Cmd{"set"}}}
 type Cmd struct {
-	Token      string   `json:"token"` // * => slurp everything remaining
-	Usage      string   `json:"usage"`
-	Params     []*Param `json:"parameters"`
-	SubCmds    []*Cmd   `json:"subcommands"`
-	Aliases    []string `json:"aliases"`
-	Prev       *Cmd     // parent command, nil for root
-	MustSubCmd bool     // a subcommand is always required
+	token      string // * => slurp everything remaining
+	usage      string
+	subCmds    []*SubCmd
+	kvparams   []*KVParam
+	boolparams []*BoolParam
+	idxparams  []*IdxParam
+	aliases    []string
+	prev       *Cmd // parent command, nil for root
+	mustSubCmd bool // a subcommand is always required
+	isSubCmd   bool // work-around
 }
 
-// does anyone else feel weird writing ParamInsts?
+type SubCmd struct {
+	cmd *Cmd
+	Cmd
+}
+
 type CmdInst struct {
-	Cmd        *Cmd         `json:"command"`
-	SubCmdInst *CmdInst     `json:"subcommand"`
-	ParamInsts []*ParamInst `json:"parameters"`
-	Remainder  []string     `json:"remainder"` // args left over after parsing, usually empty
+	cmd            *Cmd
+	subCmdInst     *SubCmdInst
+	kvparaminsts   []*KVParamInst
+	boolparaminsts []*BoolParamInst
+	idxparaminsts  []*IdxParamInst
+	remainder      []string // args left over after parsing, usually empty
 }
 
-// Param defines a parameter of a command.
-type Param struct {
-	Key      string   `json:"key"`      // the "foo" in --foo, -f, foo=bar
-	Position int      `json:"position"` // positional arg index
-	Usage    string   `json:"usage"`    // usage string for generating help
-	Required bool     `json:"required"` // whether or not this parameter is required
-	Boolean  bool     `json:"boolean"`  // true for flags that default "true" with no arg
-	ValidRE  string   `json:"validre"`  // a regular expression for validity checking
-	Aliases  []string `json:"aliases"`  // parameter aliases, e.g. foo => f
-	validre  *regexp.Regexp
+type SubCmdInst struct {
+	subCmd *SubCmd
+	CmdInst
+}
+
+// key/value parameters, e.g. "--foo=bar", "foo=bar", "-f bar", "--foo bar"
+type KVParam struct {
+	key      string   // the "foo" in --foo, -f, foo=bar
+	aliases  []string // parameter aliases, e.g. foo => f
+	usage    string   // usage string for generating help
+	required bool     // whether or not this parameter is required
+	cmd      *Cmd     // the (top-level) command the param is attached to
+	subcmd   *SubCmd  // the subcommand the param is attached to
+}
+
+// keyed parameters that are boolean (flags), e.g. "--foo", "-f", "foo=true"
+type BoolParam struct {
+	KVParam
+}
+
+// positional parameters (0 indexed)
+type IdxParam struct {
+	idx      int // positional arg index
+	usage    string
+	required bool
 	cmd      *Cmd
+	subcmd   *SubCmd
 }
 
-// ParamInst is an instance of a (parsed) parameter.
-type ParamInst struct {
-	Param *Param `json:"param"`
-	Found bool   `json:"found"`   // was the parameter set?
-	Value string `json:"value"`   // provided value or the default
-	Cmd   *Cmd   `json:"command"` // the command the parameter is attached to
-	Arg   string `json:"arg"`     // the original/unmodified argument (e.g. --foo, -f)
-	Key   string `json:"key"`     // the key, e.g. "foo"
+// KVParamInst represents a key/value parameter found in the command
+type KVParamInst struct {
+	cmdinst    *CmdInst    // the top-level command
+	subcmdinst *SubCmdInst // the subcommand the param belongs to, nil for top-level
+	param      *KVParam
+	found      bool   // was the parameter set?
+	arg        string // the original/unmodified argument (e.g. --foo, -f)
+	key        string // the key, e.g. "foo"
+	value      string
+}
+
+// BoolParamInst represents a flag/boolean parameter found in the command
+type BoolParamInst struct {
+	cmdinst    *CmdInst
+	subcmdinst *SubCmdInst
+	param      *BoolParam
+	found      bool
+	arg        string
+	key        string
+	value      bool
+}
+
+// IdxParamInst represents a positional parameter found in the command
+type IdxParamInst struct {
+	cmdinst    *CmdInst
+	subcmdinst *SubCmdInst
+	param      *IdxParam
+	found      bool
+	idx        int
+	value      string
+}
+
+// tmpParamInst used by the parser to hold keyed parameters before attaching to commands/subcommands.
+type tmpParamInst struct {
+	cmd        *Cmd
+	cmdinst    *CmdInst
+	subcmd     *SubCmd
+	subcmdinst *SubCmdInst
+	found      bool
+	arg        string
+	key        string
+	value      string
+}
+
+type stringValuedParamInst interface {
+	Found() bool
+	Required() bool
+	Value() string
+	String() (string, error)
+	Int() (int, error)
+	Float() (float64, error)
+	Bool() (bool, error)
+	iParam() interface{}
 }
 
 // RequiredParamNotFound is returned when a parameter has Required=true
 // and a method was used to access the value but no value was set in the
 // command.
 type RequiredParamNotFound struct {
-	Param *Param
+	Param interface{}
 }
 
 // Error fulfills the Error interface.
 func (e RequiredParamNotFound) Error() string {
-	return fmt.Sprintf("Parameter %q is required but not set.", e.Param.Key)
+	name := "BUG(unknown)"
+
+	switch e.Param.(type) {
+	case KVParam:
+		name = e.Param.(KVParam).key
+	case BoolParam:
+		name = e.Param.(BoolParam).key
+	case IdxParam:
+		name = strconv.Itoa(e.Param.(IdxParam).idx)
+	}
+
+	return fmt.Sprintf("Parameter %q is required but not set.", name)
 }
 
 // UnsupportedTimeFormatError is returned when a provided time string cannot
@@ -109,184 +175,412 @@ func (e UnsupportedTimeFormatError) Error() string {
 	return fmt.Sprintf("Time string %q does not appear to be in a supported format.", e.Value)
 }
 
-// NewCmd returns an initialized *Cmd.
-func NewCmd(token string) *Cmd {
-	cmd := Cmd{
-		Token:   token,
-		Params:  make([]*Param, 0),
-		SubCmds: make([]*Cmd, 0),
-		Aliases: make([]string, 0),
-	}
+// NewCmd returns an initialized Cmd.
+func NewCmd(token string, mustsubcmd bool) *Cmd {
+	cmd := Cmd{token: token, mustSubCmd: mustsubcmd}
 	return &cmd
 }
 
 // subcmds makes sure the SubCmds list is initialized and returns the list.
-func (c *Cmd) subcmds() []*Cmd {
-	if c == nil {
-		panic("BUG: method called on nil handle")
+func (c Cmd) _subcmds() []*SubCmd {
+	if c.subCmds == nil {
+		c.subCmds = make([]*SubCmd, 0)
 	}
 
-	if c.SubCmds == nil {
-		c.SubCmds = make([]*Cmd, 0)
-	}
-
-	return c.SubCmds
+	return c.subCmds
 }
 
-// params makes sure the Params list is initialized and returns the list.
-func (c *Cmd) params() []*Param {
-	if c == nil {
-		panic("BUG: method called on nil handle")
+// _kvparams makes sure the _kvparams list is initialized and returns the list.
+func (c Cmd) _kvparams() []*KVParam {
+	if c.kvparams == nil {
+		c.kvparams = make([]*KVParam, 0)
 	}
 
-	if c.Params == nil {
-		c.Params = make([]*Param, 0)
+	return c.kvparams
+}
+
+// _boolparams makes sure the _boolparams list is initialized and returns the list.
+func (c Cmd) _boolparams() []*BoolParam {
+	if c.boolparams == nil {
+		c.boolparams = make([]*BoolParam, 0)
 	}
 
-	return c.Params
+	return c.boolparams
+}
+
+// _idxparams makes sure the _idxparams list is initialized and returns the list.
+func (c Cmd) _idxparams() []*IdxParam {
+	if c.idxparams == nil {
+		c.idxparams = make([]*IdxParam, 0)
+	}
+
+	return c.idxparams
 }
 
 // aliases makes sure the Aliases list is initialized and returns the list.
-func (c *Cmd) aliases() []string {
-	if c == nil {
-		panic("BUG: method called on nil handle")
+func (c Cmd) _aliases() []string {
+	if c.aliases == nil {
+		c.aliases = make([]string, 0)
 	}
 
-	if c.Aliases == nil {
-		c.Aliases = make([]string, 0)
-	}
-
-	return c.Aliases
+	return c.aliases
 }
 
-// AddParam creates and adds a parameter to the command handle and returns
-// the new parameter.
-func (c *Cmd) AddParam(key string, required bool) *Param {
-	if c == nil {
-		panic("BUG: method called on nil handle")
+func (c *Cmd) assertZeroIdxParams() {
+	pps := c._idxparams()
+	if len(pps) > 0 {
+		log.Panic("Illegal mixing of positional and key/value parameters.")
 	}
+}
 
-	p := Param{
-		Key:      key,
-		Required: required,
-		cmd:      c,
+func (c *Cmd) assertZeroKeyParams() {
+	kps := c._kvparams()
+	bps := c._boolparams()
+	if len(kps) > 0 || len(bps) > 0 {
+		log.Panic("Illegal mixing of positional and key/value parameters.")
 	}
+}
 
-	c.Params = append(c.params(), &p)
+// AddKVParam creates and adds a key/value parameter to the command handle
+// and returns the new parameter.
+func (c *Cmd) AddKVParam(key string, required bool) *KVParam {
+	c.assertZeroIdxParams()
+
+	p := KVParam{key: key}
+	p.required = required
+	p.cmd = c.Cmd()
+
+	c.kvparams = append(c._kvparams(), &p)
 
 	return &p
 }
 
-// AddPParam adds a positional parameter to the command and returns the
+// AddBoolParam adds a boolean/flag parameter to the command and returns the
 // new parameter.
-func (c *Cmd) AddPParam(position int, required bool) *Param {
-	if c == nil {
-		panic("BUG: method called on nil handle")
+func (c *Cmd) AddBoolParam(key string, required bool) *BoolParam {
+	c.assertZeroIdxParams()
+
+	p := BoolParam{}
+	p.key = key
+	p.required = required
+	p.cmd = c.Cmd()
+
+	c.boolparams = append(c._boolparams(), &p)
+
+	return &p
+}
+
+// AddIdxParam adds a positional parameter to the command and returns the
+// new parameter.
+func (c *Cmd) AddIdxParam(position int, required bool) *IdxParam {
+	c.assertZeroKeyParams()
+
+	for _, p := range c._idxparams() {
+		if position == p.idx {
+			log.Panicf("position %d already has an IdxParam defined on this command", position)
+		}
 	}
 
-	p := Param{
-		Position: position,
-		Required: required,
-		cmd:      c,
+	p := IdxParam{idx: position}
+	p.required = required
+	p.cmd = c.Cmd()
+
+	c.idxparams = append(c._idxparams(), &p)
+
+	return &p
+}
+
+// AddKVParam creates and adds a key/value parameter to the subcommand
+// and returns the new parameter.
+func (c *SubCmd) AddKVParam(key string, required bool) *KVParam {
+	c.assertZeroIdxParams()
+
+	p := KVParam{key: key}
+	p.required = required
+	p.cmd = c.cmd
+	p.subcmd = c
+
+	c.kvparams = append(c._kvparams(), &p)
+
+	return &p
+}
+
+// AddBoolParam adds a boolean/flag parameter to the subcommand and returns the
+// new parameter.
+func (c *SubCmd) AddBoolParam(key string, required bool) *BoolParam {
+	c.assertZeroIdxParams()
+
+	p := BoolParam{}
+	p.key = key
+	p.required = required
+	p.cmd = c.cmd
+	p.subcmd = c
+
+	c.boolparams = append(c._boolparams(), &p)
+
+	return &p
+}
+
+// AddIdxParam adds a positional parameter to the subcommand and returns the
+// new parameter.
+func (c *SubCmd) AddIdxParam(position int, required bool) *IdxParam {
+	c.assertZeroKeyParams()
+
+	for _, p := range c._idxparams() {
+		if position == p.idx {
+			log.Panicf("position %d already has an IdxParam defined on this command", position)
+		}
 	}
 
-	// NOTE: since it's currently OK to mix named and positional parameters
-	// (a decision I have not fully considered and may change)
-	// positional parameters are not necessarily at the index of their position!
-	c.Params = append(c.params(), &p)
+	p := IdxParam{idx: position}
+	p.required = required
+	p.cmd = c.cmd
+	p.subcmd = c
+
+	c.idxparams = append(c._idxparams(), &p)
 
 	return &p
 }
 
 // AddAlias adds an alias to the command and returns the paramter.
 func (c *Cmd) AddAlias(alias string) *Cmd {
-	if c == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	c.Aliases = append(c.aliases(), alias)
+	c.aliases = append(c._aliases(), alias)
 	return c
 }
 
 // AddAlias adds an alias to the parameter and returns the paramter.
-func (p *Param) AddAlias(alias string) *Param {
-	if p == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	p.Aliases = append(p.aliases(), alias)
+func (p *KVParam) AddAlias(alias string) *KVParam {
+	p.aliases = append(p._aliases(), alias)
 	return p
 }
 
-// AddUsage sets the usage string for the command. Returns the command.
-func (c *Cmd) AddUsage(usage string) *Cmd {
-	if c == nil {
-		panic("BUG: method called on nil handle")
-	}
+func (c *Cmd) Aliases() []string {
+	return c._aliases()
+}
 
-	c.Usage = usage
+func (c *Cmd) Parent() *Cmd {
+	return c.prev
+}
+
+//MustSubCmd() bool
+func (c *Cmd) MustSubCmd() bool {
+	return c.mustSubCmd
+}
+
+func (c *Cmd) Usage() string {
+	return "not implemented yet"
+}
+
+// SetUsage sets the usage string for the command. Returns the command.
+func (c *Cmd) SetUsage(usage string) *Cmd {
+	c.usage = usage
 	return c
 }
 
-// AddUsage sets the usage string for the paremeter. Returns the parameter.
-func (p *Param) AddUsage(usage string) *Param {
-	if p == nil {
-		panic("BUG: method called on nil handle")
+func (s *SubCmd) SetUsage(usage string) *SubCmd {
+	s.usage = usage
+	return s
+}
+
+func (c *CmdInst) Usage() string {
+	if c.cmd == nil {
+		panic("BUG: CmdInst command is nil!")
 	}
 
-	p.Usage = usage
+	return c.cmd.Usage()
+}
+
+func (p *KVParam) Usage() string {
+	return p.usage
+}
+
+func (p *BoolParam) Usage() string {
+	return p.usage
+}
+
+func (p *IdxParam) Usage() string {
+	return p.usage
+}
+
+// SetUsage sets the usage string for the paremeter. Returns the parameter.
+func (p *KVParam) SetUsage(usage string) *KVParam {
+	p.usage = usage
 	return p
 }
 
-// Cmd returns the command the parameter belongs to. Only really useful for
-// chained methods since it will panic if the private command field isn't set.
-func (p *Param) Cmd() *Cmd {
-	if p == nil {
-		panic("BUG: method called on nil handle")
-	}
+// SetUsage sets the usage string for the paremeter. Returns the parameter.
+func (p *BoolParam) SetUsage(usage string) *BoolParam {
+	p.usage = usage
+	return p
+}
 
+// SetUsage sets the usage string for the paremeter. Returns the parameter.
+func (p *IdxParam) SetUsage(usage string) *IdxParam {
+	p.usage = usage
+	return p
+}
+
+// Cmd returns the command the parameter belongs to. Panics if no command is attached.
+func (p *KVParam) Cmd() *Cmd {
 	if p.cmd == nil {
-		panic("Can't call Cmd() on this Param because it is not attached to a Cmd!")
+		panic("Can't call Cmd() on this KVParam because it is not attached to a Cmd!")
 	}
 
 	return p.cmd
 }
 
+// Cmd returns the command the parameter belongs to. Panics if no command is attached.
+func (p *BoolParam) Cmd() *Cmd {
+	if p.cmd == nil {
+		panic("Can't call Cmd() on this BoolParam because it is not attached to a Cmd!")
+	}
+
+	return p.cmd
+}
+
+// Cmd returns the command the parameter belongs to. Panics if no command is attached.
+func (p *IdxParam) Cmd() *Cmd {
+	if p.cmd == nil {
+		panic("Can't call Cmd() on this IdxParam because it is not attached to a Cmd!")
+	}
+
+	return p.cmd
+}
+
+func (p *KVParam) SubCmd() *SubCmd {
+	if p.subcmd == nil {
+		panic("Can't call SubCmd() on this KVParam because it is not attached to a SubCmd!")
+	}
+
+	return p.subcmd
+}
+
+// Cmd returns the command the parameter belongs to. Panics if no command is attached.
+func (p *KVParamInst) Cmd() *Cmd {
+	if p.param == nil {
+		panic("Can't call Cmd() on this KVParamInst because it is not attached to a KVParam!")
+	}
+
+	return p.param.Cmd()
+}
+
+// Cmd returns the command the parameter belongs to. Panics if no command is attached.
+func (p *BoolParamInst) Cmd() *Cmd {
+	if p.param == nil {
+		panic("Can't call Cmd() on this BoolParamInst because it is not attached to a BoolPararm!")
+	}
+
+	return p.param.Cmd()
+}
+
+// Cmd returns the command the parameter belongs to. Panics if no command is attached.
+func (p *IdxParamInst) Cmd() *Cmd {
+	if p.param == nil {
+		panic("Can't call Cmd() on this IdxParamInst because it is not attached to a IdxParam!")
+	}
+
+	return p.param.Cmd()
+}
+
+func (p *KVParamInst) SubCmdInst() *SubCmdInst {
+	if p.subcmdinst == nil {
+		panic("Can't call SubCmdInst() on this KVParamInst because it is not attached to a SubCmdInst!")
+	}
+
+	return p.subcmdinst
+}
+
+func (p *BoolParamInst) SubCmdInst() *SubCmdInst {
+	if p.subcmdinst == nil {
+		panic("Can't call SubCmdInst() on this BoolParamInst because it is not attached to a SubCmdInst!")
+	}
+
+	return p.subcmdinst
+}
+
+func (p *IdxParamInst) SubCmdInst() *SubCmdInst {
+	if p.subcmdinst == nil {
+		panic("Can't call SubCmdInst() on this IdxParamInst because it is not attached to a SubCmd!")
+	}
+
+	return p.subcmdinst
+}
+
+func (p *KVParamInst) Found() bool {
+	return p.found
+}
+
+func (p *BoolParamInst) Found() bool {
+	return p.found
+}
+
+func (p *IdxParamInst) Found() bool {
+	return p.found
+}
+
+func (p *KVParamInst) Required() bool {
+	return p.param.required
+}
+
+func (p *BoolParamInst) Required() bool {
+	return p.param.required
+}
+
+func (p *IdxParamInst) Required() bool {
+	return p.param.required
+}
+
+func (p *KVParamInst) Param() *KVParam {
+	return p.param
+}
+
+func (p *BoolParamInst) Param() *BoolParam {
+	return p.param
+}
+
+func (p *IdxParamInst) Param() *IdxParam {
+	return p.param
+}
+
+func (p *KVParamInst) iParam() interface{} {
+	return p.param
+}
+func (p *BoolParamInst) iParam() interface{} {
+	return p.param
+}
+func (p *IdxParamInst) iParam() interface{} {
+	return p.param
+}
+
 // Cmd returns the command it was called on. It does nothing and exists to
 // make it possible to format chained calls nicely.
 func (c *Cmd) Cmd() *Cmd {
-	if c == nil {
-		panic("BUG: method called on nil handle")
-	}
-
 	return c
 }
 
+func (s *SubCmd) SubCmd() *SubCmd {
+	return s
+}
+
+func (c *Cmd) Token() string {
+	return c.token
+}
+
 // AddCmd adds a subcommand to the handle and returns the new (sub-)command.
-func (c *Cmd) AddCmd(token string) *Cmd {
-	if c == nil {
-		panic("BUG: method called on nil handle")
-	}
+func (c *Cmd) AddSubCmd(token string) *SubCmd {
+	sub := SubCmd{}
+	sub.prev = c
+	sub.token = token
+	sub.isSubCmd = true // gets around the inability to type switch non-interfaces
 
-	sub := Cmd{
-		Token: token,
-		Prev:  c,
-	}
-
-	c.SubCmds = append(c.subcmds(), &sub)
+	c.subCmds = append(c._subcmds(), &sub)
 
 	return &sub
 }
 
-// GetParam gets a parameter by its key. Returns nil for no match.
-// Only processes the handle, no recursion.
-func (c *Cmd) GetParam(key string) *Param {
-	if c == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	for _, p := range c.params() {
-		if p.Key == key {
+func (c *Cmd) GetKVParam(key string) *KVParam {
+	for _, p := range c._kvparams() {
+		if p.key == key {
 			return p
 		}
 	}
@@ -294,23 +588,30 @@ func (c *Cmd) GetParam(key string) *Param {
 	return nil
 }
 
-// GetPParam gets a positional parameter by its index.
-func (c *Cmd) GetPParam(pos int) *Param {
-	if c == nil {
-		panic("BUG: method called on nil handle")
+func (c *Cmd) GetBoolParam(key string) *BoolParam {
+	for _, p := range c._boolparams() {
+		if p.key == key {
+			return p
+		}
 	}
 
-	list := c.params()
-	return list[pos]
+	return nil
 }
 
-func (c *Cmd) HasParam(key string) bool {
-	if c == nil {
-		panic("BUG: method called on nil handle")
+// GetIdxParam gets a positional parameter by its index.
+func (c *Cmd) GetIdxParam(idx int) *IdxParam {
+	for _, p := range c._idxparams() {
+		if p.idx == idx {
+			return p
+		}
 	}
 
-	for _, p := range c.params() {
-		if p.Key == key {
+	return nil
+}
+
+func (c *Cmd) HasKVParam(key string) bool {
+	for _, p := range c._kvparams() {
+		if p.key == key {
 			return true
 		}
 	}
@@ -318,36 +619,34 @@ func (c *Cmd) HasParam(key string) bool {
 	return false
 }
 
-// FindParam recursively finds any parameter defined in the command or its
-// subcommands and returns the param. nil on miss.
-func (c *Cmd) FindParam(key string) (*Cmd, *Param) {
-	if c == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	p := c.GetParam(key)
-	if p != nil {
-		return c, p
-	}
-
-	for _, sc := range c.subcmds() {
-		_, p = sc.FindParam(key)
-		if p != nil {
-			return sc, p
+func (c *Cmd) HasBoolParam(key string) bool {
+	for _, p := range c._boolparams() {
+		if p.key == key {
+			return true
 		}
 	}
 
-	return nil, nil
+	return false
+}
+
+func (c *Cmd) HasIdxParam(idx int) bool {
+	for _, p := range c._idxparams() {
+		if p.idx == idx {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (c *Cmd) SubCmds() []*SubCmd {
+	return c._subcmds()
 }
 
 // GetSubCmd gets a subcommand by its token. Returns nil for no match.
-func (c *Cmd) GetSubCmd(token string) *Cmd {
-	if c == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	for _, s := range c.subcmds() {
-		if s.Token == token {
+func (c *Cmd) GetSubCmd(token string) *SubCmd {
+	for _, s := range c._subcmds() {
+		if s.token == token {
 			return s
 		}
 	}
@@ -367,27 +666,28 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 	// a hand-coded argument processor that evaluates the provided argv list
 	// against the command definition and returns a CmdInst with all of the
 	// available data parsed and ready to use with CmdInst/ParamInst methods.
-	if c == nil {
-		panic("BUG: method called on nil handle")
-	}
 
 	// the top-level command instance
-	topInst := CmdInst{
-		Cmd:        c,
-		Remainder:  []string{},
-		ParamInsts: []*ParamInst{},
-	}
+	topInst := CmdInst{cmd: c}
 
 	// no arguments were provided
 	if len(argv) == 1 {
 		return &topInst
 	}
 
-	// the current subcommand - changes during parsing
-	curInst := &topInst
+	var isPositional bool
+	if len(c._idxparams()) > 0 {
+		isPositional = true
+	}
 
+	if isPositional {
+		panic("Positional parameters are not implemented yet.")
+		return &topInst
+	}
+
+	var curInst *SubCmdInst // the current subcommand - changes during parsing
 	var skipNext bool
-	var looseParams []*ParamInst
+	var looseParams []*tmpParamInst
 
 	// first pass: extract subcommands and parameters
 	for i, arg := range argv[1:] {
@@ -423,65 +723,53 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 			} else {
 				log.Printf("next arg, %q, appears to be a parameter", next)
 			}
-		} else if curInst.Cmd.HasSubCmd(arg) {
+		} else if curInst != nil && curInst.cmd.HasSubCmd(arg) {
 			// arg seems to be a subcommand token
 			// retreive the Cmd handle, create a command instance for the
 			// subcommand, then install it in the return tree
-			sub := curInst.Cmd.FindSubCmd(arg)
-			inst := CmdInst{Cmd: sub, Remainder: []string{}}
-			curInst.SubCmdInst = &inst
+			sub := curInst.cmd.FindSubCmd(arg)
+			scinst := SubCmdInst{
+				subCmd: sub,
+			}
+
+			curInst.subCmdInst = &scinst
 
 			// advance to the next subcommand
-			curInst = &inst
+			curInst = &scinst
 			continue
 		} else {
-			// leftover args go in .Remainder
-			curInst.Remainder = append(curInst.remainder(), arg)
+			// leftover args go in .remainder
+			topInst.remainder = append(topInst._remainder(), arg)
 			continue
 		}
 
-		inst := ParamInst{
-			Key:   key,
-			Arg:   arg,
-			Found: true,
-			Value: value,
+		pinst := tmpParamInst{}
+		pinst.key = key
+		pinst.arg = arg
+		pinst.value = value
+		pinst.found = true
+		pinst.cmd = c
+		pinst.cmdinst = &topInst
+		if curInst != nil {
+			pinst.subcmd = curInst.subCmd
+			pinst.subcmdinst = curInst
 		}
 
-		// always prefer matching the current subcmd
-		// TODO: check aliases, possibly in GetParam
-		if p := curInst.Cmd.GetParam(key); p != nil {
-			inst.Param = p
-			inst.Cmd = p.Cmd()
-
-			curInst.ParamInsts = append(curInst.paraminsts(), &inst)
-		} else {
-			// not a parameter for the current subcommand, probably out of order or invalid
-			// the subcommand might not be known yet. defer matching until all args are parsed
-			looseParams = append(looseParams, &inst)
-		}
+		looseParams = append(looseParams, &pinst)
 	}
 
-	// process out-of-order (and invalid) parameters in a second pass
+	// now that all subcommands and params should be discovered, wire them up
 	for _, inst := range looseParams {
-		var found bool
-
-		// search from the top CmdInst -> down and take the first match
-		for search := &topInst; search != nil; search = search.SubCmdInst {
-			if p := search.Cmd.GetParam(inst.Key); p != nil {
-				inst.Param = p
-				inst.Cmd = p.Cmd()
-
-				search.ParamInsts = append(search.paraminsts(), inst)
-
-				found = true
-
-				break
-			}
-		}
-
-		// TODO: handle invalid parameters gracefully
-		if !found {
-			log.Panicf("Bug or invalid parameter %q", inst.Key)
+		log.Printf("looseParam %+q", inst)
+		// check the subcommand first, then the top command, otherwise save off
+		// a temp param in loose params to resolve later
+		if inst.cmd.HasKVParam(inst.key) {
+		} else if inst.cmd.HasBoolParam(inst.key) {
+		} else if inst.subcmd.HasKVParam(inst.key) {
+		} else if inst.subcmd.HasBoolParam(inst.key) {
+		} else {
+			// temp - this part needs to walk the subcommands to try to place it
+			log.Panicf("could not assign parameter instance to a command or subcommand: %+v", inst)
 		}
 	}
 
@@ -516,18 +804,14 @@ func looksLikeParam(key string) bool {
 }
 
 // FindSubCmd looks for a subcommand defined with the provided token.
-func (c *Cmd) FindSubCmd(token string) *Cmd {
-	if c == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	for _, sc := range c.subcmds() {
-		if sc.Token == token {
+func (c *Cmd) FindSubCmd(token string) *SubCmd {
+	for _, sc := range c._subcmds() {
+		if sc.token == token {
 			return sc
 		}
 
 		// Check aliases too. Usually 0-2 elements.
-		for _, alias := range sc.aliases() {
+		for _, alias := range sc._aliases() {
 			if alias == token {
 				return sc
 			}
@@ -539,10 +823,6 @@ func (c *Cmd) FindSubCmd(token string) *Cmd {
 
 // HasSubCmd returns whether or not the proivded token is defined as a subcommand.
 func (c *Cmd) HasSubCmd(token string) bool {
-	if c == nil {
-		panic("BUG: method called on nil handle")
-	}
-
 	sc := c.FindSubCmd(token)
 	return sc != nil
 }
@@ -550,198 +830,241 @@ func (c *Cmd) HasSubCmd(token string) bool {
 // SubCmdToken returns the subcommand's token string. Returns empty string
 // if there is no subcommand.
 func (c *CmdInst) SubCmdToken() string {
-	if c == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	if c.SubCmdInst != nil {
-		return c.SubCmdInst.Cmd.Token
+	if c.subCmdInst != nil {
+		return c.subCmdInst.cmd.token
 	}
 
 	return ""
 }
 
-// Param gets a parameter instance by its key.
-func (c *CmdInst) GetParamInst(key string) *ParamInst {
-	if c == nil {
-		panic("BUG: method called on nil handle")
+func (c *CmdInst) SubCmdInst() *SubCmdInst {
+	return c.subCmdInst
+}
+
+func (c *CmdInst) Remainder() []string {
+	return c._remainder()
+}
+
+func (c *CmdInst) HasKVParamInst(key string) bool {
+	for _, p := range c._kvparaminsts() {
+		if p.key == key {
+			return true
+		}
 	}
 
-	for _, p := range c.paraminsts() {
-		if p.Param != nil && p.Param.Key == key {
+	return false
+}
+
+func (c *CmdInst) HasBoolParamInst(key string) bool {
+	for _, p := range c._boolparaminsts() {
+		if p.key == key {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (c *CmdInst) HasIdxParamInst(idx int) bool {
+	for _, p := range c._idxparaminsts() {
+		if p.idx == idx {
+			return true
+		}
+	}
+
+	return false
+}
+
+// GetKVParamInst gets a key/value parameter instance by its key.
+func (c *CmdInst) GetKVParamInst(key string) *KVParamInst {
+	for _, p := range c._kvparaminsts() {
+		if p.key == key {
 			return p
 		}
 	}
 
-	log.Panicf("%q.GetParamInst(%q) found not match", c.Cmd.Token, key)
-
 	return nil
 }
 
-// GetPParamInst gets a positional parameter instance by its index.
-func (c *CmdInst) GetPParamInst(pos int) *ParamInst {
-	if c == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	for _, p := range c.paraminsts() {
-		if p.Param != nil && p.Param.Position == pos {
+// GetBoolParamInst gets a key/value parameter instance by its key.
+func (c *CmdInst) GetBoolParamInst(key string) *BoolParamInst {
+	for _, p := range c._boolparaminsts() {
+		if p.key == key {
 			return p
 		}
 	}
 
-	log.Panicf("%q.GetPParamInst(%d) found not match", c.Cmd.Token, pos)
+	return nil
+}
+
+// GetIdxParamInst gets a positional parameter instance by its index.
+func (c *CmdInst) GetIdxParamInst(idx int) *IdxParamInst {
+	for _, p := range c._idxparaminsts() {
+		if p.idx == idx {
+			return p
+		}
+	}
 
 	return nil
 }
 
-// ParamKeys returns a list of the parameter keys suitable for range loops.
-func (c *CmdInst) ParamKeys() []string {
-	if c == nil {
-		panic("BUG: method called on nil handle")
+// _kvparaminsts initializes the kvparaminsts list on the fly and returns it.
+func (c *CmdInst) _kvparaminsts() []*KVParamInst {
+	if c.kvparaminsts == nil {
+		c.kvparaminsts = make([]*KVParamInst, 0)
 	}
 
-	out := make([]string, len(c.paraminsts()))
-
-	for i, param := range c.paraminsts() {
-		out[i] = param.Key
-	}
-
-	return out
+	return c.kvparaminsts
 }
 
-// paraminsts initializes the ParamInsts list on the fly and returns it.
-// e.g. c.ParamInsts = append(c.paraminsts(), pi)
-func (c *CmdInst) paraminsts() []*ParamInst {
-	if c == nil {
-		panic("BUG: method called on nil handle")
+// _boolparaminsts initializes the boolparaminsts list on the fly and returns it.
+func (c *CmdInst) _boolparaminsts() []*BoolParamInst {
+	if c.boolparaminsts == nil {
+		c.boolparaminsts = make([]*BoolParamInst, 0)
 	}
 
-	if c.ParamInsts == nil {
-		log.Println("it's nil!")
-		c.ParamInsts = make([]*ParamInst, 0)
+	return c.boolparaminsts
+}
+
+// _idxparaminsts initializes the idxparaminsts list on the fly and returns it.
+func (c *CmdInst) _idxparaminsts() []*IdxParamInst {
+	if c.idxparaminsts == nil {
+		c.idxparaminsts = make([]*IdxParamInst, 0)
+	}
+
+	return c.idxparaminsts
+}
+
+// _remainder initializes the remainder list on the fly and returns it.
+func (c *CmdInst) _remainder() []string {
+	if c.remainder == nil {
+		c.remainder = make([]string, 0)
+	}
+
+	return c.remainder
+}
+
+// _aliases initializes the aliases list on the fly and returns it.
+func (p *KVParam) _aliases() []string {
+	if p.aliases == nil {
+		p.aliases = make([]string, 0)
+	}
+
+	return p.aliases
+}
+
+func (p *KVParamInst) Value() string {
+	return p.value
+}
+
+func (p *BoolParamInst) Value() bool {
+	return p.value
+}
+
+func (p *IdxParamInst) Value() string {
+	return p.value
+}
+
+// String returns the value as a string.
+func (p *KVParamInst) String() (string, error) {
+	if !p.found && p.param.required {
+		return "", RequiredParamNotFound{p.param}
+	}
+
+	return p.value, nil
+}
+
+// String returns the value as a string.
+func (p *BoolParamInst) String() (string, error) {
+	if !p.found && p.param.required {
+		return "", RequiredParamNotFound{p.param}
+	}
+
+	if p.value {
+		return "true", nil
 	} else {
-		log.Printf("it's not nil! %+q", c.ParamInsts)
+		return "false", nil
 	}
-
-	return c.ParamInsts
 }
 
-// paraminsts initializes the Remainder list on the fly and returns it.
-// e.g. c.Remainder = append(c.remainder(), arg)
-func (c *CmdInst) remainder() []string {
-	if c == nil {
-		panic("BUG: method called on nil handle")
+// String returns the value as a string.
+func (p *IdxParamInst) String() (string, error) {
+	if !p.found && p.param.required {
+		return "", RequiredParamNotFound{p.param}
 	}
 
-	if c.Remainder == nil {
-		c.Remainder = make([]string, 0)
-	}
-
-	return c.Remainder
-}
-
-// Instance creates an instance of the parameter with the provided value and bound
-// to the provided Cmd.
-func (p *Param) Instance(value string, cmd *Cmd) *ParamInst {
-	if p == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	pi := ParamInst{
-		Param: p,
-		Found: true,
-		Value: value,
-		Cmd:   cmd,
-	}
-	return &pi
-}
-
-// aliases is an internal shortcut to initialize the aliases list on an
-// as-needed basis.
-func (p *Param) aliases() []string {
-	if p == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	if p.Aliases == nil {
-		p.Aliases = make([]string, 0)
-	}
-
-	return p.Aliases
-}
-
-// String returns the value as a string. If the param is required and it was
-// not set, RequiredParamNotFound is returned.
-func (p *ParamInst) String() (string, error) {
-	if p == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	if !p.Found && p.Param.Required {
-		return "", RequiredParamNotFound{p.Param}
-	}
-
-	return p.Value, nil
+	return p.value, nil
 }
 
 // String returns the value as an int. If the param is required and it was
 // not set, RequiredParamNotFound is returned. Additionally, any errors in
 // conversion are returned.
-func (p *ParamInst) Int() (int, error) {
-	if p == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	if !p.Found {
-		if p.Param.Required {
-			return 0, RequiredParamNotFound{p.Param}
+func intParam(p stringValuedParamInst) (int, error) {
+	if !p.Found() {
+		if p.Required() {
+			return 0, RequiredParamNotFound{p.iParam()}
 		} else {
 			return 0, nil
 		}
 	}
 
-	val, err := strconv.ParseInt(p.Value, 10, 64)
+	val, err := strconv.ParseInt(p.Value(), 10, 64)
 	return int(val), err // warning: doesn't handle overflow
+}
+
+func (p *KVParamInst) Int() (int, error) {
+	return intParam(p)
+}
+
+func (p *IdxParamInst) Int() (int, error) {
+	return intParam(p)
 }
 
 // Float returns the value of the parameter as a float. If the value cannot
 // be converted, an error will be returned. See: strconv.ParseFloat
-func (p *ParamInst) Float() (float64, error) {
-	if p == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	if !p.Found {
-		if p.Param.Required {
-			return 0, RequiredParamNotFound{p.Param}
+func floatParam(p stringValuedParamInst) (float64, error) {
+	if !p.Found() {
+		if p.Required() {
+			return 0, RequiredParamNotFound{p.iParam()}
 		} else {
 			return 0, nil
 		}
 	}
 
-	return strconv.ParseFloat(p.Value, 64)
+	return strconv.ParseFloat(p.Value(), 64)
+}
+
+func (p *KVParamInst) Float() (float64, error) {
+	return floatParam(p)
+}
+
+func (p *IdxParamInst) Float() (float64, error) {
+	return floatParam(p)
 }
 
 // Bool returns the value of the parameter as a bool.
 // If the value is required and not set, returns RequiredParamNotFound.
 // If the value cannot be converted, an error will be returned.
 // See: strconv.ParseBool
-func (p *ParamInst) Bool() (bool, error) {
-	if p == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	if !p.Found {
-		if p.Param.Required {
-			return false, RequiredParamNotFound{p.Param}
+func boolParam(p stringValuedParamInst) (bool, error) {
+	if !p.Found() {
+		if p.Required() {
+			return false, RequiredParamNotFound{p.iParam()}
 		} else {
 			return false, nil
 		}
 	}
 
-	stripped := strings.Trim(p.Value, `'"`)
+	stripped := strings.Trim(p.Value(), `'"`)
 	return strconv.ParseBool(stripped)
+}
+
+func (p *KVParamInst) Bool() (bool, error) {
+	return boolParam(p)
+}
+
+func (p *IdxParamInst) Bool() (bool, error) {
+	return boolParam(p)
 }
 
 // Duration returns the value of the parameter as a Go time.Duration.
@@ -749,17 +1072,13 @@ func (p *ParamInst) Bool() (bool, error) {
 // If the value is required and not set, returns RequiredParamNotFound.
 // If the value cannot be converted, an error will be returned.
 // See: time.ParseDuration
-func (p *ParamInst) Duration() (time.Duration, error) {
-	if p == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	duration := p.Value
+func durationParam(p stringValuedParamInst) (time.Duration, error) {
+	duration := p.Value()
 	empty := time.Duration(0)
 
-	if !p.Found {
-		if p.Param.Required {
-			return empty, RequiredParamNotFound{p.Param}
+	if !p.Found() {
+		if p.Required() {
+			return empty, RequiredParamNotFound{p.iParam()}
 		} else {
 			return empty, nil
 		}
@@ -783,26 +1102,30 @@ func (p *ParamInst) Duration() (time.Duration, error) {
 	}
 }
 
+func (p *KVParamInst) Duration() (time.Duration, error) {
+	return durationParam(p)
+}
+
+func (p *IdxParamInst) Duration() (time.Duration, error) {
+	return durationParam(p)
+}
+
 // Time returns the value of the parameter as a Go time.Time.
 // Many formats are attempted before giving up.
 // If the value is required and not set, returns RequiredParamNotFound.
 // If the value cannot be converted, an error will be returned.
 // See: TimeFormats in this package
 // See: time.ParseDuration
-func (p *ParamInst) Time() (time.Time, error) {
-	if p == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	if !p.Found {
-		if p.Param.Required {
-			return time.Time{}, RequiredParamNotFound{p.Param}
+func timeParam(p stringValuedParamInst) (time.Time, error) {
+	if !p.Found() {
+		if p.Required() {
+			return time.Time{}, RequiredParamNotFound{p.iParam()}
 		} else {
 			return time.Time{}, nil
 		}
 	}
 
-	t := p.Value
+	t := p.Value()
 
 	// convert Z suffix to +00:00
 	if strings.HasSuffix(t, "Z") {
@@ -822,15 +1145,28 @@ func (p *ParamInst) Time() (time.Time, error) {
 	return time.Time{}, UnsupportedTimeFormatError{t}
 }
 
+func (p *KVParamInst) Time() (time.Time, error) {
+	return timeParam(p)
+}
+
+func (p *IdxParamInst) Time() (time.Time, error) {
+	return timeParam(p)
+}
+
 // MustString returns the value as a string. If it was required/not-set,
 // panic ensues. Empty string may be returned for not-required+not-set.
-func (p *ParamInst) MustString() string {
-	if p == nil {
-		panic("BUG: method called on nil handle")
+func (p *KVParamInst) MustString() string {
+	out, err := p.String()
+	if p.Required() && err != nil {
+		panic(err)
 	}
 
+	return out
+}
+
+func (p *IdxParamInst) MustString() string {
 	out, err := p.String()
-	if p.Param.Required && err != nil {
+	if p.Required() && err != nil {
 		panic(err)
 	}
 
@@ -842,20 +1178,16 @@ func (p *ParamInst) MustString() string {
 // If the param is not required and it was not set, return the empty string.
 // If the param is set and the value is "*", return the provided default.
 // If the param is set, return the value.
-func (p *ParamInst) DefString(def string) string {
-	if p == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	if !p.Found {
-		if p.Param.Required {
+func defStringParam(p stringValuedParamInst, def string) string {
+	if !p.Found() {
+		if p.Required() {
 			// not set, required
 			return def
 		} else {
 			// not set, not required
 			return ""
 		}
-	} else if p.Value == "*" {
+	} else if p.Value() == "*" {
 		return def
 	}
 
@@ -866,19 +1198,23 @@ func (p *ParamInst) DefString(def string) string {
 	return out
 }
 
-// DefInt returns the value as an int. See DefString for the rules.
-func (p *ParamInst) DefInt(def int) int {
-	if p == nil {
-		panic("BUG: method called on nil handle")
-	}
+func (p *KVParamInst) DefString(def string) string {
+	return defStringParam(p, def)
+}
 
-	if !p.Found {
-		if p.Param.Required {
+func (p *IdxParamInst) DefString(def string) string {
+	return defStringParam(p, def)
+}
+
+// DefInt returns the value as an int. See DefString for the rules.
+func defIntParam(p stringValuedParamInst, def int) int {
+	if !p.Found() {
+		if p.Required() {
 			return def
 		} else {
 			return 0
 		}
-	} else if p.Value == "*" {
+	} else if p.Value() == "*" {
 		return def
 	}
 
@@ -889,19 +1225,23 @@ func (p *ParamInst) DefInt(def int) int {
 	return out
 }
 
-// DefFloat returns the value as a float. See DefString for the rules.
-func (p *ParamInst) DefFloat(def float64) float64 {
-	if p == nil {
-		panic("BUG: method called on nil handle")
-	}
+func (p *KVParamInst) DefInt(def int) int {
+	return defIntParam(p, def)
+}
 
-	if !p.Found {
-		if p.Param.Required {
+func (p *IdxParamInst) DefInt(def int) int {
+	return defIntParam(p, def)
+}
+
+// DefFloat returns the value as a float. See DefString for the rules.
+func defFloatParam(p stringValuedParamInst, def float64) float64 {
+	if !p.Found() {
+		if p.Required() {
 			return def
 		} else {
 			return 0
 		}
-	} else if p.Value == "*" {
+	} else if p.Value() == "*" {
 		return def
 	}
 
@@ -913,18 +1253,14 @@ func (p *ParamInst) DefFloat(def float64) float64 {
 }
 
 // DefBool returns the value as a bool. See DefString for the rules.
-func (p *ParamInst) DefBool(def bool) bool {
-	if p == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	if !p.Found {
-		if p.Param.Required {
+func defBoolParam(p stringValuedParamInst, def bool) bool {
+	if !p.Found() {
+		if p.Required() {
 			return def
 		} else {
 			return false
 		}
-	} else if p.Value == "*" {
+	} else if p.Value() == "*" {
 		return def
 	}
 
@@ -933,20 +1269,4 @@ func (p *ParamInst) DefBool(def bool) bool {
 		return def
 	}
 	return out
-}
-
-func (c *Cmd) RenderUsage(msg string) string {
-	if c == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	return msg + "\nnot implemented yet"
-}
-
-func (c *CmdInst) RenderUsage(msg string) string {
-	if c == nil {
-		panic("BUG: method called on nil handle")
-	}
-
-	return c.Cmd.RenderUsage(msg)
 }

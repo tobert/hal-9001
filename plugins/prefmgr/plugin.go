@@ -18,12 +18,9 @@ package prefmgr
  */
 
 import (
-	"bytes"
 	"fmt"
 	"net/http"
-	"strconv"
 
-	"github.com/codegangsta/cli"
 	"github.com/netflix/hal-9001/hal"
 )
 
@@ -34,6 +31,45 @@ const HELP = `Listing keys with no filter will list all keys visible to the acti
 !prefs list --key KEY
 !prefs list --user USER --room CHANNEL --plugin PLUGIN --key KEY --def DEFAULT
 `
+
+var cli *hal.Cmd
+
+func init() {
+	cli = &hal.Cmd{
+		Token:      "pref",
+		Usage:      "Manage hal preferences over chat.",
+		MustSubCmd: true,
+	}
+
+	keyUsage := "the key name, up to 190 utf8 characters"
+	valueUsage := "the value, arbitrary utf8"
+	roomUsage := "the chat room id (usually auto-resolved, '*' for 'this room')"
+	userUsage := "the user id (usually auto-resolved, '*' for 'executing user')"
+	brokerUsage := "the broker name. e.g. 'slack' ('*' for 'this broker')"
+	pluginUsage := "the plugin name. e.g. 'archive' ('*' for 'this plugin')"
+
+	cli.AddCmd("set").
+		AddUsage("set a preference key/value").
+		Cmd().AddParam("key", true).AddAlias("k").AddUsage(keyUsage).
+		Cmd().AddParam("value", true).AddAlias("v").AddUsage(valueUsage).
+		Cmd().AddParam("room", false).AddAlias("r").AddUsage(roomUsage).
+		Cmd().AddParam("user", false).AddAlias("u").AddUsage(userUsage).
+		Cmd().AddParam("broker", false).AddAlias("b").AddUsage(brokerUsage).
+		Cmd().AddParam("plugin", false).AddAlias("p").AddUsage(pluginUsage)
+
+	cli.AddCmd("list").AddAlias("get").
+		AddUsage("retreive preferences, optionally filtered by the provided attributes").
+		Cmd().AddParam("key", false).AddAlias("k").AddUsage(keyUsage).
+		Cmd().AddParam("value", false).AddAlias("v").AddUsage(valueUsage).
+		Cmd().AddParam("room", false).AddAlias("r").AddUsage(roomUsage).
+		Cmd().AddParam("user", false).AddAlias("u").AddUsage(userUsage).
+		Cmd().AddParam("broker", false).AddAlias("b").AddUsage(brokerUsage).
+		Cmd().AddParam("plugin", false).AddAlias("p").AddUsage(pluginUsage)
+
+	cli.AddCmd("rm").
+		AddUsage("delete a preference by id").
+		AddPParam(0, true).AddUsage("the preference id to delete")
+}
 
 func Register() {
 	plugin := hal.Plugin{
@@ -46,133 +82,86 @@ func Register() {
 	http.HandleFunc("/v1/prefs", httpPrefs)
 }
 
+// prefmgr is called when someone executes !pref in the chat system
 func prefmgr(evt hal.Evt) {
-	flags := hal.Pref{}
+	req := cli.Process(evt.BodyAsArgv())
 
-	valFlag := cli.StringFlag{
-		Name:        "value",
-		Destination: &flags.Value,
-		Value:       "",
-		Usage:       "the value",
+	switch req.SubCmdToken() {
+	case "set":
+		cliSet(req, &evt)
+	case "list":
+		cliList(req, &evt)
+	case "rm":
+		cliRm(req, &evt)
+	default:
+		evt.Reply(req.RenderUsage("invalid command"))
 	}
-
-	keyFlag := cli.StringFlag{
-		Name:        "key",
-		Destination: &flags.Key,
-		Value:       "",
-		Usage:       "the preference key to match",
-	}
-
-	pluginFlag := cli.StringFlag{
-		Name:        "plugin",
-		Destination: &flags.Plugin,
-		Value:       "",
-		Usage:       "select only prefs for the provided plugin",
-	}
-
-	brokerFlag := cli.StringFlag{
-		Name:        "broker",
-		Destination: &flags.Broker,
-		Value:       "",
-		Usage:       "select only prefs for the provided broker",
-	}
-
-	roomFlag := cli.StringFlag{
-		Name:        "room",
-		Destination: &flags.Room,
-		Value:       "",
-		Usage:       "select only prefs for the provided room",
-	}
-
-	userFlag := cli.StringFlag{
-		Name:        "user",
-		Destination: &flags.User,
-		Value:       "",
-		Usage:       "select only prefs for the provided user",
-	}
-
-	outbuf := bytes.NewBuffer([]byte{})
-
-	app := cli.NewApp()
-	app.Name = NAME
-	app.HelpName = NAME
-	app.Usage = "manage preferences"
-	app.Writer = outbuf
-	app.Commands = []cli.Command{
-		{
-			Name:  "list",
-			Usage: "list available preferences",
-			Flags: []cli.Flag{keyFlag, pluginFlag, brokerFlag, roomFlag, userFlag},
-			Action: func(ctx *cli.Context) {
-				cliList(ctx, evt, flags)
-			},
-		},
-		{
-			Name:  "set",
-			Usage: "set a preference key",
-			Flags: []cli.Flag{keyFlag, pluginFlag, brokerFlag, roomFlag, userFlag, valFlag},
-			Action: func(ctx *cli.Context) {
-				cliSet(ctx, evt, flags)
-			},
-		},
-		{
-			Name:  "rm",
-			Usage: "delete a preference key by id. e.g. !prefs rm 1",
-			Action: func(ctx *cli.Context) {
-				cliRm(ctx, evt)
-			},
-		},
-	}
-
-	err := app.Run(evt.BodyAsArgv())
-	if err != nil {
-		evt.Reply(fmt.Sprintf("Unable to parse your command, '%s': %s", evt.Body, err))
-	}
-
-	evt.Reply(outbuf.String())
 }
 
-func cliList(ctx *cli.Context, evt hal.Evt, opts hal.Pref) {
+// cmd2pref copies data from the hal.Cmd and hal.Evt into a hal.Pref, resolving
+// *'s on the way.
+func cmd2pref(req *hal.CmdInst, evt *hal.Evt) (*hal.Pref, error) {
+	var out hal.Pref
+
+	for _, pi := range req.ParamInsts {
+		var err error
+
+		switch pi.Key {
+		case "key":
+			out.Key, err = pi.String()
+		case "value":
+			out.Value, err = pi.String()
+		case "room":
+			out.Room = pi.DefString(evt.RoomId)
+		case "user":
+			out.User = pi.DefString(evt.UserId)
+		case "broker":
+			out.Broker = pi.DefString(evt.BrokerName())
+		case "plugin":
+			out.Plugin, _ = pi.String()
+		}
+
+		// return on the first error
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &out, nil
+}
+
+// cliList implements !pref list
+func cliList(req *hal.CmdInst, evt *hal.Evt) {
+	opts, err := cmd2pref(req, evt)
+	if err != nil {
+		panic(err) // TODO: placeholder
+	}
+
 	prefs := opts.Find()
 	data := prefs.Table()
 	evt.ReplyTable(data[0], data[1:])
 }
 
-func cliSet(ctx *cli.Context, evt hal.Evt, opts hal.Pref) {
-	if opts.Key == "" {
-		evt.Reply("--key is required to set prefs")
-		return
+// cliSet implements !pref set
+func cliSet(req *hal.CmdInst, evt *hal.Evt) {
+	opts, err := cmd2pref(req, evt)
+	if err != nil {
+		panic(err) // TODO: placeholder
 	}
 
-	if opts.Value == "" {
-		evt.Reply("--value is required to set prefs")
-		return
+	if opts.Room != "" && !evt.Broker.LooksLikeRoomId(opts.Room) {
+		opts.Room = evt.Broker.RoomNameToId(opts.Room)
 	}
 
-	// shorthand for "current room/user/broker" !pref set --user * --room * --broker *
-	if opts.User == "*" {
-		opts.User = evt.UserId
-	}
-
-	if opts.Room == "*" {
-		opts.Room = evt.RoomId
-	}
-
-	if opts.Broker == "*" {
-		opts.Broker = evt.BrokerName()
-	}
-
-	if opts.Room != "" {
-		if !evt.Broker.LooksLikeRoomId(opts.Room) {
-			opts.Room = evt.Broker.RoomNameToId(opts.Room)
-		}
+	if opts.User != "" && !evt.Broker.LooksLikeUserId(opts.User) {
+		opts.User = evt.Broker.UserNameToId(opts.User)
 	}
 
 	// TODO: check plugin name validity
 	// TODO: check broker name validity
 
 	fmt.Printf("Setting pref: %q\n", opts.String())
-	err := opts.Set()
+	err = opts.Set()
 	if err != nil {
 		evt.Replyf("Failed to set pref: %q", err)
 	} else {
@@ -181,17 +170,11 @@ func cliSet(ctx *cli.Context, evt hal.Evt, opts hal.Pref) {
 	}
 }
 
-func cliRm(ctx *cli.Context, evt hal.Evt) {
-	args := ctx.Args()
-	if len(args) != 1 {
-		evt.Reply("!prefs rm requires exactly one argument.")
-		return
-	}
-
-	id, err := strconv.Atoi(args[0])
+// cliRm implements !pref rm <id>
+func cliRm(req *hal.CmdInst, evt *hal.Evt) {
+	id, err := req.GetPParamInst(0).Int()
 	if err != nil {
-		evt.Replyf("Failed to delete pref: %q does not seem to be an integer. %s", args[0], err)
-		return
+		panic(err) // TODO: placeholder
 	}
 
 	err = hal.RmPrefId(id)
@@ -202,5 +185,6 @@ func cliRm(ctx *cli.Context, evt hal.Evt) {
 	}
 }
 
+// httpPrefs is the http handler for returning preferences as JSON
 func httpPrefs(w http.ResponseWriter, r *http.Request) {
 }
