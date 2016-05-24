@@ -1,7 +1,6 @@
 package hal
 
 import (
-	//"github.com/davecgh/go-spew/spew"
 	"strings"
 	"testing"
 )
@@ -66,8 +65,6 @@ func TestCmd(t *testing.T) {
 	argv2 := strings.Split("prefs set --room * --user foo --broker console --key ohai --value nevermind", " ")
 	res = pc.Process(argv2)
 
-	////spew.Dump(res)
-
 	if len(res.Remainder()) != 0 {
 		t.Error("There should not be any remainder")
 	}
@@ -113,13 +110,17 @@ func TestCmd(t *testing.T) {
 		t.FailNow()
 	}
 	subcmd = res.SubCmdInst()
-	if subcmd.GetKVParamInst("key").MustString() != "testing" {
+	kvpi := subcmd.GetKVParamInst("key")
+	if kvpi == nil {
+		t.Error("BUG: subcmd.GetKVParamInst('key') returned nil")
+		t.FailNow()
+	}
+	if kvpi.MustString() != "testing" {
 		t.Errorf("wrong key, expected 'testing', got %q", subcmd.GetKVParamInst("key").MustString())
 	}
 
 	argv4 := []string{"!prefs", "rm", "4"}
 	res = pc.Process(argv4)
-	//spew.Dump(res)
 	if res.SubCmdToken() != "rm" {
 		t.Errorf("Expected rm, got %q", res.SubCmdToken())
 	}

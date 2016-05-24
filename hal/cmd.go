@@ -40,7 +40,6 @@ type Cmd struct {
 	aliases    []string
 	prev       *Cmd // parent command, nil for root
 	mustSubCmd bool // a subcommand is always required
-	isSubCmd   bool // work-around
 }
 
 type SubCmd struct {
@@ -73,6 +72,8 @@ type KVParam struct {
 }
 
 // keyed parameters that are boolean (flags), e.g. "--foo", "-f", "foo=true"
+// do not change this to type BoolParam KVParm - BoolParam's methods will
+// become invisble.
 type BoolParam struct {
 	KVParam
 }
@@ -141,6 +142,20 @@ type stringValuedParamInst interface {
 	iParam() interface{}
 }
 
+// cmdorsubcmd is used internally to pass either a Cmd or SubCmd
+// to a helper function so I don't have to copy/paste the code
+type cmdorsubcmd interface {
+	HasKVParam(string) bool
+	HasBoolParam(string) bool
+	HasIdxParam(int) bool
+	GetKVParam(string) *KVParam
+	GetBoolParam(string) *BoolParam
+	GetIdxParam(int) *IdxParam
+	appendKVParamInst(*KVParamInst)
+	appendBoolParamInst(*BoolParamInst)
+	appendIdxParamInst(*IdxParamInst)
+}
+
 // RequiredParamNotFound is returned when a parameter has Required=true
 // and a method was used to access the value but no value was set in the
 // command.
@@ -167,12 +182,12 @@ func (e RequiredParamNotFound) Error() string {
 // UnsupportedTimeFormatError is returned when a provided time string cannot
 // be parsed with one of the pre-defined time formats.
 type UnsupportedTimeFormatError struct {
-	Value string
+	value string
 }
 
-// Error fulfills the Error interface.
+// Error fulfills the Error interface for UnsupportedTimeFormatError.
 func (e UnsupportedTimeFormatError) Error() string {
-	return fmt.Sprintf("Time string %q does not appear to be in a supported format.", e.Value)
+	return fmt.Sprintf("Time string %q does not appear to be in a supported format.", e.value)
 }
 
 // NewCmd returns an initialized Cmd.
@@ -181,8 +196,8 @@ func NewCmd(token string, mustsubcmd bool) *Cmd {
 	return &cmd
 }
 
-// subcmds makes sure the SubCmds list is initialized and returns the list.
-func (c Cmd) _subcmds() []*SubCmd {
+// _subcmds makes sure the SubCmds list is initialized and returns the list.
+func (c *Cmd) _subcmds() []*SubCmd {
 	if c.subCmds == nil {
 		c.subCmds = make([]*SubCmd, 0)
 	}
@@ -191,7 +206,7 @@ func (c Cmd) _subcmds() []*SubCmd {
 }
 
 // _kvparams makes sure the _kvparams list is initialized and returns the list.
-func (c Cmd) _kvparams() []*KVParam {
+func (c *Cmd) _kvparams() []*KVParam {
 	if c.kvparams == nil {
 		c.kvparams = make([]*KVParam, 0)
 	}
@@ -200,7 +215,7 @@ func (c Cmd) _kvparams() []*KVParam {
 }
 
 // _boolparams makes sure the _boolparams list is initialized and returns the list.
-func (c Cmd) _boolparams() []*BoolParam {
+func (c *Cmd) _boolparams() []*BoolParam {
 	if c.boolparams == nil {
 		c.boolparams = make([]*BoolParam, 0)
 	}
@@ -209,7 +224,7 @@ func (c Cmd) _boolparams() []*BoolParam {
 }
 
 // _idxparams makes sure the _idxparams list is initialized and returns the list.
-func (c Cmd) _idxparams() []*IdxParam {
+func (c *Cmd) _idxparams() []*IdxParam {
 	if c.idxparams == nil {
 		c.idxparams = make([]*IdxParam, 0)
 	}
@@ -217,8 +232,8 @@ func (c Cmd) _idxparams() []*IdxParam {
 	return c.idxparams
 }
 
-// aliases makes sure the Aliases list is initialized and returns the list.
-func (c Cmd) _aliases() []string {
+// _aliases makes sure the Aliases list is initialized and returns the list.
+func (c *Cmd) _aliases() []string {
 	if c.aliases == nil {
 		c.aliases = make([]string, 0)
 	}
@@ -545,9 +560,11 @@ func (p *IdxParamInst) Param() *IdxParam {
 func (p *KVParamInst) iParam() interface{} {
 	return p.param
 }
+
 func (p *BoolParamInst) iParam() interface{} {
 	return p.param
 }
+
 func (p *IdxParamInst) iParam() interface{} {
 	return p.param
 }
@@ -571,7 +588,6 @@ func (c *Cmd) AddSubCmd(token string) *SubCmd {
 	sub := SubCmd{}
 	sub.prev = c
 	sub.token = token
-	sub.isSubCmd = true // gets around the inability to type switch non-interfaces
 
 	c.subCmds = append(c._subcmds(), &sub)
 
@@ -675,17 +691,7 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 		return &topInst
 	}
 
-	var isPositional bool
-	if len(c._idxparams()) > 0 {
-		isPositional = true
-	}
-
-	if isPositional {
-		panic("Positional parameters are not implemented yet.")
-		return &topInst
-	}
-
-	var curInst *SubCmdInst // the current subcommand - changes during parsing
+	var curSubCmdInst *SubCmdInst // the current subcommand - changes during parsing
 	var skipNext bool
 	var looseParams []*tmpParamInst
 
@@ -706,13 +712,17 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 			nextExists = false
 		}
 
-		if strings.Contains(arg, "=") {
+		if curSubCmdInst != nil && curSubCmdInst.HasIdxParam(0) {
+			// TODO: implement positional parameters
+			log.Printf("WE GOT A LIVE ONE")
+		} else if strings.Contains(arg, "=") {
 			// looks like a key=value or --key=value parameter
 			// could be --foo=bar but all that matters is the "foo"
-			// could be --foo=true for .Boolean=true and that's fine too
+			// could be --foo=true for BoolParam and that's fine too
 			kv := strings.SplitN(arg, "=", 2)
 			key = strings.TrimLeft(kv[0], "-")
 			value = kv[1]
+			// falls through, further processing below this if block...
 		} else if looksLikeParam(arg) {
 			// looks like a parameter
 			// e.g. --foo bar -f bar
@@ -720,25 +730,39 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 			if nextExists && !looksLikeParam(next) {
 				value = next
 				skipNext = true
-			} else {
-				log.Printf("next arg, %q, appears to be a parameter", next)
 			}
-		} else if curInst != nil && curInst.cmd.HasSubCmd(arg) {
-			// arg seems to be a subcommand token
-			// retreive the Cmd handle, create a command instance for the
-			// subcommand, then install it in the return tree
-			sub := curInst.cmd.FindSubCmd(arg)
-			scinst := SubCmdInst{
-				subCmd: sub,
+			// falls through, further processing below this if block...
+		} else if curSubCmdInst == nil && c.HasSubCmdToken(arg) {
+			// the first subcommand - the "foo" in "!command foo bar --baz"
+			for _, sc := range topInst.cmd._subcmds() {
+				if sc.token == arg {
+					sci := SubCmdInst{subCmd: sc}
+					sci.cmd = c
+					curSubCmdInst = &sci
+					topInst.subCmdInst = &sci
+					break
+				}
 			}
 
-			curInst.subCmdInst = &scinst
+			continue // processed a subcommand, move onto the next arg
+		} else if curSubCmdInst != nil && curSubCmdInst.subCmd.HasSubCmdToken(arg) {
+			// sub-subcommands - the "bar" or "blargh" in "!command foo bar blargh --baz"
+			for _, sc := range curSubCmdInst.subCmd._subcmds() {
+				if arg == sc.token {
+					sci := SubCmdInst{subCmd: sc}
+					sci.cmd = c
 
-			// advance to the next subcommand
-			curInst = &scinst
-			continue
+					// point the current subcommand to the new one
+					curSubCmdInst.subCmdInst = &sci
+
+					// advance "current" to the new subcommand
+					curSubCmdInst = &sci
+				}
+			}
+
+			continue // processed a subcommand, move onto the next arg
 		} else {
-			// leftover args go in .remainder
+			// leftover/unrecognized args go in .remainder
 			topInst.remainder = append(topInst._remainder(), arg)
 			continue
 		}
@@ -750,27 +774,32 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 		pinst.found = true
 		pinst.cmd = c
 		pinst.cmdinst = &topInst
-		if curInst != nil {
-			pinst.subcmd = curInst.subCmd
-			pinst.subcmdinst = curInst
-		}
 
-		looseParams = append(looseParams, &pinst)
+		// subcommands get the first shot at a parameter
+		// !foo --bar baz --bar
+		// !foo baz --bar
+		// !foo --bar baz
+		if curSubCmdInst != nil && curSubCmdInst.subCmd.HasKeyParam(key) {
+			// the parameter belongs to the subcommand
+			pinst.subcmd = curSubCmdInst.subCmd
+			pinst.subcmdinst = curSubCmdInst
+			pinst.attachKeyParam(curSubCmdInst)
+		} else if c.HasKeyParam(key) {
+			// the parameter belongs to the command
+			pinst.attachKeyParam(&topInst)
+		} else {
+			// store (likely) out-of-order parameters to process after all args &
+			// subcommands are discovered
+			looseParams = append(looseParams, &pinst)
+		}
 	}
 
-	// now that all subcommands and params should be discovered, wire them up
-	for _, inst := range looseParams {
-		log.Printf("looseParam %+q", inst)
-		// check the subcommand first, then the top command, otherwise save off
-		// a temp param in loose params to resolve later
-		if inst.cmd.HasKVParam(inst.key) {
-		} else if inst.cmd.HasBoolParam(inst.key) {
-		} else if inst.subcmd.HasKVParam(inst.key) {
-		} else if inst.subcmd.HasBoolParam(inst.key) {
-		} else {
-			// temp - this part needs to walk the subcommands to try to place it
-			log.Panicf("could not assign parameter instance to a command or subcommand: %+v", inst)
+	// find a home for out-of-order parameters, panic if that fails since it's a bug
+	for _, linst := range looseParams {
+		if topInst.subCmdInst == nil {
+			panic("found out-of-order params but no subcommand! Maybe bug, maybe I need to put a better error here...")
 		}
+		linst.findAndAttachKeyParam(topInst.subCmdInst)
 	}
 
 	return &topInst
@@ -803,35 +832,115 @@ func looksLikeParam(key string) bool {
 	}
 }
 
-// FindSubCmd looks for a subcommand defined with the provided token.
-func (c *Cmd) FindSubCmd(token string) *SubCmd {
-	for _, sc := range c._subcmds() {
-		if sc.token == token {
-			return sc
+func (tmp *tmpParamInst) attachKeyParam(whatever cmdorsubcmd) {
+	if whatever.HasKVParam(tmp.key) {
+		p := whatever.GetKVParam(tmp.key)
+		pi := KVParamInst{
+			arg:        tmp.arg,
+			cmdinst:    tmp.cmdinst,
+			found:      tmp.found,
+			key:        tmp.key,
+			param:      p,
+			subcmdinst: tmp.subcmdinst,
+			value:      tmp.value,
 		}
 
-		// Check aliases too. Usually 0-2 elements.
-		for _, alias := range sc._aliases() {
-			if alias == token {
-				return sc
-			}
+		switch whatever.(type) {
+		case *CmdInst:
+			ci := whatever.(*CmdInst)
+			ci.kvparaminsts = append(ci._kvparaminsts(), &pi)
+		case *SubCmdInst:
+			sci := whatever.(*SubCmdInst)
+			sci.kvparaminsts = append(sci._kvparaminsts(), &pi)
+		}
+	} else if whatever.HasBoolParam(tmp.key) {
+		val, err := strconv.ParseBool(tmp.value)
+		if err != nil {
+			log.Panicf("invalid bool value %q for key %q", tmp.value, tmp.key)
+		}
+
+		p := whatever.GetBoolParam(tmp.key)
+		pi := BoolParamInst{
+			arg:        tmp.arg,
+			cmdinst:    tmp.cmdinst,
+			found:      tmp.found,
+			key:        tmp.key,
+			param:      p,
+			subcmdinst: tmp.subcmdinst,
+			value:      val,
+		}
+
+		switch whatever.(type) {
+		case *CmdInst:
+			ci := whatever.(*CmdInst)
+			ci.boolparaminsts = append(ci._boolparaminsts(), &pi)
+		case *SubCmdInst:
+			sci := whatever.(*SubCmdInst)
+			sci.boolparaminsts = append(sci._boolparaminsts(), &pi)
+		}
+	} else {
+		log.Panicf("BUG: arg %q does not have a matching parameter for key %q", tmp.arg, tmp.key)
+	}
+}
+
+func (tmp *tmpParamInst) findAndAttachKeyParam(sub *SubCmdInst) {
+	if sub.HasBoolParam(tmp.key) || sub.HasKVParam(tmp.key) {
+		tmp.attachKeyParam(sub)
+	} else if sub.subCmdInst != nil {
+		tmp.findAndAttachKeyParam(sub.subCmdInst)
+	}
+}
+
+// HasSubCmdToken returns whether or not the proivded token is defined as a subcommand.
+func (c *Cmd) HasSubCmdToken(token string) bool {
+	if c == nil {
+		return false
+	}
+
+	for _, sc := range c._subcmds() {
+		if token == sc.token {
+			return true
 		}
 	}
 
-	return nil
+	return false
 }
 
-// HasSubCmd returns whether or not the proivded token is defined as a subcommand.
-func (c *Cmd) HasSubCmd(token string) bool {
-	sc := c.FindSubCmd(token)
-	return sc != nil
+// HasKeyParam returns true if there are any parameters defined with
+// the provided key of either key type (bool or kv).
+func (c *Cmd) HasKeyParam(key string) bool {
+	if c == nil {
+		return false
+	}
+
+	for _, p := range c._boolparams() {
+		if key == p.key {
+			return true
+		}
+	}
+
+	for _, p := range c._kvparams() {
+		if key == p.key {
+			return true
+		}
+	}
+
+	return false
 }
 
 // SubCmdToken returns the subcommand's token string. Returns empty string
 // if there is no subcommand.
 func (c *CmdInst) SubCmdToken() string {
 	if c.subCmdInst != nil {
-		return c.subCmdInst.cmd.token
+		return c.subCmdInst.subCmd.token
+	}
+
+	return ""
+}
+
+func (c *SubCmdInst) SubCmdToken() string {
+	if c.subCmdInst != nil {
+		return c.subCmdInst.subCmd.token
 	}
 
 	return ""
@@ -855,6 +964,14 @@ func (c *CmdInst) HasKVParamInst(key string) bool {
 	return false
 }
 
+func (c *CmdInst) HasKVParam(key string) bool {
+	return c.cmd.HasKVParam(key)
+}
+
+func (c *SubCmdInst) HasKVParam(key string) bool {
+	return c.subCmd.HasKVParam(key)
+}
+
 func (c *CmdInst) HasBoolParamInst(key string) bool {
 	for _, p := range c._boolparaminsts() {
 		if p.key == key {
@@ -863,6 +980,10 @@ func (c *CmdInst) HasBoolParamInst(key string) bool {
 	}
 
 	return false
+}
+
+func (c *CmdInst) HasBoolParam(key string) bool {
+	return c.cmd.HasBoolParam(key)
 }
 
 func (c *CmdInst) HasIdxParamInst(idx int) bool {
@@ -875,9 +996,40 @@ func (c *CmdInst) HasIdxParamInst(idx int) bool {
 	return false
 }
 
+func (c *CmdInst) HasIdxParam(idx int) bool {
+	return c.cmd.HasIdxParam(idx)
+}
+
+func (c *SubCmdInst) HasIdxParam(idx int) bool {
+	return c.subCmd.HasIdxParam(idx)
+}
+
 // GetKVParamInst gets a key/value parameter instance by its key.
 func (c *CmdInst) GetKVParamInst(key string) *KVParamInst {
 	for _, p := range c._kvparaminsts() {
+		if p.key == key {
+			return p
+		}
+	}
+
+	// TODO: decide if this is the right thing to do
+	log.Panicf("GetKVParamInst(%q) failed to find an entry. Did you test with HasKVParamInst first?")
+
+	return nil
+}
+
+func (c *CmdInst) GetKVParam(key string) *KVParam {
+	for _, p := range c.cmd._kvparams() {
+		if p.key == key {
+			return p
+		}
+	}
+
+	return nil
+}
+
+func (c *SubCmdInst) GetKVParam(key string) *KVParam {
+	for _, p := range c.subCmd._kvparams() {
 		if p.key == key {
 			return p
 		}
@@ -897,6 +1049,26 @@ func (c *CmdInst) GetBoolParamInst(key string) *BoolParamInst {
 	return nil
 }
 
+func (c *CmdInst) GetBoolParam(key string) *BoolParam {
+	for _, p := range c.cmd._boolparams() {
+		if p.key == key {
+			return p
+		}
+	}
+
+	return nil
+}
+
+func (c *SubCmdInst) GetBoolParam(key string) *BoolParam {
+	for _, p := range c.subCmd._boolparams() {
+		if p.key == key {
+			return p
+		}
+	}
+
+	return nil
+}
+
 // GetIdxParamInst gets a positional parameter instance by its index.
 func (c *CmdInst) GetIdxParamInst(idx int) *IdxParamInst {
 	for _, p := range c._idxparaminsts() {
@@ -906,6 +1078,38 @@ func (c *CmdInst) GetIdxParamInst(idx int) *IdxParamInst {
 	}
 
 	return nil
+}
+
+func (c *CmdInst) GetIdxParam(idx int) *IdxParam {
+	for _, p := range c.cmd._idxparams() {
+		if p.idx == idx {
+			return p
+		}
+	}
+
+	return nil
+}
+
+func (c *SubCmdInst) GetIdxParam(idx int) *IdxParam {
+	for _, p := range c.subCmd._idxparams() {
+		if p.idx == idx {
+			return p
+		}
+	}
+
+	return nil
+}
+
+func (c *CmdInst) appendKVParamInst(pi *KVParamInst) {
+	c.kvparaminsts = append(c._kvparaminsts(), pi)
+}
+
+func (c *CmdInst) appendBoolParamInst(pi *BoolParamInst) {
+	c.boolparaminsts = append(c._boolparaminsts(), pi)
+}
+
+func (c *CmdInst) appendIdxParamInst(pi *IdxParamInst) {
+	c.idxparaminsts = append(c._idxparaminsts(), pi)
 }
 
 // _kvparaminsts initializes the kvparaminsts list on the fly and returns it.
