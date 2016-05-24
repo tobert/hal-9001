@@ -694,6 +694,7 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 	}
 
 	var curSubCmdInst *SubCmdInst // the current subcommand - changes during parsing
+	var curSubCmdIdx int          // the idx the subcommand found in argv
 	var skipNext bool
 	var looseParams []*tmpParamInst
 
@@ -714,10 +715,30 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 			nextExists = false
 		}
 
-		if curSubCmdInst != nil && curSubCmdInst.HasIdxParam(0) {
-			// TODO: implement positional parameters
-			log.Printf("WE GOT A LIVE ONE")
+		if c.HasIdxParam(i - 1) {
+			// top-level command has positional parameters
+			pi := IdxParamInst{
+				cmdinst: &topInst,
+				found:   true,
+				idx:     i - 1,
+				param:   c.GetIdxParam(i - 1),
+				value:   arg,
+			}
+			topInst.appendIdxParamInst(&pi)
+		} else if curSubCmdInst != nil && curSubCmdInst.HasIdxParam(0) {
+			// subcommand has positional parameters
+			paramIdx := i - curSubCmdIdx - 1
 
+			pi := IdxParamInst{
+				cmdinst:    &topInst,
+				subcmdinst: curSubCmdInst,
+				found:      true,
+				idx:        paramIdx,
+				param:      c.GetIdxParam(paramIdx),
+				value:      arg,
+			}
+
+			curSubCmdInst.appendIdxParamInst(&pi)
 		} else if strings.Contains(arg, "=") {
 			// looks like a key=value or --key=value parameter
 			// could be --foo=bar but all that matters is the "foo"
@@ -760,6 +781,10 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 
 					// advance "current" to the new subcommand
 					curSubCmdInst = &sci
+
+					// set the index where the subcommand was discovered for use
+					// in extracting postitional parameters (above)
+					curSubCmdIdx = i
 				}
 			}
 
