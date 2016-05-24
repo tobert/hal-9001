@@ -140,7 +140,7 @@ type stringValuedParamInst interface {
 	Int() (int, error)
 	Float() (float64, error)
 	Bool() (bool, error)
-	iParam() interface{}
+	errParam() interface{}
 }
 
 // cmdorsubcmd is used internally to pass either a Cmd or SubCmd
@@ -559,15 +559,19 @@ func (p *IdxParamInst) Param() *IdxParam {
 	return p.param
 }
 
-func (p *KVParamInst) iParam() interface{} {
+// errParam is used to get an interface{} handle to return in errors.
+// See: RequiredParamNotFound
+func (p *KVParamInst) errParam() interface{} {
 	return p.param
 }
 
-func (p *BoolParamInst) iParam() interface{} {
+// errParam is used to get an interface{} handle to return in errors.
+func (p *BoolParamInst) errParam() interface{} {
 	return p.param
 }
 
-func (p *IdxParamInst) iParam() interface{} {
+// errParam is used to get an interface{} handle to return in errors.
+func (p *IdxParamInst) errParam() interface{} {
 	return p.param
 }
 
@@ -1199,7 +1203,7 @@ func (p *IdxParamInst) String() (string, error) {
 func intParam(p stringValuedParamInst) (int, error) {
 	if !p.Found() {
 		if p.Required() {
-			return 0, RequiredParamNotFound{p.iParam()}
+			return 0, RequiredParamNotFound{p.errParam()}
 		} else {
 			return 0, nil
 		}
@@ -1222,7 +1226,7 @@ func (p *IdxParamInst) Int() (int, error) {
 func floatParam(p stringValuedParamInst) (float64, error) {
 	if !p.Found() {
 		if p.Required() {
-			return 0, RequiredParamNotFound{p.iParam()}
+			return 0, RequiredParamNotFound{p.errParam()}
 		} else {
 			return 0, nil
 		}
@@ -1246,7 +1250,7 @@ func (p *IdxParamInst) Float() (float64, error) {
 func boolParam(p stringValuedParamInst) (bool, error) {
 	if !p.Found() {
 		if p.Required() {
-			return false, RequiredParamNotFound{p.iParam()}
+			return false, RequiredParamNotFound{p.errParam()}
 		} else {
 			return false, nil
 		}
@@ -1275,7 +1279,7 @@ func durationParam(p stringValuedParamInst) (time.Duration, error) {
 
 	if !p.Found() {
 		if p.Required() {
-			return empty, RequiredParamNotFound{p.iParam()}
+			return empty, RequiredParamNotFound{p.errParam()}
 		} else {
 			return empty, nil
 		}
@@ -1316,7 +1320,7 @@ func (p *IdxParamInst) Duration() (time.Duration, error) {
 func timeParam(p stringValuedParamInst) (time.Time, error) {
 	if !p.Found() {
 		if p.Required() {
-			return time.Time{}, RequiredParamNotFound{p.iParam()}
+			return time.Time{}, RequiredParamNotFound{p.errParam()}
 		} else {
 			return time.Time{}, nil
 		}
