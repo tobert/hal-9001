@@ -67,11 +67,12 @@ func (pf *PeriodicFunc) loop() {
 	pf.starting.Done()
 
 	// TODO: this should capture/handle panics like router.go does
+pfLoop:
 	for {
 		select {
 		case <-pf.exit:
 			pf.status = "stopped"
-			return
+			break pfLoop
 		case t := <-pf.tick:
 			log.Printf("PeriodicFunc tick %q @ %s", pf.Name, t)
 			pf.runFunc(t)
