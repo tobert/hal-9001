@@ -30,14 +30,14 @@ var TimeFormats = [...]string{
 // Cmd models a tree of commands and subcommands along with their parameters.
 // The tree will almost always be 1 or 2 levels deep. Deeper is possible but
 // unlikely to be much higher, KISS.
-// TODO: consider switching to maps for (kv|bool|idx)params and maybe subCmds
+// TODO: switc to maps for (kv|bool|idx)params and maybe subCmds
 type Cmd struct {
 	token      string // * => slurp everything remaining
 	usage      string
 	subCmds    []*SubCmd
 	kvparams   []*KVParam
 	boolparams []*BoolParam
-	idxparams  []*IdxParam
+	idxparams  map[int]*IdxParam
 	aliases    []string
 	prev       *Cmd // parent command, nil for root
 	mustSubCmd bool // a subcommand is always required
@@ -53,7 +53,7 @@ type CmdInst struct {
 	subCmdInst     *SubCmdInst
 	kvparaminsts   []*KVParamInst
 	boolparaminsts []*BoolParamInst
-	idxparaminsts  []*IdxParamInst
+	idxparaminsts  map[int]*IdxParamInst
 	remainder      []string // args left over after parsing, usually empty
 }
 
@@ -224,10 +224,10 @@ func (c *Cmd) _boolparams() []*BoolParam {
 	return c.boolparams
 }
 
-// _idxparams makes sure the _idxparams list is initialized and returns the list.
-func (c *Cmd) _idxparams() []*IdxParam {
+// _idxparams makes sure the _idxparams map is initialized and returns the map.
+func (c *Cmd) _idxparams() map[int]*IdxParam {
 	if c.idxparams == nil {
-		c.idxparams = make([]*IdxParam, 0)
+		c.idxparams = make(map[int]*IdxParam)
 	}
 
 	return c.idxparams
@@ -293,17 +293,17 @@ func (c *Cmd) AddBoolParam(key string, required bool) *BoolParam {
 func (c *Cmd) AddIdxParam(position int, required bool) *IdxParam {
 	c.assertZeroKeyParams()
 
-	for _, p := range c._idxparams() {
-		if position == p.idx {
-			log.Panicf("position %d already has an IdxParam defined on this command", position)
-		}
+	ips := c._idxparams()
+
+	if _, exists := ips[position]; exists {
+		log.Panicf("position %d already has an IdxParam defined on this command", position)
 	}
 
 	p := IdxParam{idx: position}
 	p.required = required
 	p.cmd = c.Cmd()
 
-	c.idxparams = append(c._idxparams(), &p)
+	ips[position] = &p
 
 	return &p
 }
@@ -344,10 +344,10 @@ func (c *SubCmd) AddBoolParam(key string, required bool) *BoolParam {
 func (c *SubCmd) AddIdxParam(position int, required bool) *IdxParam {
 	c.assertZeroKeyParams()
 
-	for _, p := range c._idxparams() {
-		if position == p.idx {
-			log.Panicf("position %d already has an IdxParam defined on this command", position)
-		}
+	ips := c._idxparams()
+
+	if _, exists := ips[position]; exists {
+		log.Panicf("position %d already has an IdxParam defined on this subcommand", position)
 	}
 
 	p := IdxParam{idx: position}
@@ -355,7 +355,7 @@ func (c *SubCmd) AddIdxParam(position int, required bool) *IdxParam {
 	p.cmd = c.cmd
 	p.subcmd = c
 
-	c.idxparams = append(c._idxparams(), &p)
+	ips[position] = &p
 
 	return &p
 }
@@ -618,10 +618,10 @@ func (c *Cmd) GetBoolParam(key string) *BoolParam {
 
 // GetIdxParam gets a positional parameter by its index.
 func (c *Cmd) GetIdxParam(idx int) *IdxParam {
-	for _, p := range c._idxparams() {
-		if p.idx == idx {
-			return p
-		}
+	ips := c._idxparams()
+
+	if p, exists := ips[idx]; exists {
+		return p
 	}
 
 	return nil
@@ -648,13 +648,9 @@ func (c *Cmd) HasBoolParam(key string) bool {
 }
 
 func (c *Cmd) HasIdxParam(idx int) bool {
-	for _, p := range c._idxparams() {
-		if p.idx == idx {
-			return true
-		}
-	}
-
-	return false
+	ips := c._idxparams()
+	_, exists := ips[idx]
+	return exists
 }
 
 func (c *Cmd) SubCmds() []*SubCmd {
@@ -717,6 +713,7 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 		if curSubCmdInst != nil && curSubCmdInst.HasIdxParam(0) {
 			// TODO: implement positional parameters
 			log.Printf("WE GOT A LIVE ONE")
+
 		} else if strings.Contains(arg, "=") {
 			// looks like a key=value or --key=value parameter
 			// could be --foo=bar but all that matters is the "foo"
@@ -989,13 +986,9 @@ func (c *CmdInst) HasBoolParam(key string) bool {
 }
 
 func (c *CmdInst) HasIdxParamInst(idx int) bool {
-	for _, p := range c._idxparaminsts() {
-		if p.idx == idx {
-			return true
-		}
-	}
-
-	return false
+	ipis := c._idxparaminsts()
+	_, exists := ipis[idx]
+	return exists
 }
 
 func (c *CmdInst) HasIdxParam(idx int) bool {
@@ -1073,30 +1066,27 @@ func (c *SubCmdInst) GetBoolParam(key string) *BoolParam {
 
 // GetIdxParamInst gets a positional parameter instance by its index.
 func (c *CmdInst) GetIdxParamInst(idx int) *IdxParamInst {
-	for _, p := range c._idxparaminsts() {
-		if p.idx == idx {
-			return p
-		}
+	ipis := c._idxparaminsts()
+	if p, exists := ipis[idx]; exists {
+		return p
 	}
 
 	return nil
 }
 
 func (c *CmdInst) GetIdxParam(idx int) *IdxParam {
-	for _, p := range c.cmd._idxparams() {
-		if p.idx == idx {
-			return p
-		}
+	ips := c.cmd._idxparams()
+	if p, exists := ips[idx]; exists {
+		return p
 	}
 
 	return nil
 }
 
 func (c *SubCmdInst) GetIdxParam(idx int) *IdxParam {
-	for _, p := range c.subCmd._idxparams() {
-		if p.idx == idx {
-			return p
-		}
+	ips := c.subCmd._idxparams()
+	if p, exists := ips[idx]; exists {
+		return p
 	}
 
 	return nil
@@ -1111,7 +1101,8 @@ func (c *CmdInst) appendBoolParamInst(pi *BoolParamInst) {
 }
 
 func (c *CmdInst) appendIdxParamInst(pi *IdxParamInst) {
-	c.idxparaminsts = append(c._idxparaminsts(), pi)
+	ipis := c._idxparaminsts()
+	ipis[pi.idx] = pi
 }
 
 // _kvparaminsts initializes the kvparaminsts list on the fly and returns it.
@@ -1133,9 +1124,9 @@ func (c *CmdInst) _boolparaminsts() []*BoolParamInst {
 }
 
 // _idxparaminsts initializes the idxparaminsts list on the fly and returns it.
-func (c *CmdInst) _idxparaminsts() []*IdxParamInst {
+func (c *CmdInst) _idxparaminsts() map[int]*IdxParamInst {
 	if c.idxparaminsts == nil {
-		c.idxparaminsts = make([]*IdxParamInst, 0)
+		c.idxparaminsts = make(map[int]*IdxParamInst)
 	}
 
 	return c.idxparaminsts
