@@ -126,7 +126,7 @@ func TestCmd(t *testing.T) {
 	}
 	pp := res.SubCmdInst().GetIdxParamInst(0)
 	if pp.Value() != "4" {
-		t.Errorf("wrong value from positional parameter. got %q, expected %q", pp, "4")
+		t.Errorf("wrong value from positional parameter. got %d, expected 4", pp.idx)
 	}
 
 	/*

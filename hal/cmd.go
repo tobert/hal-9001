@@ -30,6 +30,7 @@ var TimeFormats = [...]string{
 // Cmd models a tree of commands and subcommands along with their parameters.
 // The tree will almost always be 1 or 2 levels deep. Deeper is possible but
 // unlikely to be much higher, KISS.
+// TODO: consider switching to maps for (kv|bool|idx)params and maybe subCmds
 type Cmd struct {
 	token      string // * => slurp everything remaining
 	usage      string
@@ -241,6 +242,7 @@ func (c *Cmd) _aliases() []string {
 	return c.aliases
 }
 
+// assertZeroIdxParams panics if there are any IdxParam defined.
 func (c *Cmd) assertZeroIdxParams() {
 	pps := c._idxparams()
 	if len(pps) > 0 {
@@ -248,6 +250,7 @@ func (c *Cmd) assertZeroIdxParams() {
 	}
 }
 
+// assertZeroKeyParams panics if there are any BoolParam or KVParam defined.
 func (c *Cmd) assertZeroKeyParams() {
 	kps := c._kvparams()
 	bps := c._boolparams()
@@ -377,11 +380,12 @@ func (c *Cmd) Parent() *Cmd {
 	return c.prev
 }
 
-//MustSubCmd() bool
+// MustSubCmd returns bool indicating if a subcommand is required.
 func (c *Cmd) MustSubCmd() bool {
 	return c.mustSubCmd
 }
 
+// Usage returns the auto-generated usage string.
 func (c *Cmd) Usage() string {
 	return "not implemented yet"
 }
@@ -392,16 +396,14 @@ func (c *Cmd) SetUsage(usage string) *Cmd {
 	return c
 }
 
+// SetUsage sets the subcommand's usage string.
 func (s *SubCmd) SetUsage(usage string) *SubCmd {
 	s.usage = usage
 	return s
 }
 
+// Usage returns the auto-generated usage string for the Command Instance.
 func (c *CmdInst) Usage() string {
-	if c.cmd == nil {
-		panic("BUG: CmdInst command is nil!")
-	}
-
 	return c.cmd.Usage()
 }
 
@@ -1013,7 +1015,7 @@ func (c *CmdInst) GetKVParamInst(key string) *KVParamInst {
 	}
 
 	// TODO: decide if this is the right thing to do
-	log.Panicf("GetKVParamInst(%q) failed to find an entry. Did you test with HasKVParamInst first?")
+	log.Panicf("GetKVParamInst(%q) failed to find an entry. Did you test with HasKVParamInst first?", key)
 
 	return nil
 }
