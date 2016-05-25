@@ -87,11 +87,11 @@ func prefmgr(evt hal.Evt) {
 
 	switch req.SubCmdToken() {
 	case "set":
-		cliSet(req, &evt)
+		cliSet(req.SubCmdInst(), &evt)
 	case "list":
-		cliList(req, &evt)
+		cliList(req.SubCmdInst(), &evt)
 	case "rm":
-		cliRm(req, &evt)
+		cliRm(req.SubCmdInst(), &evt)
 	default:
 		evt.Reply(req.Usage())
 	}
@@ -99,7 +99,7 @@ func prefmgr(evt hal.Evt) {
 
 // cmd2pref copies data from the hal.Cmd and hal.Evt into a hal.Pref, resolving
 // *'s on the way.
-func cmd2pref(req *hal.CmdInst, evt *hal.Evt) (*hal.Pref, error) {
+func cmd2pref(req *hal.SubCmdInst, evt *hal.Evt) (*hal.Pref, error) {
 	var out hal.Pref
 
 	for _, pi := range req.ListKVParamInsts() {
@@ -130,7 +130,7 @@ func cmd2pref(req *hal.CmdInst, evt *hal.Evt) (*hal.Pref, error) {
 }
 
 // cliList implements !pref list
-func cliList(req *hal.CmdInst, evt *hal.Evt) {
+func cliList(req *hal.SubCmdInst, evt *hal.Evt) {
 	opts, err := cmd2pref(req, evt)
 	if err != nil {
 		panic(err) // TODO: placeholder
@@ -142,7 +142,7 @@ func cliList(req *hal.CmdInst, evt *hal.Evt) {
 }
 
 // cliSet implements !pref set
-func cliSet(req *hal.CmdInst, evt *hal.Evt) {
+func cliSet(req *hal.SubCmdInst, evt *hal.Evt) {
 	opts, err := cmd2pref(req, evt)
 	if err != nil {
 		panic(err) // TODO: placeholder
@@ -170,7 +170,7 @@ func cliSet(req *hal.CmdInst, evt *hal.Evt) {
 }
 
 // cliRm implements !pref rm <id>
-func cliRm(req *hal.CmdInst, evt *hal.Evt) {
+func cliRm(req *hal.SubCmdInst, evt *hal.Evt) {
 	id, err := req.GetIdxParamInst(0).Int()
 	if err != nil {
 		panic(err) // TODO: placeholder

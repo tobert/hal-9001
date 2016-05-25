@@ -653,7 +653,7 @@ func (c *Cmd) GetIdxParam(idx int) *IdxParam {
 		return p
 	}
 
-	return nil
+	panic("No parameter available.")
 }
 
 func (c *Cmd) HasKVParam(key string) bool {
@@ -749,6 +749,7 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 				param:   c.GetIdxParam(i - 1),
 				value:   arg,
 			}
+
 			topInst.appendIdxParamInst(&pi)
 		} else if curSubCmdInst != nil && curSubCmdInst.HasIdxParam(0) {
 			// subcommand has positional parameters
@@ -759,7 +760,7 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 				subcmdinst: curSubCmdInst,
 				found:      true,
 				idx:        paramIdx,
-				param:      c.GetIdxParam(paramIdx),
+				param:      curSubCmdInst.GetIdxParam(paramIdx),
 				value:      arg,
 			}
 
@@ -1036,7 +1037,7 @@ func (c *CmdInst) HasBoolParam(key string) bool {
 }
 
 func (c *CmdInst) HasIdxParamInst(idx int) bool {
-	ipis := c.ListIdxParamInsts()
+	ipis := c.mapIdxParamInsts()
 	_, exists := ipis[idx]
 	return exists
 }
@@ -1116,12 +1117,12 @@ func (c *SubCmdInst) GetBoolParam(key string) *BoolParam {
 
 // GetIdxParamInst gets a positional parameter instance by its index.
 func (c *CmdInst) GetIdxParamInst(idx int) *IdxParamInst {
-	ipis := c.ListIdxParamInsts()
+	ipis := c.mapIdxParamInsts()
 	if p, exists := ipis[idx]; exists {
 		return p
 	}
 
-	return nil
+	panic("No parameter instance.")
 }
 
 func (c *CmdInst) GetIdxParam(idx int) *IdxParam {
@@ -1151,7 +1152,7 @@ func (c *CmdInst) appendBoolParamInst(pi *BoolParamInst) {
 }
 
 func (c *CmdInst) appendIdxParamInst(pi *IdxParamInst) {
-	ipis := c.ListIdxParamInsts()
+	ipis := c.mapIdxParamInsts()
 	ipis[pi.idx] = pi
 }
 
@@ -1173,13 +1174,24 @@ func (c *CmdInst) ListBoolParamInsts() []*BoolParamInst {
 	return c.boolparaminsts
 }
 
-// ListIdxParamInsts initializes the idxparaminsts list on the fly and returns it.
-func (c *CmdInst) ListIdxParamInsts() map[int]*IdxParamInst {
+// mapIdxParamInsts initializes the idxparaminsts list on the fly and returns it.
+func (c *CmdInst) mapIdxParamInsts() map[int]*IdxParamInst {
 	if c.idxparaminsts == nil {
 		c.idxparaminsts = make(map[int]*IdxParamInst)
 	}
 
 	return c.idxparaminsts
+}
+
+func (c *CmdInst) ListIdxParamInsts() []*IdxParamInst {
+	ipis := c.mapIdxParamInsts()
+	out := make([]*IdxParamInst, len(ipis))
+
+	for i, pi := range ipis {
+		out[i] = pi
+	}
+
+	return out
 }
 
 // Remainder initializes the remainder list on the fly and returns it.
