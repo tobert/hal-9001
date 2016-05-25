@@ -35,11 +35,7 @@ const HELP = `Listing keys with no filter will list all keys visible to the acti
 var cli *hal.Cmd
 
 func init() {
-	cli = &hal.Cmd{
-		Token:      "pref",
-		Usage:      "Manage hal preferences over chat.",
-		MustSubCmd: true,
-	}
+	cli = hal.NewCmd("!pref", true).SetUsage("Manage hal preferences over chat.")
 
 	keyUsage := "the key name, up to 190 utf8 characters"
 	valueUsage := "the value, arbitrary utf8"
@@ -48,27 +44,30 @@ func init() {
 	brokerUsage := "the broker name. e.g. 'slack' ('*' for 'this broker')"
 	pluginUsage := "the plugin name. e.g. 'archive' ('*' for 'this plugin')"
 
-	cli.AddCmd("set").
-		AddUsage("set a preference key/value").
-		Cmd().AddParam("key", true).AddAlias("k").AddUsage(keyUsage).
-		Cmd().AddParam("value", true).AddAlias("v").AddUsage(valueUsage).
-		Cmd().AddParam("room", false).AddAlias("r").AddUsage(roomUsage).
-		Cmd().AddParam("user", false).AddAlias("u").AddUsage(userUsage).
-		Cmd().AddParam("broker", false).AddAlias("b").AddUsage(brokerUsage).
-		Cmd().AddParam("plugin", false).AddAlias("p").AddUsage(pluginUsage)
+	cli.AddSubCmd("set").
+		SetUsage("set a preference key/value").
+		SubCmd().AddKVParam("key", true).AddAlias("k").SetUsage(keyUsage).
+		SubCmd().AddKVParam("value", true).AddAlias("v").SetUsage(valueUsage).
+		SubCmd().AddKVParam("room", false).AddAlias("r").SetUsage(roomUsage).
+		SubCmd().AddKVParam("user", false).AddAlias("u").SetUsage(userUsage).
+		SubCmd().AddKVParam("broker", false).AddAlias("b").SetUsage(brokerUsage).
+		SubCmd().AddKVParam("plugin", false).AddAlias("p").SetUsage(pluginUsage)
 
-	cli.AddCmd("list").AddAlias("get").
-		AddUsage("retreive preferences, optionally filtered by the provided attributes").
-		Cmd().AddParam("key", false).AddAlias("k").AddUsage(keyUsage).
-		Cmd().AddParam("value", false).AddAlias("v").AddUsage(valueUsage).
-		Cmd().AddParam("room", false).AddAlias("r").AddUsage(roomUsage).
-		Cmd().AddParam("user", false).AddAlias("u").AddUsage(userUsage).
-		Cmd().AddParam("broker", false).AddAlias("b").AddUsage(brokerUsage).
-		Cmd().AddParam("plugin", false).AddAlias("p").AddUsage(pluginUsage)
+	cli.AddSubCmd("list").
+		AddAlias("get").
+		SetUsage("retreive preferences, optionally filtered by the provided attributes").
+		SubCmd().
+		AddKVParam("key", false).AddAlias("k").SetUsage(keyUsage).
+		SubCmd().AddKVParam("value", false).AddAlias("v").SetUsage(valueUsage).
+		SubCmd().AddKVParam("room", false).AddAlias("r").SetUsage(roomUsage).
+		SubCmd().AddKVParam("user", false).AddAlias("u").SetUsage(userUsage).
+		SubCmd().AddKVParam("broker", false).AddAlias("b").SetUsage(brokerUsage).
+		SubCmd().AddKVParam("plugin", false).AddAlias("p").SetUsage(pluginUsage)
 
-	cli.AddCmd("rm").
-		AddUsage("delete a preference by id").
-		AddPParam(0, true).AddUsage("the preference id to delete")
+	cli.AddSubCmd("rm").
+		SetUsage("delete a preference by id").
+		AddIdxParam(0, true).
+		SetUsage("the preference id to delete")
 }
 
 func Register() {
@@ -94,7 +93,7 @@ func prefmgr(evt hal.Evt) {
 	case "rm":
 		cliRm(req, &evt)
 	default:
-		evt.Reply(req.RenderUsage("invalid command"))
+		evt.Reply(req.Usage())
 	}
 }
 
@@ -103,10 +102,10 @@ func prefmgr(evt hal.Evt) {
 func cmd2pref(req *hal.CmdInst, evt *hal.Evt) (*hal.Pref, error) {
 	var out hal.Pref
 
-	for _, pi := range req.ParamInsts {
+	for _, pi := range req.ListKVParamInsts() {
 		var err error
 
-		switch pi.Key {
+		switch pi.Key() {
 		case "key":
 			out.Key, err = pi.String()
 		case "value":
@@ -172,7 +171,7 @@ func cliSet(req *hal.CmdInst, evt *hal.Evt) {
 
 // cliRm implements !pref rm <id>
 func cliRm(req *hal.CmdInst, evt *hal.Evt) {
-	id, err := req.GetPParamInst(0).Int()
+	id, err := req.GetIdxParamInst(0).Int()
 	if err != nil {
 		panic(err) // TODO: placeholder
 	}

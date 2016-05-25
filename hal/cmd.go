@@ -197,8 +197,8 @@ func NewCmd(token string, mustsubcmd bool) *Cmd {
 	return &cmd
 }
 
-// _subcmds makes sure the SubCmds list is initialized and returns the list.
-func (c *Cmd) _subcmds() []*SubCmd {
+// ListSubCmds makes sure the SubCmds list is initialized and returns the list.
+func (c *Cmd) ListSubCmds() []*SubCmd {
 	if c.subCmds == nil {
 		c.subCmds = make([]*SubCmd, 0)
 	}
@@ -233,8 +233,8 @@ func (c *Cmd) _idxparams() map[int]*IdxParam {
 	return c.idxparams
 }
 
-// _aliases makes sure the Aliases list is initialized and returns the list.
-func (c *Cmd) _aliases() []string {
+// Aliases makes sure the Aliases list is initialized and returns the list.
+func (c *Cmd) Aliases() []string {
 	if c.aliases == nil {
 		c.aliases = make([]string, 0)
 	}
@@ -362,18 +362,19 @@ func (c *SubCmd) AddIdxParam(position int, required bool) *IdxParam {
 
 // AddAlias adds an alias to the command and returns the paramter.
 func (c *Cmd) AddAlias(alias string) *Cmd {
-	c.aliases = append(c._aliases(), alias)
+	c.aliases = append(c.Aliases(), alias)
 	return c
+}
+
+func (s *SubCmd) AddAlias(alias string) *SubCmd {
+	s.aliases = append(s.Aliases(), alias)
+	return s
 }
 
 // AddAlias adds an alias to the parameter and returns the paramter.
 func (p *KVParam) AddAlias(alias string) *KVParam {
-	p.aliases = append(p._aliases(), alias)
+	p.aliases = append(p.Aliases(), alias)
 	return p
-}
-
-func (c *Cmd) Aliases() []string {
-	return c._aliases()
 }
 
 func (c *Cmd) Parent() *Cmd {
@@ -435,6 +436,30 @@ func (p *BoolParam) SetUsage(usage string) *BoolParam {
 func (p *IdxParam) SetUsage(usage string) *IdxParam {
 	p.usage = usage
 	return p
+}
+
+func (p *KVParam) Key() string {
+	return p.key
+}
+
+func (p *BoolParam) Key() string {
+	return p.key
+}
+
+func (p *IdxParam) Idx() int {
+	return p.idx
+}
+
+func (p *KVParamInst) Key() string {
+	return p.key
+}
+
+func (p *BoolParamInst) Key() string {
+	return p.key
+}
+
+func (p *IdxParamInst) Idx() int {
+	return p.idx
 }
 
 // Cmd returns the command the parameter belongs to. Panics if no command is attached.
@@ -595,7 +620,7 @@ func (c *Cmd) AddSubCmd(token string) *SubCmd {
 	sub.prev = c
 	sub.token = token
 
-	c.subCmds = append(c._subcmds(), &sub)
+	c.subCmds = append(c.ListSubCmds(), &sub)
 
 	return &sub
 }
@@ -658,12 +683,12 @@ func (c *Cmd) HasIdxParam(idx int) bool {
 }
 
 func (c *Cmd) SubCmds() []*SubCmd {
-	return c._subcmds()
+	return c.ListSubCmds()
 }
 
 // GetSubCmd gets a subcommand by its token. Returns nil for no match.
 func (c *Cmd) GetSubCmd(token string) *SubCmd {
-	for _, s := range c._subcmds() {
+	for _, s := range c.ListSubCmds() {
 		if s.token == token {
 			return s
 		}
@@ -758,7 +783,7 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 			// falls through, further processing below this if block...
 		} else if curSubCmdInst == nil && c.HasSubCmdToken(arg) {
 			// the first subcommand - the "foo" in "!command foo bar --baz"
-			for _, sc := range topInst.cmd._subcmds() {
+			for _, sc := range topInst.cmd.ListSubCmds() {
 				if sc.token == arg {
 					sci := SubCmdInst{subCmd: sc}
 					sci.cmd = c
@@ -771,7 +796,7 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 			continue // processed a subcommand, move onto the next arg
 		} else if curSubCmdInst != nil && curSubCmdInst.subCmd.HasSubCmdToken(arg) {
 			// sub-subcommands - the "bar" or "blargh" in "!command foo bar blargh --baz"
-			for _, sc := range curSubCmdInst.subCmd._subcmds() {
+			for _, sc := range curSubCmdInst.subCmd.ListSubCmds() {
 				if arg == sc.token {
 					sci := SubCmdInst{subCmd: sc}
 					sci.cmd = c
@@ -791,7 +816,7 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 			continue // processed a subcommand, move onto the next arg
 		} else {
 			// leftover/unrecognized args go in .remainder
-			topInst.remainder = append(topInst._remainder(), arg)
+			topInst.remainder = append(topInst.Remainder(), arg)
 			continue
 		}
 
@@ -876,10 +901,10 @@ func (tmp *tmpParamInst) attachKeyParam(whatever cmdorsubcmd) {
 		switch whatever.(type) {
 		case *CmdInst:
 			ci := whatever.(*CmdInst)
-			ci.kvparaminsts = append(ci._kvparaminsts(), &pi)
+			ci.kvparaminsts = append(ci.ListKVParamInsts(), &pi)
 		case *SubCmdInst:
 			sci := whatever.(*SubCmdInst)
-			sci.kvparaminsts = append(sci._kvparaminsts(), &pi)
+			sci.kvparaminsts = append(sci.ListKVParamInsts(), &pi)
 		}
 	} else if whatever.HasBoolParam(tmp.key) {
 		val, err := strconv.ParseBool(tmp.value)
@@ -901,10 +926,10 @@ func (tmp *tmpParamInst) attachKeyParam(whatever cmdorsubcmd) {
 		switch whatever.(type) {
 		case *CmdInst:
 			ci := whatever.(*CmdInst)
-			ci.boolparaminsts = append(ci._boolparaminsts(), &pi)
+			ci.boolparaminsts = append(ci.ListBoolParamInsts(), &pi)
 		case *SubCmdInst:
 			sci := whatever.(*SubCmdInst)
-			sci.boolparaminsts = append(sci._boolparaminsts(), &pi)
+			sci.boolparaminsts = append(sci.ListBoolParamInsts(), &pi)
 		}
 	} else {
 		log.Panicf("BUG: arg %q does not have a matching parameter for key %q", tmp.arg, tmp.key)
@@ -925,7 +950,7 @@ func (c *Cmd) HasSubCmdToken(token string) bool {
 		return false
 	}
 
-	for _, sc := range c._subcmds() {
+	for _, sc := range c.ListSubCmds() {
 		if token == sc.token {
 			return true
 		}
@@ -978,12 +1003,8 @@ func (c *CmdInst) SubCmdInst() *SubCmdInst {
 	return c.subCmdInst
 }
 
-func (c *CmdInst) Remainder() []string {
-	return c._remainder()
-}
-
 func (c *CmdInst) HasKVParamInst(key string) bool {
-	for _, p := range c._kvparaminsts() {
+	for _, p := range c.ListKVParamInsts() {
 		if p.key == key {
 			return true
 		}
@@ -1001,7 +1022,7 @@ func (c *SubCmdInst) HasKVParam(key string) bool {
 }
 
 func (c *CmdInst) HasBoolParamInst(key string) bool {
-	for _, p := range c._boolparaminsts() {
+	for _, p := range c.ListBoolParamInsts() {
 		if p.key == key {
 			return true
 		}
@@ -1015,7 +1036,7 @@ func (c *CmdInst) HasBoolParam(key string) bool {
 }
 
 func (c *CmdInst) HasIdxParamInst(idx int) bool {
-	ipis := c._idxparaminsts()
+	ipis := c.ListIdxParamInsts()
 	_, exists := ipis[idx]
 	return exists
 }
@@ -1030,7 +1051,7 @@ func (c *SubCmdInst) HasIdxParam(idx int) bool {
 
 // GetKVParamInst gets a key/value parameter instance by its key.
 func (c *CmdInst) GetKVParamInst(key string) *KVParamInst {
-	for _, p := range c._kvparaminsts() {
+	for _, p := range c.ListKVParamInsts() {
 		if p.key == key {
 			return p
 		}
@@ -1064,7 +1085,7 @@ func (c *SubCmdInst) GetKVParam(key string) *KVParam {
 
 // GetBoolParamInst gets a key/value parameter instance by its key.
 func (c *CmdInst) GetBoolParamInst(key string) *BoolParamInst {
-	for _, p := range c._boolparaminsts() {
+	for _, p := range c.ListBoolParamInsts() {
 		if p.key == key {
 			return p
 		}
@@ -1095,7 +1116,7 @@ func (c *SubCmdInst) GetBoolParam(key string) *BoolParam {
 
 // GetIdxParamInst gets a positional parameter instance by its index.
 func (c *CmdInst) GetIdxParamInst(idx int) *IdxParamInst {
-	ipis := c._idxparaminsts()
+	ipis := c.ListIdxParamInsts()
 	if p, exists := ipis[idx]; exists {
 		return p
 	}
@@ -1122,20 +1143,20 @@ func (c *SubCmdInst) GetIdxParam(idx int) *IdxParam {
 }
 
 func (c *CmdInst) appendKVParamInst(pi *KVParamInst) {
-	c.kvparaminsts = append(c._kvparaminsts(), pi)
+	c.kvparaminsts = append(c.ListKVParamInsts(), pi)
 }
 
 func (c *CmdInst) appendBoolParamInst(pi *BoolParamInst) {
-	c.boolparaminsts = append(c._boolparaminsts(), pi)
+	c.boolparaminsts = append(c.ListBoolParamInsts(), pi)
 }
 
 func (c *CmdInst) appendIdxParamInst(pi *IdxParamInst) {
-	ipis := c._idxparaminsts()
+	ipis := c.ListIdxParamInsts()
 	ipis[pi.idx] = pi
 }
 
-// _kvparaminsts initializes the kvparaminsts list on the fly and returns it.
-func (c *CmdInst) _kvparaminsts() []*KVParamInst {
+// ListKVParamInsts initializes the kvparaminsts list on the fly and returns it.
+func (c *CmdInst) ListKVParamInsts() []*KVParamInst {
 	if c.kvparaminsts == nil {
 		c.kvparaminsts = make([]*KVParamInst, 0)
 	}
@@ -1143,8 +1164,8 @@ func (c *CmdInst) _kvparaminsts() []*KVParamInst {
 	return c.kvparaminsts
 }
 
-// _boolparaminsts initializes the boolparaminsts list on the fly and returns it.
-func (c *CmdInst) _boolparaminsts() []*BoolParamInst {
+// ListBoolParamInsts initializes the boolparaminsts list on the fly and returns it.
+func (c *CmdInst) ListBoolParamInsts() []*BoolParamInst {
 	if c.boolparaminsts == nil {
 		c.boolparaminsts = make([]*BoolParamInst, 0)
 	}
@@ -1152,8 +1173,8 @@ func (c *CmdInst) _boolparaminsts() []*BoolParamInst {
 	return c.boolparaminsts
 }
 
-// _idxparaminsts initializes the idxparaminsts list on the fly and returns it.
-func (c *CmdInst) _idxparaminsts() map[int]*IdxParamInst {
+// ListIdxParamInsts initializes the idxparaminsts list on the fly and returns it.
+func (c *CmdInst) ListIdxParamInsts() map[int]*IdxParamInst {
 	if c.idxparaminsts == nil {
 		c.idxparaminsts = make(map[int]*IdxParamInst)
 	}
@@ -1161,8 +1182,8 @@ func (c *CmdInst) _idxparaminsts() map[int]*IdxParamInst {
 	return c.idxparaminsts
 }
 
-// _remainder initializes the remainder list on the fly and returns it.
-func (c *CmdInst) _remainder() []string {
+// Remainder initializes the remainder list on the fly and returns it.
+func (c *CmdInst) Remainder() []string {
 	if c.remainder == nil {
 		c.remainder = make([]string, 0)
 	}
@@ -1170,8 +1191,8 @@ func (c *CmdInst) _remainder() []string {
 	return c.remainder
 }
 
-// _aliases initializes the aliases list on the fly and returns it.
-func (p *KVParam) _aliases() []string {
+// Aliases initializes the aliases list on the fly and returns it.
+func (p *KVParam) Aliases() []string {
 	if p.aliases == nil {
 		p.aliases = make([]string, 0)
 	}
