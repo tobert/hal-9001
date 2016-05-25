@@ -632,7 +632,7 @@ func (c *Cmd) GetKVParam(key string) *KVParam {
 		}
 	}
 
-	return nil
+	panic("BUG: refusing to return nil")
 }
 
 func (c *Cmd) GetBoolParam(key string) *BoolParam {
@@ -642,7 +642,7 @@ func (c *Cmd) GetBoolParam(key string) *BoolParam {
 		}
 	}
 
-	return nil
+	panic("BUG: refusing to return nil")
 }
 
 // GetIdxParam gets a positional parameter by its index.
@@ -653,7 +653,7 @@ func (c *Cmd) GetIdxParam(idx int) *IdxParam {
 		return p
 	}
 
-	panic("No parameter available.")
+	panic("BUG: refusing to return nil")
 }
 
 func (c *Cmd) HasKVParam(key string) bool {
@@ -682,6 +682,7 @@ func (c *Cmd) HasIdxParam(idx int) bool {
 	return exists
 }
 
+// TODO: remove this?
 func (c *Cmd) SubCmds() []*SubCmd {
 	return c.ListSubCmds()
 }
@@ -694,7 +695,7 @@ func (c *Cmd) GetSubCmd(token string) *SubCmd {
 		}
 	}
 
-	return nil
+	panic("BUG: refusing to return nil")
 }
 
 // parse a list of argv-style strings (0 is always the command name e.g. []string{"prefs"})
@@ -1058,10 +1059,7 @@ func (c *CmdInst) GetKVParamInst(key string) *KVParamInst {
 		}
 	}
 
-	// TODO: decide if this is the right thing to do
-	log.Panicf("GetKVParamInst(%q) failed to find an entry. Did you test with HasKVParamInst first?", key)
-
-	return nil
+	panic("BUG: refusing to return nil")
 }
 
 func (c *CmdInst) GetKVParam(key string) *KVParam {
@@ -1071,7 +1069,7 @@ func (c *CmdInst) GetKVParam(key string) *KVParam {
 		}
 	}
 
-	return nil
+	panic("BUG: refusing to return nil")
 }
 
 func (c *SubCmdInst) GetKVParam(key string) *KVParam {
@@ -1081,7 +1079,7 @@ func (c *SubCmdInst) GetKVParam(key string) *KVParam {
 		}
 	}
 
-	return nil
+	panic("BUG: refusing to return nil")
 }
 
 // GetBoolParamInst gets a key/value parameter instance by its key.
@@ -1092,7 +1090,7 @@ func (c *CmdInst) GetBoolParamInst(key string) *BoolParamInst {
 		}
 	}
 
-	return nil
+	panic("BUG: refusing to return nil")
 }
 
 func (c *CmdInst) GetBoolParam(key string) *BoolParam {
@@ -1102,7 +1100,7 @@ func (c *CmdInst) GetBoolParam(key string) *BoolParam {
 		}
 	}
 
-	return nil
+	panic("BUG: refusing to return nil")
 }
 
 func (c *SubCmdInst) GetBoolParam(key string) *BoolParam {
@@ -1112,7 +1110,7 @@ func (c *SubCmdInst) GetBoolParam(key string) *BoolParam {
 		}
 	}
 
-	return nil
+	panic("BUG: refusing to return nil")
 }
 
 // GetIdxParamInst gets a positional parameter instance by its index.
@@ -1122,7 +1120,7 @@ func (c *CmdInst) GetIdxParamInst(idx int) *IdxParamInst {
 		return p
 	}
 
-	panic("No parameter instance.")
+	panic("BUG: refusing to return nil")
 }
 
 func (c *CmdInst) GetIdxParam(idx int) *IdxParam {
@@ -1131,7 +1129,7 @@ func (c *CmdInst) GetIdxParam(idx int) *IdxParam {
 		return p
 	}
 
-	return nil
+	panic("BUG: refusing to return nil")
 }
 
 func (c *SubCmdInst) GetIdxParam(idx int) *IdxParam {
@@ -1140,7 +1138,7 @@ func (c *SubCmdInst) GetIdxParam(idx int) *IdxParam {
 		return p
 	}
 
-	return nil
+	panic("BUG: refusing to return nil")
 }
 
 func (c *CmdInst) appendKVParamInst(pi *KVParamInst) {
