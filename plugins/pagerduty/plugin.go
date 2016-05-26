@@ -129,8 +129,8 @@ func pageAlias(msg hal.Evt, parts []string) {
 
 	// make sure the query succeeded
 	if !pref.Success {
-		log.Println("%s", pref.String())
-		msg.Replyf("Unable to access preferences: %q", pref.Error)
+		log.Printf("Unable to access preferences: %#q", pref.Error)
+		msg.Replyf("Unable to access preferences: %#q", pref.Error)
 		return
 	}
 
@@ -148,7 +148,6 @@ func pageAlias(msg hal.Evt, parts []string) {
 	}
 
 	// the value can be a list of tokens, separated by commas
-	response := bytes.NewBuffer([]byte{})
 	for _, svckey := range strings.Split(pref.Value, ",") {
 		// get the Pagerduty auth token from the secrets API
 		secrets := hal.Secrets()
@@ -167,11 +166,10 @@ func pageAlias(msg hal.Evt, parts []string) {
 			return
 		}
 
-		fmt.Fprintf(response, "%s\n", resp.Message)
+		log.Printf("Pagerduty response message: %s\n", resp.Message)
 	}
 
-	// TODO: add some boilerplate around this
-	msg.Reply(response.String())
+	msg.Replyf("Notification sent.")
 }
 
 func addAlias(msg hal.Evt, parts []string) {
