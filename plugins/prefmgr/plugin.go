@@ -20,6 +20,8 @@ package prefmgr
 import (
 	"fmt"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/netflix/hal-9001/hal"
 )
@@ -33,6 +35,8 @@ const HELP = `Listing keys with no filter will list all keys visible to the acti
 `
 
 var cli *hal.Cmd
+
+var slackLinkRE *regexp.Regexp
 
 func init() {
 	cli = hal.NewCmd("!pref", true).SetUsage("Manage hal preferences over chat.")
@@ -68,6 +72,8 @@ func init() {
 		SetUsage("delete a preference by id").
 		AddIdxParam(0, true).
 		SetUsage("the preference id to delete")
+
+	slackLinkRE = regexp.MustCompile("^<(?:http|mailto):.*|.*>$")
 }
 
 func Register() {
@@ -104,12 +110,15 @@ func cmd2pref(req *hal.SubCmdInst, evt *hal.Evt) (*hal.Pref, error) {
 
 	for _, pi := range req.ListKVParamInsts() {
 		var err error
+		var key, value string
 
 		switch pi.Key() {
 		case "key":
-			out.Key, err = pi.String()
+			key, err = pi.String()
+			out.Key = stripAutoLinks(key)
 		case "value":
-			out.Value, err = pi.String()
+			value, err = pi.String()
+			out.Value = stripAutoLinks(value)
 		case "room":
 			out.Room = pi.DefString(evt.RoomId)
 		case "user":
@@ -182,6 +191,17 @@ func cliRm(req *hal.SubCmdInst, evt *hal.Evt) {
 	} else {
 		evt.Replyf("Deleted pref id %d.", id)
 	}
+}
+
+func stripAutoLinks(in string) string {
+	if slackLinkRE.MatchString(in) {
+		parts := strings.Split(strings.TrimSuffix(in, ">"), "|")
+		if len(parts) == 2 {
+			return parts[1]
+		}
+	}
+
+	return in
 }
 
 // httpPrefs is the http handler for returning preferences as JSON
