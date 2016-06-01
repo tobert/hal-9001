@@ -366,20 +366,17 @@ func cacheInit(i *hal.Instance) {
 
 	log.Printf("cacheInit called for pagerduty...")
 
-	pf := hal.GetPeriodicFunc(PeriodicFuncName)
-	if pf != nil {
-		if pf.Status() != "running" {
-			pf.Start()
-		}
-	} else {
-		pf = &hal.PeriodicFunc{
+	go func() {
+		// wait one minute before kicking it off
+		time.Sleep(time.Minute)
+
+		pf := &hal.PeriodicFunc{
 			Name:     PeriodicFuncName,
 			Interval: td,
 			Function: cacheNow,
 		}
 		pf.Register()
-		pf.Start()
-	}
+	}()
 
 	// TODO: add a command to stop, etc.
 }
