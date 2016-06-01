@@ -370,12 +370,13 @@ func cacheInit(i *hal.Instance) {
 		// wait one minute before kicking it off
 		time.Sleep(time.Minute)
 
-		pf := &hal.PeriodicFunc{
+		pf := hal.PeriodicFunc{
 			Name:     PeriodicFuncName,
 			Interval: td,
 			Function: cacheNow,
 		}
 		pf.Register()
+		pf.Start()
 	}()
 
 	// TODO: add a command to stop, etc.
