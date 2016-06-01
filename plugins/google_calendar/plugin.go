@@ -93,16 +93,18 @@ func initData(inst *hal.Instance) {
 	configCache[inst.RoomId] = &config
 	topMut.Unlock()
 
+	pf := hal.PeriodicFunc{
+		Name:     "google_calendar-" + inst.RoomId,
+		Interval: time.Minute * 10,
+		Function: func() { updateCachedCalEvents(inst.RoomId) },
+	}
+	pf.Register()
+
 	go func() {
 		// wait one minute before kicking off the background refresh
 		time.Sleep(time.Minute)
 
-		pf := hal.PeriodicFunc{
-			Name:     "google_calendar-" + inst.RoomId,
-			Interval: time.Minute * 10,
-			Function: func() { updateCachedCalEvents(inst.RoomId) },
-		}
-		pf.Register()
+		pf.Start()
 	}()
 }
 
@@ -123,13 +125,15 @@ func handleEvt(evt hal.Evt) {
 		return
 	}
 
+	evtKey := "gcal-notified-" + evt.RoomId + evt.UserId
+
 	for _, e := range calEvents {
 		if config.Autoreply && e.Start.Before(now) && e.End.After(now) {
-			lastReplyAge := now.Sub(config.LastReply)
-			// TODO: track more detailed state to make squelching replies easier
-			// for now: only reply once an hour
-			if lastReplyAge.Hours() < 1 {
-				log.Printf("not autoresponding because a message has been sent in the last hour")
+			// use the hal kv store to prevent spamming
+			val, err := hal.GetKV(evtKey)
+			if err == nil && val == "-" {
+				// the key exists so skip it
+				log.Printf("not autoresponding because %q exists in kv", evtKey)
 				continue
 			}
 
@@ -139,7 +143,8 @@ func handleEvt(evt hal.Evt) {
 				evt.Replyf(DefaultMsg, e.Name)
 			}
 
-			config.LastReply = now
+			hal.SetKV(evtKey, "-", time.Hour)
+
 			// return // TODO: should overlapping events mean multiple messages?
 		}
 	}
