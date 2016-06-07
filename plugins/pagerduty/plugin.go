@@ -37,7 +37,7 @@ func Register() {
 	oc := hal.Plugin{
 		Name:  "oncall",
 		Func:  oncall,
-		Init:  cacheInit,
+		Init:  oncallInit,
 		Regex: "^[[:space:]]*!oncall",
 	}
 	oc.Register()
@@ -356,15 +356,13 @@ func getPolicyCache(forceUpdate bool) []EscalationPolicy {
 	return policies
 }
 
-func cacheInit(i *hal.Instance) {
+func oncallInit(i *hal.Instance) {
 	freqPref := hal.GetPref("", "", i.RoomId, "pagerduty", "cache-update-frequency", DefaultCacheInterval)
 
 	td, err := time.ParseDuration(freqPref.Value)
 	if err != nil {
 		log.Panicf("BUG: could not parse freq stored in db: %q", freqPref.Value)
 	}
-
-	log.Printf("cacheInit called for pagerduty...")
 
 	go func() {
 		// wait one minute before kicking it off

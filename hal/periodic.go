@@ -2,6 +2,7 @@ package hal
 
 import (
 	"log"
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -10,6 +11,7 @@ type PeriodicFunc struct {
 	Name     string
 	Interval time.Duration
 	Function func()
+	NoRand   bool // set to true to disable randomizing the first execution
 	last     time.Time
 	status   string
 	running  bool
@@ -121,7 +123,14 @@ func (pf *PeriodicFunc) Start() {
 	pf.tick = time.Tick(pf.Interval)
 	pf.starting.Add(1)
 
-	go pf.loop() // will block on pf.mut until Unlock()
+	go func() {
+		// avoid a thundering herd by sleeping for a random number of seconds
+		if !pf.NoRand {
+			pf.randSleep()
+		}
+
+		pf.loop() // may block on pf.mut until Unlock()
+	}()
 
 	pf.mut.Unlock()
 
@@ -166,4 +175,15 @@ func (pf *PeriodicFunc) Last() time.Time {
 	defer pf.mut.Unlock()
 
 	return pf.last
+}
+
+// randSleep selects a random number between 0 and 60 and sleeps that many
+// seconds before returning. While sleeping, the pf status is set to "sleeping".
+func (pf *PeriodicFunc) randSleep() {
+	pf.mut.Lock()
+	pf.status = "sleeping"
+	pf.mut.Unlock()
+
+	randSecs := rand.Intn(60)
+	time.Sleep(time.Second * time.Duration(randSecs))
 }
