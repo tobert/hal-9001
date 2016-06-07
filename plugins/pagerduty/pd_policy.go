@@ -35,7 +35,7 @@ type EscalationPolicy struct {
 	Id              string           `json:"id"`
 	Name            string           `json:"name"`
 	EscalationRules []EscalationRule `json:"escalation_rules"`
-	Services        []Service        `json:"services"`
+	Services        []PolicyService  `json:"services"`
 	OnCall          []OnCall         `json:"on_call"`
 	NumLoops        int              `json:"num_loops"`
 }
@@ -55,7 +55,7 @@ type RuleObject struct {
 	Color    string `json:"color"`
 }
 
-type Service struct {
+type PolicyService struct {
 	Id                 string `json:"id"`
 	Name               string `json:"name"`
 	IntegrationEmail   string `json:"integration_email"`
