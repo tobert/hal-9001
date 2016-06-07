@@ -130,8 +130,7 @@ func handleEvt(evt hal.Evt) {
 	for _, e := range calEvents {
 		if config.Autoreply && e.Start.Before(now) && e.End.After(now) {
 			// use the hal kv store to prevent spamming
-			val, err := hal.GetKV(evtKey)
-			if err == nil && val == "-" {
+			if hal.ExistsKV(evtKey) {
 				// the key exists so skip it
 				log.Printf("not autoresponding because %q exists in kv", evtKey)
 				continue

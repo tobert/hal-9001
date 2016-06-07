@@ -89,6 +89,17 @@ func kvCleanup() {
 	}
 }
 
+// ExistsKV checks to see if a key exists in the kv. False if any errors are
+// encountered.
+func ExistsKV(key string) bool {
+	_, err := GetKV(key)
+	if err != nil {
+		return false
+	}
+
+	return true
+}
+
 // NOTE: this will probably change to an ok,value style
 func GetKV(key string) (value string, err error) {
 	kvLazyInit()
