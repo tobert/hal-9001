@@ -27,6 +27,7 @@ import (
 // Event sources are responsible for copying the appropriate data into
 // the Evt fields. Routing and most plugins will not work if the body
 // isn't copied, at a minimum.
+// When ToUser and ToRoom are both true, the event will be delivered twice.
 // The original event should usually be attached to the Original
 type Evt struct {
 	ID       string      `json:"id"`      // ID for the event (assigned by upstream or broker)
@@ -38,6 +39,8 @@ type Evt struct {
 	Time     time.Time   `json:"time"`    // timestamp of the event
 	Broker   Broker      `json:"broker"`  // the broker the event came from
 	IsChat   bool        `json:"is_chat"` // lets the broker differentiate chats and other events
+	ToUser   bool        `json:"to_user"` // when true, always deliver outgoing event via DM
+	ToRoom   bool        `json:"to_room"` // when true, always deliver outgoing event to the room
 	Original interface{} // the original message container (e.g. slack.MessageEvent)
 	instance *Instance   // used by the broker to provide plugin instance metadata
 }
@@ -61,11 +64,28 @@ func (e *Evt) Clone() Evt {
 
 // Reply is a helper that crafts a new event from the provided string
 // and initiates the reply on the broker attached to the event.
-// The message is routed according to preferences. If no preferences
-// are set for the user/room/plugin the response will go to the
-// room where the command originated.
-// TODO: document preferences here
+// The message is routed according to preferences and the ToUser/ToRoom
+// fields on the event. If no preferences are set for the user/room/plugin
+// the response will go to the room where the command originated.
+// The "reply-via-dm" preference can be set to "true" to default to
+// having replies to to DM instead of the room.
 func (e *Evt) Reply(msg string) {
+	var delivered bool
+
+	if e.ToRoom {
+		e.ReplyToRoom(msg)
+		delivered = true
+	}
+
+	if e.ToUser {
+		e.ReplyDM(msg)
+		delivered = true
+	}
+
+	if delivered {
+		return
+	}
+
 	replyVia := e.AsPref().FindKey("reply-via-dm").One()
 
 	// One() sets Success to false for no results.
@@ -76,6 +96,7 @@ func (e *Evt) Reply(msg string) {
 		}
 	}
 
+	// replyVia might be false (or invalid) in which case it falls through to here
 	e.ReplyToRoom(msg)
 }
 
@@ -199,6 +220,24 @@ func (e *Evt) BodyAsArgv() []string {
 	}
 
 	return argv
+}
+
+// ForceToRoom clones the event and returns a copy with ToRoom set to true.
+// Takes priority over reply-via-dm routing.
+// Useful for chaining, e.g. evt.ToRoom().Replyf("go away!").
+func (e *Evt) ForceToRoom() Evt {
+	out := e.Clone()
+	out.ToRoom = true
+	return out
+}
+
+// ForceToUser clones the event and returns a copy with ToUser set to true.
+// Takes priority over reply-via-dm routing.
+// Useful for chaining.
+func (e *Evt) ForceToUser() Evt {
+	out := e.Clone()
+	out.ToUser = true
+	return out
 }
 
 func (e *Evt) String() string {
