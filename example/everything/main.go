@@ -28,7 +28,7 @@ import (
 	"github.com/netflix/hal-9001/brokers/slack"
 
 	"github.com/netflix/hal-9001/plugins/archive"
-	"github.com/netflix/hal-9001/plugins/autoresponder"
+	"github.com/netflix/hal-9001/plugins/google_calendar"
 	"github.com/netflix/hal-9001/plugins/mark"
 	"github.com/netflix/hal-9001/plugins/pagerduty"
 	"github.com/netflix/hal-9001/plugins/pluginmgr"
@@ -112,7 +112,7 @@ func main() {
 	// activate them. That happens at runtime using e.g. pluginmgr or
 	// the plugin registry's LoadInstances() (used below)
 	archive.Register()
-	autoresponder.Register()
+	google_calendar.Register()
 	mark.Register()
 	pagerduty.Register()
 	pluginmgr.Register()
