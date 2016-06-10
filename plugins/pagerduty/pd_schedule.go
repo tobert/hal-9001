@@ -23,41 +23,66 @@ import (
 	"log"
 )
 
-// https://v2.developer.pagerduty.com/v2/page/api-reference#!/On-Calls/get_oncalls
-// TODO: figure out if query should be a typed struct or validated
-func GetOncalls(token string, query map[string]string) ([]Oncall, error) {
-	oncalls := make([]Oncall, 0)
+type scheduleOncallUsersResponse struct {
+	Users []User `json:"users"`
+}
+
+// https://v2.developer.pagerduty.com/v2/page/api-reference#!/Schedules/get_schedules_id
+func GetScheduleOncalls(token, id string) ([]User, error) {
+	out := scheduleOncallUsersResponse{}
+
+	url := pagedUrl("/schedules/"+id+"/users", 0, 0, nil)
+
+	resp, err := authenticatedGet(url, token)
+	if err != nil {
+		log.Printf("GET %s failed: %s", url, err)
+		return []User{}, err
+	}
+
+	data, err := ioutil.ReadAll(resp.Body)
+
+	err = json.Unmarshal(data, &out)
+	if err != nil {
+		log.Printf("json.Unmarshal failed: %s", err)
+		return []User{}, err
+	}
+
+	return out.Users, nil
+}
+
+func GetSchedules(token string) ([]Schedule, error) {
+	schedules := make([]Schedule, 0)
 	offset := 0
 	limit := 100
 
 	for {
-		oncallsResp := OncallsResponse{}
+		schedulesResp := SchedulesResponse{}
 
-		url := pagedUrl("/oncalls", offset, limit, query)
+		url := pagedUrl("/schedules", offset, limit, nil)
 
 		resp, err := authenticatedGet(url, token)
 		if err != nil {
 			log.Printf("GET %s failed: %s", url, err)
-			return oncalls, err
+			return schedules, err
 		}
 
 		data, err := ioutil.ReadAll(resp.Body)
 
-		err = json.Unmarshal(data, &oncallsResp)
+		err = json.Unmarshal(data, &schedulesResp)
 		if err != nil {
 			fmt.Printf("\n\n%s\n\n", data)
 			log.Printf("json.Unmarshal of data from %q failed: %s", url, err)
-			return oncalls, err
+			return schedules, err
 		}
 
-		oncalls = append(oncalls, oncallsResp.Oncalls...)
+		schedules = append(schedules, schedulesResp.Schedules...)
 
-		if oncallsResp.More {
+		if schedulesResp.More {
 			offset = offset + limit
 		} else {
 			break
 		}
 	}
 
-	return oncalls, nil
+	return schedules, nil
 }

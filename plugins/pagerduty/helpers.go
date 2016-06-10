@@ -21,26 +21,15 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
 // AuthenticatedGet authenticates with the provided token and GETs the url.
-// Queries and filters should be placed in the data url.Values argument.
-func authenticatedGet(url, token string, data map[string]string) (*http.Response, error) {
+func authenticatedGet(geturl, token string) (*http.Response, error) {
 	tokenHdr := fmt.Sprintf("Token token=%s", token)
 
-	body := bytes.NewBuffer([]byte{})
-	// data is simple key/value strings, just format it directly to JSON
-	// Note: url encoded requests don't seem to work
-	if data != nil {
-		pairs := make([]string, 0)
-		for k, v := range data {
-			pairs = append(pairs, fmt.Sprintf("%q:%q", k, v))
-		}
-		body.WriteString("{" + strings.Join(pairs, ",") + "}")
-	}
-
-	req, err := http.NewRequest("GET", url, body)
+	req, err := http.NewRequest("GET", geturl, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +40,7 @@ func authenticatedGet(url, token string, data map[string]string) (*http.Response
 	client := &http.Client{}
 	r, err := client.Do(req)
 
-	log.Printf("pagerduty.authenticatedGet(%s, token) = %d", url, r.StatusCode)
+	log.Printf("pagerduty.authenticatedGet(%s, token) = %d", geturl, r.StatusCode)
 
 	return r, err
 }
@@ -75,8 +64,8 @@ func authenticatedPost(token string, body []byte) (*http.Response, error) {
 	return client.Do(req)
 }
 
-func pagedUrl(resource, domain string, offset, limit int) string {
-	url := fmt.Sprintf("https://api.pagerduty.com%s", resource)
+func pagedUrl(resource string, offset, limit int, params map[string]string) string {
+	out := fmt.Sprintf("https://api.pagerduty.com%s", resource)
 
 	query := make([]string, 0)
 
@@ -88,9 +77,15 @@ func pagedUrl(resource, domain string, offset, limit int) string {
 		query = append(query, fmt.Sprintf("offset=%d", offset))
 	}
 
-	if len(query) > 0 {
-		return fmt.Sprintf("%s?%s", url, strings.Join(query, "&"))
+	if params != nil {
+		for k, v := range params {
+			query = append(query, fmt.Sprintf("%s=%s", k, url.QueryEscape(v)))
+		}
 	}
 
-	return url
+	if len(query) > 0 {
+		return fmt.Sprintf("%s?%s", out, strings.Join(query, "&"))
+	}
+
+	return out
 }

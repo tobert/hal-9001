@@ -24,15 +24,15 @@ import (
 
 // https://v2.developer.pagerduty.com/v2/page/api-reference#!/On-Calls/get_oncalls
 
-func GetUsersOncall(token, domain string) ([]Oncall, error) {
+func GetUsersOncall(token string) ([]Oncall, error) {
 	out := make([]Oncall, 0)
 	offset := 0
 	limit := 100
 
 	for {
-		url := pagedUrl("/oncalls", domain, offset, limit)
+		url := pagedUrl("/oncalls", offset, limit, nil)
 
-		resp, err := authenticatedGet(url, token, nil)
+		resp, err := authenticatedGet(url, token)
 		if err != nil {
 			log.Printf("GET %s failed: %s", url, err)
 			return out, err

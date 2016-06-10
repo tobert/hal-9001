@@ -47,9 +47,6 @@ func Register() {
 // the hal.secrets key that should contain the pagerduty auth token
 const PagerdutyTokenKey = `pagerduty.token`
 
-// the hal.secrets key that should contain the pagerduty account domain
-const PagerdutyDomainKey = `pagerduty.domain`
-
 // the key name used for caching the full escalation policy
 const CacheKey = `pagerduty.policy_cache`
 
@@ -83,7 +80,7 @@ const PageDefaultMessage = `HAL: your presence is requested in the chat room.`
 const cacheExpire = time.Minute * 10
 
 const DefaultCacheInterval = "1h"
-const DefaultTopicInterval = "1h"
+const DefaultTopicInterval = "10m"
 
 func page(msg hal.Evt) {
 	parts := msg.BodyAsArgv()
@@ -139,7 +136,7 @@ func pageAlias(msg hal.Evt, parts []string) {
 	}
 
 	// make sure the hal secrets are set up
-	token, _, err := getSecrets()
+	token, err := getSecrets()
 	if err != nil {
 		msg.Error(err)
 		return
@@ -209,6 +206,10 @@ func aliasKey(alias string) string {
 	return fmt.Sprintf("alias.%s", alias)
 }
 
+// TODO: add the service key to the output such that someone trying to contact a team
+// can page them from within Slack without having to set up a page alias or go out
+// to a web page. !page should be able to take a service key so the output can include something
+// like: "To page <team> use the command: !page <servicekey> <message>"
 func oncall(msg hal.Evt) {
 	parts := msg.BodyAsArgv()
 
@@ -220,17 +221,16 @@ func oncall(msg hal.Evt) {
 		return
 	}
 
-	// make sure the pagerduty token and domain are setup in hal.Secrets
-	token, domain, err := getSecrets()
-	if err != nil || token == "" || domain == "" {
-		msg.Replyf("pagerduty: Either the %s or %s is not set up in hal.Secrets. Cannot continue.",
-			PagerdutyTokenKey, PagerdutyDomainKey)
+	// make sure the pagerduty token is setup in hal.Secrets
+	token, err := getSecrets()
+	if err != nil || token == "" {
+		msg.Replyf("pagerduty: %s is not set up in hal.Secrets. Cannot continue.", PagerdutyTokenKey)
 		return
 	}
 
 	if parts[1] == "cache-now" {
 		msg.Reply("Updating Pagerduty policy cache now.")
-		cacheNow(token, domain, msg.RoomId)
+		cacheNow(token, msg.RoomId)
 		msg.Reply("Pagerduty policy cache update complete.")
 		return
 	} else if parts[1] == "cache-status" {
@@ -256,7 +256,7 @@ func oncall(msg hal.Evt) {
 	/*
 		aliasPref := msg.AsPref().SetUser("").FindKey(aliasKey(want)).One()
 		if aliasPref.Success {
-			svc, err := GetServiceByKey(token, domain, aliasPref.Value)
+			svc, err := GetServiceByKey(token, aliasPref.Value)
 			if err == nil {
 			}
 			// all through to search ...
@@ -266,7 +266,7 @@ func oncall(msg hal.Evt) {
 	// search over all policies looking for matching policy name, escalation
 	// rule name, or service name
 	matches := make([]Oncall, 0)
-	oncalls := getOncallCache(token, domain, false)
+	oncalls := getOncallCache(token, false)
 	var exactMatchFound bool
 
 	for _, oncall := range oncalls {
@@ -297,26 +297,21 @@ func oncall(msg hal.Evt) {
 
 // TODO: consider making the token key per-room so different rooms can use different tokens
 // doing this will require a separate cache object per token...
-func getSecrets() (token, domain string, err error) {
+func getSecrets() (token string, err error) {
 	secrets := hal.Secrets()
 	token = secrets.Get(PagerdutyTokenKey)
 	if token == "" {
 		err = fmt.Errorf("Your Pagerduty auth token does not seem to be configured. Please add the %q secret.", PagerdutyTokenKey)
 	}
 
-	domain = secrets.Get(PagerdutyDomainKey)
-	if domain == "" {
-		err = fmt.Errorf("Your Pagerduty domain does not seem to be configured. Please add the %q secret.", PagerdutyDomainKey)
-	}
-
 	if err != nil {
 		log.Println(err)
 	}
 
-	return token, domain, err
+	return token, err
 }
 
-func getOncallCache(token, domain string, forceUpdate bool) []Oncall {
+func getOncallCache(token string, forceUpdate bool) []Oncall {
 	oncalls := []Oncall{}
 
 	// see if there's a copy cached
@@ -337,7 +332,7 @@ func getOncallCache(token, domain string, forceUpdate bool) []Oncall {
 
 	// get all of the defined policies
 	var err error
-	oncalls, err = GetOncalls(token, domain)
+	oncalls, err = GetOncalls(token, nil)
 	if err != nil {
 		log.Printf("Returning empty list. REST call to Pagerduty failed: %s", err)
 		return []Oncall{}
@@ -362,8 +357,8 @@ func oncallInit(i *hal.Instance) {
 		log.Panicf("BUG: could not parse topic update frequency preference: %q", topicFreq.Value)
 	}
 
-	token, domain, err := getSecrets()
-	if err != nil || token == "" || domain == "" {
+	token, err := getSecrets()
+	if err != nil || token == "" {
 		return // getSecrets will log the error
 	}
 
@@ -371,7 +366,7 @@ func oncallInit(i *hal.Instance) {
 		pf := hal.PeriodicFunc{
 			Name:     cacheFuncName(i.RoomId),
 			Interval: cd,
-			Function: func() { cacheNow(token, domain, i.RoomId) },
+			Function: func() { cacheNow(token, i.RoomId) },
 		}
 
 		pf.Register()
@@ -382,7 +377,7 @@ func oncallInit(i *hal.Instance) {
 		pf := hal.PeriodicFunc{
 			Name:     topicFuncName(i.RoomId),
 			Interval: td,
-			Function: func() { topicUpdater(token, domain, i.RoomId) },
+			Function: func() { topicUpdater(token, i.RoomId, i.Broker.Name()) },
 		}
 
 		pf.Register()
@@ -392,11 +387,65 @@ func oncallInit(i *hal.Instance) {
 	// TODO: add a command to stop, etc.
 }
 
-func cacheNow(token, domain, roomId string) {
-	getOncallCache(token, domain, true)
+func cacheNow(token, roomId string) {
+	getOncallCache(token, true)
 }
 
-func topicUpdater(token, domain, roomId string) {
+// topicUpdater runs periodically to update the topic in the room
+// it's configured in.
+// To fully enable it, you need the oncall schedule id from the pagerduty API.
+// !prefs set --room * --broker slack --plugin pagerduty --key topic-updater-schedule-id --value <schedule id>
+// !prefs set --room * --broker slack --plugin pagerduty --key topic-prefix --value <text>
+// !prefs set --room * --broker slack --plugin pagerduty --key topic-suffix --value <text>
+// TODO: see if there's a way to also resolve integration keys instead of using the schedule id
+func topicUpdater(token, roomId, brokerName string) {
+	log.Printf("func topicUpdater(token, %q, %qstring) {", roomId, brokerName)
+
+	pref := hal.GetPref("", brokerName, roomId, "pagerduty", "topic-updater-schedule-id", "-")
+	// probably not configured, nothing to see here...
+	if !pref.Success || pref.Value == "-" {
+		return
+	}
+
+	params := map[string]string{
+		"include[]":      "users",
+		"schedule_ids[]": pref.Value,
+	}
+
+	oncalls, err := GetOncalls(token, params)
+	if err != nil {
+		log.Printf("Failed to fetch oncalls for schedule id %q: %s", pref.Value, err)
+		return
+	}
+
+	log.Printf("Got %d users for schedule id %q", len(oncalls), pref.Value)
+
+	// there may be more than one entry but if they're both on the same
+	// schedule it should be the same primary oncall so ignore all but the first
+	if len(oncalls) == 0 {
+		log.Printf("no oncall results for id %q", pref.Value)
+		return
+	}
+
+	// TODO: yet another place some kind of templating support would be handy
+	prefix := hal.GetPref("", brokerName, roomId, "pagerduty", "topic-prefix", "")
+	suffix := hal.GetPref("", brokerName, roomId, "pagerduty", "topic-suffix", "")
+
+	// e.g. prefix = "", summary = "Al Tobey", suffix = " [team-dl@company.com] !pageus"
+	topic := prefix.Value + oncalls[0].User.Summary + suffix.Value
+
+	broker := hal.Router().GetBroker(brokerName)
+
+	oldTopic, err := broker.GetTopic(roomId)
+	if err != nil {
+		log.Printf("Could not fetch current topic for room %q: %s", roomId, err)
+		return
+	}
+
+	// only do the update if the topic has changed
+	if topic != oldTopic {
+		broker.SetTopic(roomId, topic)
+	}
 }
 
 func cacheFuncName(roomId string) string {
@@ -433,8 +482,8 @@ func formatOncallReply(wanted string, exactMatchFound bool, oncalls []Oncall) st
 		}
 
 		if exactMatchFound {
-			fmt.Fprintf(buf, "%s%s - %s\n", indent,
-				oncall.User.Summary, sched)
+			fmt.Fprintf(buf, "%s%s - %s (%q)\n", indent,
+				oncall.User.Summary, sched, oncall.Schedule.Id)
 		} else {
 			fmt.Fprintf(buf, "%s%s - %s - %s\n", indent,
 				oncall.EscalationPolicy.Summary, oncall.User.Summary, sched)

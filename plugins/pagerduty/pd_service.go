@@ -25,8 +25,8 @@ import (
 	"log"
 )
 
-func GetServiceByKey(token, domain, serviceKey string) (Service, error) {
-	svcs, err := getServices(token, domain, serviceKey)
+func GetServiceByKey(token, serviceKey string) (Service, error) {
+	svcs, err := getServices(token, serviceKey)
 	if err != nil {
 		return Service{}, err
 	} else if len(svcs) == 1 {
@@ -36,11 +36,11 @@ func GetServiceByKey(token, domain, serviceKey string) (Service, error) {
 	}
 }
 
-func GetServices(token, domain, serviceKey string) ([]Service, error) {
-	return getServices(token, domain, "")
+func GetServices(token, serviceKey string) ([]Service, error) {
+	return getServices(token, "")
 }
 
-func getServices(token, domain, serviceKey string) ([]Service, error) {
+func getServices(token, serviceKey string) ([]Service, error) {
 	services := make([]Service, 0)
 	offset := 0
 	limit := 100
@@ -53,9 +53,9 @@ func getServices(token, domain, serviceKey string) ([]Service, error) {
 	for {
 		svcResp := ServicesResponse{}
 
-		svcsUrl := pagedUrl("/api/v1/services", domain, offset, limit)
+		svcsUrl := pagedUrl("/api/v1/services", offset, limit, qdata)
 
-		resp, err := authenticatedGet(svcsUrl, token, qdata)
+		resp, err := authenticatedGet(svcsUrl, token)
 		if err != nil {
 			log.Printf("GET %s failed: %s", svcsUrl, err)
 			return services, err
@@ -83,14 +83,14 @@ func getServices(token, domain, serviceKey string) ([]Service, error) {
 	return services, nil
 }
 
-func GetService(token, domain, id string) (Service, error) {
+func GetService(token, id string) (Service, error) {
 	out := Service{
 		IncidentCounts: IncidentCounts{},
 	}
 
-	svcsUrl := pagedUrl("/api/v1/services/"+id, domain, 0, 0)
+	svcsUrl := pagedUrl("/api/v1/services/"+id, 0, 0, nil)
 
-	resp, err := authenticatedGet(svcsUrl, token, nil)
+	resp, err := authenticatedGet(svcsUrl, token)
 	if err != nil {
 		log.Printf("GET %s failed: %s", svcsUrl, err)
 		return out, err

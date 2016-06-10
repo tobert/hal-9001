@@ -24,7 +24,7 @@ import (
 
 // https://v2.developer.pagerduty.com/v2/page/api-reference#!/Escalation_Policies/get_escalation_policies
 
-func GetEscalationPolicies(token, domain string) ([]EscalationPolicy, error) {
+func GetEscalationPolicies(token string) ([]EscalationPolicy, error) {
 	policies := make([]EscalationPolicy, 0)
 	offset := 0
 	limit := 100
@@ -32,9 +32,9 @@ func GetEscalationPolicies(token, domain string) ([]EscalationPolicy, error) {
 	for {
 		epresp := EscalationPolicyResponse{}
 
-		url := pagedUrl("/escalation_policies", domain, offset, limit)
+		url := pagedUrl("/escalation_policies", offset, limit, nil)
 
-		resp, err := authenticatedGet(url, token, nil)
+		resp, err := authenticatedGet(url, token)
 		if err != nil {
 			log.Printf("GET %s failed: %s", url, err)
 			return policies, err
