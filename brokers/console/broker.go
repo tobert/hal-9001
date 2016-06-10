@@ -32,6 +32,7 @@ type Config struct{}
 type Broker struct {
 	User   string
 	Room   string
+	Topic  string
 	Stdin  chan string
 	Stdout chan string
 }
@@ -64,6 +65,16 @@ func (cb Broker) Send(e hal.Evt) {
 
 func (cb Broker) SendDM(e hal.Evt) {
 	cb.Stdout <- e.Body
+}
+
+func (cb Broker) GetTopic(roomId string) (string, error) {
+	return cb.Topic, nil
+}
+
+func (cb Broker) SetTopic(roomId, topic string) error {
+	cb.Topic = topic
+	cb.Stdout <- fmt.Sprintf("topic set to: %q", topic)
+	return nil
 }
 
 func (cb Broker) SendTable(e hal.Evt, hdr []string, rows [][]string) {

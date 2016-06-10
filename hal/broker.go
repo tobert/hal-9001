@@ -23,6 +23,8 @@ type Broker interface {
 	Send(evt Evt)
 	SendTable(evt Evt, header []string, rows [][]string)
 	SendDM(evt Evt)
+	SetTopic(roomId, topic string) error
+	GetTopic(roomId string) (topic string, err error)
 	LooksLikeRoomId(room string) bool
 	LooksLikeUserId(user string) bool
 	RoomIdToName(id string) (name string)

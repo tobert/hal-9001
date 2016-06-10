@@ -125,6 +125,17 @@ func (sb Broker) SendDM(evt hal.Evt) {
 	}
 }
 
+func (sb Broker) GetTopic(roomId string) (string, error) {
+	ch, err := sb.Client.GetChannelInfo(roomId)
+	return ch.Topic.Value, err
+}
+
+func (sb Broker) SetTopic(roomId, topic string) error {
+	r, err := sb.Client.SetChannelTopic(roomId, topic)
+	log.Printf("SetTopic(%q, %q) = %q", roomId, topic, r)
+	return err
+}
+
 func (sb Broker) SendTable(evt hal.Evt, hdr []string, rows [][]string) {
 	out := evt.Clone()
 	out.Body = hal.Utf8Table(hdr, rows)

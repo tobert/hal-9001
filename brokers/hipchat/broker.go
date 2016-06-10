@@ -115,6 +115,16 @@ func (hb Broker) SendDM(e hal.Evt) {
 	panic("SendDM not implemented in Hipchat yet.")
 }
 
+// TODO: implement
+func (hb Broker) GetTopic(roomId string) (string, error) {
+	panic("SetTopic not implemented in Hipchat yet. Pull requests welcome.")
+}
+
+// TODO: implement
+func (hb Broker) SetTopic(roomId, topic string) error {
+	panic("SetTopic not implemented in Hipchat yet. Pull requests welcome.")
+}
+
 func (hb Broker) SendTable(evt hal.Evt, hdr []string, rows [][]string) {
 	out := evt.Clone()
 	// TODO: verify if this works for bots - works fine in the client
