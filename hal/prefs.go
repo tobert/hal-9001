@@ -441,6 +441,19 @@ func (pref Pref) SetKey(key string) Pref {
 	return pref
 }
 
+// SetUser returns a copy of the pref with the User set to the provided string.
+func (pref Pref) SetUser(user string) Pref {
+	pref.User = user
+	return pref
+}
+
+// SetBroker returns a copy of the pref with the Broker set to the provided string.
+func (pref Pref) SetBroker(broker string) Pref {
+	// TODO: validate?
+	pref.Broker = broker
+	return pref
+}
+
 // User filters the preference list by user, returning a new Prefs
 // e.g. uprefs = prefs.User("adent")
 func (prefs Prefs) User(user string) Prefs {
