@@ -187,11 +187,18 @@ func (e *Evt) InstanceSettings() Prefs {
 // AsPref returns a a pref with user, room, broker, and plugin set using data
 // from the event handle.
 func (e *Evt) AsPref() Pref {
+	// AsPref can be called without an instance for errors, make sure
+	// instance is set before accessing fields
+	var plugin string
+	if e.instance != nil {
+		plugin = e.instance.Plugin.Name
+	}
+
 	p := Pref{
 		User:   e.UserId,
 		Room:   e.RoomId,
 		Broker: e.BrokerName(),
-		Plugin: e.instance.Plugin.Name,
+		Plugin: plugin,
 	}
 
 	return p
