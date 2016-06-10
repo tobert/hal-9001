@@ -459,9 +459,16 @@ func topicFuncName(roomId string) string {
 // OncallsByLevel provides sorting by oncall level for []Oncall.
 type OncallsByLevel []Oncall
 
-func (a OncallsByLevel) Len() int           { return len(a) }
-func (a OncallsByLevel) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a OncallsByLevel) Less(i, j int) bool { return a[i].EscalationLevel < a[j].EscalationLevel }
+func (a OncallsByLevel) Len() int      { return len(a) }
+func (a OncallsByLevel) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a OncallsByLevel) Less(i, j int) bool {
+	// sort "always on call" users to the end of the list
+	if a[j].Schedule.Summary == "" {
+		return true
+	}
+
+	return a[i].EscalationLevel < a[j].EscalationLevel
+}
 
 func formatOncallReply(wanted string, exactMatchFound bool, oncalls []Oncall) string {
 	buf := bytes.NewBuffer([]byte{})
@@ -482,8 +489,7 @@ func formatOncallReply(wanted string, exactMatchFound bool, oncalls []Oncall) st
 		}
 
 		if exactMatchFound {
-			fmt.Fprintf(buf, "%s%s - %s (%q)\n", indent,
-				oncall.User.Summary, sched, oncall.Schedule.Id)
+			fmt.Fprintf(buf, "%s%s - %s\n", indent, oncall.User.Summary, sched)
 		} else {
 			fmt.Fprintf(buf, "%s%s - %s - %s\n", indent,
 				oncall.EscalationPolicy.Summary, oncall.User.Summary, sched)
