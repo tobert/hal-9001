@@ -420,7 +420,7 @@ func formatOncallReply(wanted string, exactMatchFound bool, oncalls []Oncall) st
 	if exactMatchFound {
 		fmt.Fprintf(buf, "exact match found for %q\n", oncalls[0].EscalationPolicy.Summary)
 	} else {
-		fmt.Fprintf(buf, "%d escalation policies matched %q\n", len(oncalls), wanted)
+		fmt.Fprintf(buf, "%d records matched for query: %q\n", len(oncalls), wanted)
 	}
 
 	sort.Sort(OncallsByLevel(oncalls))
