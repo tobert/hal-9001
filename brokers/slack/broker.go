@@ -91,6 +91,40 @@ func (sb Broker) Name() string {
 }
 
 func (sb Broker) Send(evt hal.Evt) {
+	// Slack refuses messages over 4000 characters. Most of the time that's
+	// probably data so post it as a file. Using len instead of rune count since
+	// slack is probably looking at bytes.
+	if len(evt.Body) > 3999 {
+		sb.SendAsSnippet(evt)
+	} else {
+		sb.SendAsIs(evt)
+	}
+}
+
+func (sb Broker) SendAsSnippet(evt hal.Evt) {
+	f, err := ioutil.TempFile(os.TempDir(), "hal")
+	if err != nil {
+		evt.Replyf("Could not create tempfile for large text upload: %s", err)
+		return
+	}
+	defer os.Remove(f.Name())
+
+	f.WriteString(evt.Body)
+	f.Close()
+
+	// upload the file
+	params := slack.FileUploadParameters{
+		File:     f.Name(),
+		Filename: "reply.txt",
+		Channels: []string{evt.RoomId},
+	}
+	_, err = sb.Client.UploadFile(params)
+	if err != nil {
+		evt.Replyf("Could not upload snippet file: %s", err)
+	}
+}
+
+func (sb Broker) SendAsIs(evt hal.Evt) {
 	om := sb.RTM.NewOutgoingMessage(evt.Body, evt.RoomId)
 	sb.RTM.SendMessage(om)
 }
