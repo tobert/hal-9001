@@ -178,26 +178,21 @@ type IncidentCounts struct {
 }
 
 // Service represents a Pagerduty service object from /api/v1/services/:id
-// TODO: are the time.Time fields useful? If so, add proper support for
-// marshal/unmarshal.
 type Service struct {
-	Id                        string         `json:"id"`
-	Type                      string         `json:"type"`
-	Name                      string         `json:"name"`
-	ServiceUrl                string         `json:"service_url"`
-	ServiceKey                string         `json:"service_key"`
-	AutoResolveTimeout        int            `json:"auto_resolve_timeout"`    // type is undocumented
-	AcknowledgementTimeout    int            `json:"acknowledgement_timeout"` // type is undocumented
-	CreatedAt                 string         `json:"created_at"`
-	CreatedAtTime             time.Time      `json:"-"`
-	Status                    string         `json:"status"`
-	LastIncidentTimestamp     string         `json:"last_incident_timestamp"`
-	LastIncidentTimestampTime time.Time      `json:"-"`
-	EmailIncidentCreation     string         `json:"email_incident_creation"`
-	EmailIncidentCreationTime time.Time      `json:"-"`
-	IncidentCounts            IncidentCounts `json:"incident_counts"`
-	EmailFilterMode           string         `json:"email_filter_mode"`
-	Description               string         `json:"description"`
+	Id                     string         `json:"id"`
+	Type                   string         `json:"type"`
+	Name                   string         `json:"name"`
+	ServiceUrl             string         `json:"service_url"`
+	ServiceKey             string         `json:"service_key"`
+	AutoResolveTimeout     int            `json:"auto_resolve_timeout"`
+	AcknowledgementTimeout int            `json:"acknowledgement_timeout"`
+	CreatedAt              string         `json:"created_at"`
+	Status                 string         `json:"status"`
+	LastIncidentTimestamp  string         `json:"last_incident_timestamp"`
+	EmailIncidentCreation  string         `json:"email_incident_creation"`
+	IncidentCounts         IncidentCounts `json:"incident_counts"`
+	EmailFilterMode        string         `json:"email_filter_mode"`
+	Description            string         `json:"description"`
 }
 
 type ServiceRef struct {

@@ -23,10 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"time"
 )
-
-const rfc8601TimeFormat = "2006-01-02T15:04:05-07:00"
 
 func GetServiceByKey(token, domain, serviceKey string) (Service, error) {
 	svcs, err := getServices(token, domain, serviceKey)
@@ -107,21 +104,6 @@ func GetService(token, domain, id string) (Service, error) {
 	if err != nil {
 		log.Printf("json.Unmarshal failed: %s", err)
 		return out, err
-	}
-
-	caTime, err := time.Parse(rfc8601TimeFormat, out.CreatedAt)
-	if err != nil {
-		out.CreatedAtTime = caTime
-	}
-
-	eicTime, err := time.Parse(rfc8601TimeFormat, out.EmailIncidentCreation)
-	if err != nil {
-		out.EmailIncidentCreationTime = eicTime
-	}
-
-	laitTime, err := time.Parse(rfc8601TimeFormat, out.LastIncidentTimestamp)
-	if err != nil {
-		out.LastIncidentTimestampTime = laitTime
 	}
 
 	return out, nil

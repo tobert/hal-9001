@@ -415,7 +415,6 @@ func (a OncallsByLevel) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a OncallsByLevel) Less(i, j int) bool { return a[i].EscalationLevel < a[j].EscalationLevel }
 
 func formatOncallReply(wanted string, exactMatchFound bool, oncalls []Oncall) string {
-	age := int(hal.Cache().Age(CacheKey).Seconds())
 	buf := bytes.NewBuffer([]byte{})
 
 	if exactMatchFound {
