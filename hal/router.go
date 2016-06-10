@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"log"
 	"runtime/debug"
+	"strings"
 	"sync"
 )
 
@@ -130,6 +131,13 @@ func (r *RouterCTX) Route() {
 func (r *RouterCTX) processEvent(evt *Evt) {
 	var pname string // must be in the recovery handler's scope
 
+	// detect invalid commands
+	var ranCommand bool
+	var looksLikeCommand bool
+	if strings.HasPrefix(strings.TrimSpace(evt.Body), "!") {
+		looksLikeCommand = true
+	}
+
 	// get a snapshot of the instance list
 	// TODO: keep an eye on the cost of copying this list for every message
 	pr := PluginRegistry()
@@ -170,6 +178,14 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 			// this may block other plugins from processing the same event but
 			// since it's already in a goroutine, other events won't be blocked
 			inst.Func(evtcpy)
+
+			if inst.Regex != "" && looksLikeCommand {
+				ranCommand = true
+			}
 		}
+	}
+
+	if looksLikeCommand && !ranCommand {
+		evt.Replyf("%q: invalid command.", evt.Body)
 	}
 }
