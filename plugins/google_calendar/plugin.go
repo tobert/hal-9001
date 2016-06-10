@@ -117,34 +117,34 @@ func handleEvt(evt hal.Evt) {
 		return
 	}
 
+	// use the hal kv store to prevent spamming
+	roomKey := getRoomNotifiedKey(evt.RoomId)
+	repliedToRoom := hal.ExistsKV(roomKey)
+
+	// the room has been notified in the last hour, nothing to do now
+	if repliedToRoom {
+		return
+	}
+
 	now := time.Now()
 	config := getCachedConfig(evt.RoomId, now)
 	calEvents, err := config.getCachedCalEvents(now)
 	if err != nil {
 		evt.Replyf("Error while getting calendar data: %s", err)
+		hal.SetKV(roomKey, "-", time.Hour) // prevent spamming
 		return
 	}
 
-	evtKey := "gcal-notified-" + evt.RoomId + evt.UserId
-
 	for _, e := range calEvents {
 		if config.Autoreply && e.Start.Before(now) && e.End.After(now) {
-			// use the hal kv store to prevent spamming
-			if hal.ExistsKV(evtKey) {
-				// the key exists so skip it
-				log.Printf("not autoresponding because %q exists in kv", evtKey)
-				continue
+			msg := e.Description
+			if msg == "" {
+				msg = fmt.Sprintf(DefaultMsg, e.Name)
 			}
 
-			if e.Description != "" {
-				evt.Reply(e.Description)
-			} else {
-				evt.Replyf(DefaultMsg, e.Name)
-			}
-
-			hal.SetKV(evtKey, "-", time.Hour)
-
-			// return // TODO: should overlapping events mean multiple messages?
+			evt.ReplyToRoom(msg)
+			hal.SetKV(roomKey, "-", time.Hour)
+			break // only notify once even if there are overlapping entries
 		}
 	}
 }
@@ -177,7 +177,24 @@ func handleCommand(evt *hal.Evt) {
 		config.expireCaches()
 		updateCachedCalEvents(evt.RoomId)
 		evt.Replyf("reload complete")
+	case "silence":
+		if len(argv) == 3 {
+			d, err := time.ParseDuration(argv[2])
+			if err != nil {
+				evt.Replyf("Invalid silence duration %q: %s", argv[2], err)
+			} else {
+				key := getRoomNotifiedKey(evt.RoomId)
+				hal.SetKV(key, "-", d)
+				evt.Replyf("Calendar notifications silenced for %s.", d.String())
+			}
+		} else {
+			evt.Reply("Invalid command. A duration is requried, e.g. !gcal silence 4h")
+		}
 	}
+}
+
+func getRoomNotifiedKey(roomId string) string {
+	return "gcal-notified-" + roomId
 }
 
 func updateCachedCalEvents(roomId string) {
