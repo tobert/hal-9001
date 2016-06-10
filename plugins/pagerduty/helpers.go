@@ -24,25 +24,36 @@ import (
 	"strings"
 )
 
-// AuthenticatedGet authenticates with the provided token and GETs the url
-// with the query sent in the body as "query=%s", query.
-func authenticatedGet(url, token string, query string) (*http.Response, error) {
+// AuthenticatedGet authenticates with the provided token and GETs the url.
+// Queries and filters should be placed in the data url.Values argument.
+func authenticatedGet(url, token string, data map[string]string) (*http.Response, error) {
 	tokenHdr := fmt.Sprintf("Token token=%s", token)
 
-	buf := bytes.NewBuffer([]byte{})
-	if query != "" {
-		fmt.Fprintf(buf, "query=%s", query)
+	body := bytes.NewBuffer([]byte{})
+	// data is simple key/value strings, just format it directly to JSON
+	// Note: url encoded requests don't seem to work
+	if data != nil {
+		pairs := make([]string, 0)
+		for k, v := range data {
+			pairs = append(pairs, fmt.Sprintf("%q:%q", k, v))
+		}
+		body.WriteString("{" + strings.Join(pairs, ",") + "}")
 	}
 
-	req, err := http.NewRequest("GET", url, buf)
+	req, err := http.NewRequest("GET", url, body)
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Add("Accept", "application/vnd.pagerduty+json;version=2")
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Authorization", tokenHdr)
 
 	client := &http.Client{}
-	return client.Do(req)
+	r, err := client.Do(req)
+
+	log.Printf("pagerduty.authenticatedGet(%s, token) = %d", url, r.StatusCode)
+
+	return r, err
 }
 
 // AuthenticatedPost authenticates with the provided token and posts the
@@ -56,6 +67,7 @@ func authenticatedPost(token string, body []byte) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Add("Accept", "application/vnd.pagerduty+json;version=2")
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Authorization", tokenHdr)
 
@@ -63,8 +75,8 @@ func authenticatedPost(token string, body []byte) (*http.Response, error) {
 	return client.Do(req)
 }
 
-func pagedUrl(path, domain string, offset, limit int) string {
-	url := fmt.Sprintf("https://%s.pagerduty.com%s", domain, path)
+func pagedUrl(resource, domain string, offset, limit int) string {
+	url := fmt.Sprintf("https://api.pagerduty.com%s", resource)
 
 	query := make([]string, 0)
 
@@ -77,10 +89,8 @@ func pagedUrl(path, domain string, offset, limit int) string {
 	}
 
 	if len(query) > 0 {
-		log.Printf("pagedUrl: %s?%s", url, strings.Join(query, "&"))
 		return fmt.Sprintf("%s?%s", url, strings.Join(query, "&"))
 	}
 
-	log.Printf("pagedUrl(%q, %q, %d, %d): %s", path, domain, offset, limit, url)
 	return url
 }

@@ -24,6 +24,8 @@ import (
 	"log"
 )
 
+// TODO: rename this file to pd_trigger.go
+
 // https://developer.pagerduty.com/documentation/integration/events/trigger
 
 var Endpoint = "https://events.pagerduty.com/generic/2010-04-15/create_event.json"
@@ -55,6 +57,16 @@ type Event struct {
 	Client      string                 `json:"client,omitempty"`
 	ClientUrl   string                 `json:"client_url,omitempty"`
 	Contexts    []Context              `json:"contexts,omitempty"`
+}
+
+type Error struct {
+	Message string   `json:"message"`
+	Code    int      `json:"code"`
+	Errors  []string `json:"errors"`
+}
+
+type ErrorResponse struct {
+	Error Error `json:"error"`
 }
 
 type Response struct {

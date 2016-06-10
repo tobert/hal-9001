@@ -18,44 +18,46 @@ package pagerduty
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 )
 
-// https://v2.developer.pagerduty.com/v2/page/api-reference#!/Escalation_Policies/get_escalation_policies
+// https://v2.developer.pagerduty.com/v2/page/api-reference#!/On-Calls/get_oncalls
 
-func GetEscalationPolicies(token, domain string) ([]EscalationPolicy, error) {
-	policies := make([]EscalationPolicy, 0)
+func GetOncalls(token, domain string) ([]Oncall, error) {
+	oncalls := make([]Oncall, 0)
 	offset := 0
 	limit := 100
 
 	for {
-		epresp := EscalationPolicyResponse{}
+		oncallsResp := OncallsResponse{}
 
-		url := pagedUrl("/escalation_policies", domain, offset, limit)
+		url := pagedUrl("/oncalls", domain, offset, limit)
 
 		resp, err := authenticatedGet(url, token, nil)
 		if err != nil {
 			log.Printf("GET %s failed: %s", url, err)
-			return policies, err
+			return oncalls, err
 		}
 
 		data, err := ioutil.ReadAll(resp.Body)
 
-		err = json.Unmarshal(data, &epresp)
+		err = json.Unmarshal(data, &oncallsResp)
 		if err != nil {
-			log.Printf("json.Unmarshal failed: %s", err)
-			return policies, err
+			fmt.Printf("\n\n%s\n\n", data)
+			log.Printf("json.Unmarshal of data from %q failed: %s", url, err)
+			return oncalls, err
 		}
 
-		policies = append(policies, epresp.EscalationPolicies...)
+		oncalls = append(oncalls, oncallsResp.Oncalls...)
 
-		if epresp.More {
+		if oncallsResp.More {
 			offset = offset + limit
 		} else {
 			break
 		}
 	}
 
-	return policies, nil
+	return oncalls, nil
 }
