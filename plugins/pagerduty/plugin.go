@@ -399,11 +399,13 @@ func cacheNow(token, roomId string) {
 // !prefs set --room * --broker slack --plugin pagerduty --key topic-suffix --value <text>
 // TODO: see if there's a way to also resolve integration keys instead of using the schedule id
 func topicUpdater(token, roomId, brokerName string) {
-	log.Printf("func topicUpdater(token, %q, %qstring) {", roomId, brokerName)
+	log.Printf("ENTER topicUpdater(token, %q, %q)", roomId, brokerName)
 
 	pref := hal.GetPref("", brokerName, roomId, "pagerduty", "topic-updater-schedule-id", "-")
 	// probably not configured, nothing to see here...
 	if !pref.Success || pref.Value == "-" {
+		log.Printf("The pref ''/%q/%q/pagerduty/topic-updater-schedule-id does not seem to be set. Returning without taking action.",
+			brokerName, roomId)
 		return
 	}
 
