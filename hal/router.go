@@ -179,7 +179,7 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 			// since it's already in a goroutine, other events won't be blocked
 			inst.Func(evtcpy)
 
-			if inst.Regex != "" && looksLikeCommand {
+			if looksLikeCommand {
 				ranCommand = true
 			}
 		}
