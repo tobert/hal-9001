@@ -131,12 +131,8 @@ func (r *RouterCTX) Route() {
 func (r *RouterCTX) processEvent(evt *Evt) {
 	var pname string // must be in the recovery handler's scope
 
-	// detect invalid commands
-	var ranCommand bool
-	var looksLikeCommand bool
-	if strings.HasPrefix(strings.TrimSpace(evt.Body), "!") {
-		looksLikeCommand = true
-	}
+	// detect invalid commands & count executions
+	var ranPlugins int
 
 	// get a snapshot of the instance list
 	// TODO: keep an eye on the cost of copying this list for every message
@@ -179,13 +175,11 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 			// since it's already in a goroutine, other events won't be blocked
 			inst.Func(evtcpy)
 
-			if looksLikeCommand {
-				ranCommand = true
-			}
+			ranPlugins++
 		}
 	}
 
-	if looksLikeCommand && !ranCommand {
-		evt.Replyf("%q: invalid command.", evt.Body)
+	if strings.HasPrefix(strings.TrimSpace(evt.Body), "!") && ranPlugins == 0 {
+		evt.Replyf("%q: invalid command (%d plugins were executed for the event).", evt.Body, ranPlugins)
 	}
 }
