@@ -58,7 +58,12 @@ func zombie(evt hal.Evt) {
 	pr := hal.PluginRegistry()
 
 	for _, inst := range pr.InstanceList() {
-		if inst.Plugin.Name != "seppuku" {
+		if inst.Plugin.Name == "zombie" {
+			// this makes the hal router think zombie has executed for every
+			// incoming event so it doesn't fall through and say "invalid command"
+			inst.Regex = ""
+			inst.Func = func(evt hal.Evt) { return }
+		} else if inst.Plugin.Name != "seppuku" {
 			inst.Unregister()
 		}
 	}
