@@ -26,19 +26,27 @@ func Register() {
 	guys := hal.Plugin{
 		Name:  "guys",
 		Func:  guys,
-		Regex: "guys",
+		Regex: "(?i:guys)",
 	}
 	guys.Register()
 }
 
 // guys counts how many times you've used "guys" in a chat message and
 // lets you know via DM
+// !plugin attach guys
+// this gets it listening to the room but it won't notify you until a pref is set
+// !prefs set --user * --plugin guys --key enabled --value true
+// or
+// !prefs set --room * --plugin guys --key enabled --value true
 func guys(evt hal.Evt) {
 	if !evt.IsChat {
 		return
 	}
 
-	// even if this plugin is attached to a room it won't do anything without
+	key := "guys-" + evt.UserId
+	hal.IncrementCounter(key)
+
+	// even if this plugin is attached to a room it won't notify without
 	// an accompanying pref to say whether it's a specific user who cares
 	// or the whole room
 	userCares := hal.GetPref(evt.UserId, "", "", "guys", "enabled", "false")
@@ -47,8 +55,6 @@ func guys(evt hal.Evt) {
 		return
 	}
 
-	key := "guys-" + evt.UserId
-	hal.IncrementCounter(key)
 	count, _ := hal.GetCounter(key)
 	msg := fmt.Sprintf("Yo. You have now used \"guys\" %d times.", count)
 
