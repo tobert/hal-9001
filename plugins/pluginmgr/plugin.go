@@ -56,7 +56,7 @@ const PluginGroupTable = `
 CREATE TABLE IF NOT EXISTS plugin_groups (
     group_name  VARCHAR(191),
     plugin_name VARCHAR(191),
-    ts          TIMESTAMP,
+	ts          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY(group_name, plugin_name)
 )`
 
