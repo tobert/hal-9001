@@ -139,7 +139,7 @@ func (cb Broker) Stream(out chan *hal.Evt) {
 			Body:     input,
 			Time:     now,
 			Broker:   cb,
-			IsChat:   false,
+			IsChat:   true,
 			Original: &input,
 		}
 
