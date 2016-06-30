@@ -179,7 +179,16 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 		}
 	}
 
-	if strings.HasPrefix(strings.TrimSpace(evt.Body), "!") && ranPlugins == 0 {
-		evt.Replyf("%q: invalid command (%d plugins were executed for the event).", evt.Body, ranPlugins)
+	if ranPlugins == 0 && strings.HasPrefix(strings.TrimSpace(evt.Body), "!") {
+		mgr, err := pr.GetPlugin("pluginmgr")
+		// only proceed if there is no error - bots may choose to exclude pluginmgr
+		if strings.HasPrefix(strings.TrimSpace(evt.Body), "!plugin") && err == nil {
+			inst := mgr.Instance(evt.RoomId, evt.Broker)
+			evtcpy := *evt
+			evtcpy.instance = inst
+			inst.Func(evtcpy)
+		} else {
+			evt.Replyf("%q: invalid command (%d plugins were executed for the event).", evt.Body, ranPlugins)
+		}
 	}
 }
