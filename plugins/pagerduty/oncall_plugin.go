@@ -48,9 +48,6 @@ func oncall(msg hal.Evt) {
 	if len(parts) == 1 {
 		msg.Reply(OncallUsage)
 		return
-	} else if len(parts) != 2 {
-		msg.Replyf("%s: invalid command.\n%s", parts[0], OncallUsage)
-		return
 	}
 
 	// make sure the pagerduty token is setup in hal.Secrets
@@ -77,6 +74,9 @@ func oncall(msg hal.Evt) {
 		msg.Replyf("The cache is %d seconds old. Auto-update is %s and its next update is at %s.",
 			age, status, next.Format(time.UnixDate))
 		return
+	} else if len(parts) > 2 {
+		// flatten split words back into position 1, parts isn't used after the ToLower
+		parts[1] = strings.Join(parts[1:], " ")
 	}
 
 	// TODO: look at the aliases set up for !page and try for an exact match
