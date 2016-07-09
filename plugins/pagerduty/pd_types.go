@@ -38,11 +38,13 @@ type NotificationRule struct {
 }
 
 type Team struct {
-	Id      string `json:"id"`
-	Type    string `json:"type"`
-	Summary string `json:"summary"`
-	Self    string `json:"self"`
-	HtmlUrl string `json:"html_url"`
+	Id          string `json:"id"`
+	Type        string `json:"type"`
+	Summary     string `json:"summary"`
+	Self        string `json:"self"`
+	HtmlUrl     string `json:"html_url"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 type TeamRef struct {
@@ -51,6 +53,14 @@ type TeamRef struct {
 	Summary string `json:"summary"`
 	Self    string `json:"self"`
 	HtmlUrl string `json:"html_url"`
+}
+
+type TeamsResponse struct {
+	Teams  []Team `json:"teams"`
+	Offset int    `json:"offset"`
+	Limit  int    `json:"limit"`
+	More   bool   `json:"more"`
+	Total  int    `json:"total,omitempty"`
 }
 
 type Schedule struct {

@@ -123,8 +123,56 @@ func oncall(msg hal.Evt) {
 		}
 	}
 
+	// check team names if there were no matches
+	// TODO: cache some of these results and always check team names
+	if len(matches) == 0 {
+		log.Printf("GETTING TEAMS!")
+		teams, err := GetTeams(token)
+		if err != nil {
+			log.Printf("REST call to Pagerduty /teams failed: %s", err)
+		} else {
+			for _, team := range teams {
+				ltname := strings.ToLower(team.Name)
+				ltdesc := strings.ToLower(team.Description)
+
+				if strings.Contains(ltname, want) || strings.Contains(ltdesc, want) {
+					matches = getTeamOncalls(token, team)
+				}
+			}
+		}
+	}
+
 	reply := formatOncallReply(want, exactMatchFound, matches)
 	msg.Reply(reply)
+}
+
+// getTeamOncalls fetches escalation policies for the team then the oncalls for those
+// policies and returns a list.
+func getTeamOncalls(token string, team Team) []Oncall {
+	out := make([]Oncall, 0)
+	log.Printf("Returning empty list but should have fetched oncalls for team %+v", team)
+
+	params := map[string]string{"team_ids[]": team.Id}
+	policies, err := GetEscalationPolicies(token, params)
+	if err != nil {
+		log.Printf("Error while fetching escalation policies for team id %q: %s", team.Id, err)
+		return out
+	}
+
+	policy_ids := make([]string, 0)
+	for _, policy := range policies {
+		policy_ids = append(policy_ids, policy.Id)
+	}
+
+	params = map[string]string{"escalation_policy_ids[]": strings.Join(policy_ids, ",")}
+	oncalls, err := GetOncalls(token, params)
+	if err != nil {
+		log.Printf("Error while fetching oncalls for team id %q's policies: %s", team.Id, err)
+	} else {
+		return oncalls
+	}
+
+	return out
 }
 
 func getOncallCache(token string, forceUpdate bool) []Oncall {

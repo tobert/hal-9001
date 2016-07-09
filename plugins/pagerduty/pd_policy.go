@@ -24,7 +24,7 @@ import (
 
 // https://v2.developer.pagerduty.com/v2/page/api-reference#!/Escalation_Policies/get_escalation_policies
 
-func GetEscalationPolicies(token string) ([]EscalationPolicy, error) {
+func GetEscalationPolicies(token string, params map[string]string) ([]EscalationPolicy, error) {
 	policies := make([]EscalationPolicy, 0)
 	offset := 0
 	limit := 100
@@ -32,7 +32,7 @@ func GetEscalationPolicies(token string) ([]EscalationPolicy, error) {
 	for {
 		epresp := EscalationPolicyResponse{}
 
-		url := pagedUrl("/escalation_policies", offset, limit, nil)
+		url := pagedUrl("/escalation_policies", offset, limit, params)
 
 		resp, err := authenticatedGet(url, token)
 		if err != nil {
