@@ -84,14 +84,17 @@ func pageAlias(msg hal.Evt, parts []string) {
 
 	// make sure the query succeeded
 	if !pref.Success {
-		log.Printf("Unable to access preferences: %#q", pref.Error)
-		msg.Replyf("Unable to access preferences: %#q", pref.Error)
+		if pref.Error != nil {
+			msg.Replyf("Unable to access preferences: %#q", pref.Error)
+		} else {
+			msg.Replyf("Alias %q is not configured. Try !page add %s <pagerduty integration key>", parts[0], parts[0])
+		}
 		return
 	}
 
 	// if qpref.Get returned the default, the alias was not found
 	if pref.Value == "" {
-		msg.Replyf("Alias %q not recognized. Try !page add <alias> <service key>", parts[0])
+		msg.Replyf("Alias %q is not configured. Try !page add %s <pagerduty integration key>", parts[0], parts[0])
 		return
 	}
 
