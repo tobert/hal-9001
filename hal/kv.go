@@ -67,7 +67,6 @@ func kvCleanup() {
 	c := time.Tick(time.Minute)
 
 	for now := range c {
-		time.Sleep(time.Minute * 5)
 		log.Printf("Cleaning up ttl keys")
 
 		kvMut.Lock()
