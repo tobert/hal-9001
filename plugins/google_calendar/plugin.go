@@ -126,12 +126,13 @@ func handleEvt(evt hal.Evt) {
 		return
 	}
 
+	hal.SetKV(roomKey, "-", time.Hour) // prevent spamming
+
 	now := time.Now()
 	config := getCachedConfig(evt.RoomId, now)
 	calEvents, err := config.getCachedCalEvents(now)
 	if err != nil {
 		evt.Replyf("Error while getting calendar data: %s", err)
-		hal.SetKV(roomKey, "-", time.Hour) // prevent spamming
 		return
 	}
 
@@ -143,7 +144,6 @@ func handleEvt(evt hal.Evt) {
 			}
 
 			evt.ReplyToRoom(msg)
-			hal.SetKV(roomKey, "-", time.Hour)
 			break // only notify once even if there are overlapping entries
 		}
 	}
