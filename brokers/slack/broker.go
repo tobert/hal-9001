@@ -173,7 +173,16 @@ func (sb Broker) SetTopic(roomId, topic string) error {
 func (sb Broker) SendTable(evt hal.Evt, hdr []string, rows [][]string) {
 	out := evt.Clone()
 	out.Body = hal.Utf8Table(hdr, rows)
-	sb.SendAsImage(out)
+
+	tblFmt := hal.FindPrefs("", "", "", "", "table.format").One()
+
+	if tblFmt.Value == "image" {
+		sb.SendAsImage(out)
+	} else if tblFmt.Value == "snippet" {
+		sb.SendAsSnippet(out)
+	} else {
+		sb.SendAsIs(out)
+	}
 }
 
 // SendAsImage sends the body of the event as a png file. The png is rendered
