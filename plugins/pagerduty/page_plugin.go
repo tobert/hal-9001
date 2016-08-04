@@ -80,7 +80,9 @@ func pageAlias(msg hal.Evt, parts []string) {
 
 	// map alias name to PD token via prefs
 	key := aliasKey(parts[0])
-	pref := msg.AsPref().FindKey(key).One()
+	// make sure to filter on at least room id since FindKey might find duplicate
+	// aliases from other rooms
+	pref := msg.AsPref().FindKey(key).Room(msg.RoomId).One()
 
 	// make sure the query succeeded
 	if !pref.Success {
