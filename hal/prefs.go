@@ -521,6 +521,19 @@ func (prefs Prefs) Key(key string) Prefs {
 	return out
 }
 
+// Value filters the preference list by key, returning a new Prefs
+func (prefs Prefs) Value(value string) Prefs {
+	out := make(Prefs, 0)
+
+	for _, pref := range prefs {
+		if pref.Value == value {
+			out = append(out, pref)
+		}
+	}
+
+	return out
+}
+
 // Table returns Prefs as a 2d list ready to hand off to e.g. hal.AsciiTable()
 func (prefs Prefs) Table() [][]string {
 	out := make([][]string, 1)

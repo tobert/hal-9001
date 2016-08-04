@@ -68,6 +68,15 @@ func init() {
 		SubCmd().AddKVParam("broker", false).AddAlias("b").SetUsage(brokerUsage).
 		SubCmd().AddKVParam("plugin", false).AddAlias("p").SetUsage(pluginUsage)
 
+	cli.AddSubCmd("find").
+		SetUsage("retreive preferences following precedence rules").
+		SubCmd().AddKVParam("key", false).AddAlias("k").SetUsage(keyUsage).
+		SubCmd().AddKVParam("value", false).AddAlias("v").SetUsage(valueUsage).
+		SubCmd().AddKVParam("room", false).AddAlias("r").SetUsage(roomUsage).
+		SubCmd().AddKVParam("user", false).AddAlias("u").SetUsage(userUsage).
+		SubCmd().AddKVParam("broker", false).AddAlias("b").SetUsage(brokerUsage).
+		SubCmd().AddKVParam("plugin", false).AddAlias("p").SetUsage(pluginUsage)
+
 	cli.AddSubCmd("rm").
 		SetUsage("delete a preference by id").
 		AddIdxParam(0, true).
@@ -96,6 +105,8 @@ func prefmgr(evt hal.Evt) {
 		cliSet(req.SubCmdInst(), &evt)
 	case "list":
 		cliList(req.SubCmdInst(), &evt)
+	case "find":
+		cliFind(req.SubCmdInst(), &evt)
 	case "rm":
 		cliRm(req.SubCmdInst(), &evt)
 	default:
@@ -140,6 +151,42 @@ func cmd2pref(req *hal.SubCmdInst, evt *hal.Evt) (*hal.Pref, error) {
 
 // cliList implements !pref list
 func cliList(req *hal.SubCmdInst, evt *hal.Evt) {
+	opts := hal.Pref{}
+	prefs := opts.Find()
+
+	for _, pi := range req.ListKVParamInsts() {
+		var err error
+		var key, value string
+
+		switch pi.Key() {
+		case "key":
+			key, err = pi.String()
+			prefs = prefs.Key(stripAutoLinks(key))
+		case "value":
+			value, err = pi.String()
+			prefs = prefs.Value(stripAutoLinks(value))
+		case "room":
+			prefs = prefs.Room(pi.DefString(evt.RoomId))
+		case "user":
+			prefs = prefs.User(pi.DefString(evt.UserId))
+		case "broker":
+			prefs = prefs.Broker(pi.DefString(evt.BrokerName()))
+		case "plugin":
+			prefs = prefs.Plugin(pi.DefString(NAME))
+		}
+
+		if err != nil {
+			evt.Error(err)
+			return
+		}
+	}
+
+	data := prefs.Table()
+	evt.ReplyTable(data[0], data[1:])
+}
+
+// cliFind implements !pref find
+func cliFind(req *hal.SubCmdInst, evt *hal.Evt) {
 	opts, err := cmd2pref(req, evt)
 	if err != nil {
 		panic(err) // TODO: placeholder
