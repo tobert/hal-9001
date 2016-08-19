@@ -124,9 +124,21 @@ func (sb Broker) SendAsSnippet(evt hal.Evt) {
 	}
 }
 
+// SendAsIs directly sends a message without considering it for posting as a snippet.
 func (sb Broker) SendAsIs(evt hal.Evt) {
-	om := sb.RTM.NewOutgoingMessage(evt.Body, evt.RoomId)
-	sb.RTM.SendMessage(om)
+	// if evt.Original is a slack.PostMessageParameters, assume that means that there is
+	// a rich message in the body with params that need to be posted to the web API
+	// rather than going through RTM.
+	// See: https://api.slack.com/bot-users
+	switch evt.Original.(type) {
+	case *slack.PostMessageParameters:
+		params := evt.Original.(*slack.PostMessageParameters)
+		params.AsUser = true // if we've gotten here, we always want this
+		sb.Client.PostMessage(evt.RoomId, evt.Body, *params)
+	default:
+		om := sb.RTM.NewOutgoingMessage(evt.Body, evt.RoomId)
+		sb.RTM.SendMessage(om)
+	}
 }
 
 func (sb Broker) SendDM(evt hal.Evt) {

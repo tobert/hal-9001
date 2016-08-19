@@ -49,14 +49,15 @@ type Evt struct {
 // and a current timestamp. Body and Original will be empty.
 func (e *Evt) Clone() Evt {
 	out := Evt{
-		ID:     e.ID,
-		Room:   e.Room,
-		RoomId: e.RoomId,
-		User:   e.User,
-		UserId: e.UserId,
-		Time:   time.Now(),
-		Broker: e.Broker,
-		IsChat: e.IsChat,
+		ID:       e.ID,
+		Room:     e.Room,
+		RoomId:   e.RoomId,
+		User:     e.User,
+		UserId:   e.UserId,
+		Time:     time.Now(),
+		Broker:   e.Broker,
+		IsChat:   e.IsChat,
+		Original: e.Original,
 	}
 
 	return out
