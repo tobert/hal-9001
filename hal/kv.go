@@ -22,6 +22,8 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"github.com/juju/errors"
 )
 
 const KVTable = `
@@ -124,10 +126,9 @@ func GetKV(key string) (value string, err error) {
 	err = db.QueryRow(sql, key).Scan(&kv.value, &kv.ttlSecs, &expireTs)
 	if err == dbsql.ErrNoRows {
 		// TODO: might just want to swallow errors and return two-val exists,value instead
-		return "", err
+		return "", errors.NewNotFound(err, sql)
 	} else if err != nil {
-		log.Printf("GetKV SQL query failed: %s", err)
-		return "", err
+		return "", errors.Annotate(err, "GetKV SQL query failed")
 	}
 
 	kv.expires = time.Unix(expireTs, 0)
