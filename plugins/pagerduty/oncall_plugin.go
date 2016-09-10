@@ -169,6 +169,27 @@ func getTeamOncalls(token string, team Team) []Oncall {
 	if err != nil {
 		log.Printf("Error while fetching oncalls for team id %q's policies: %s", team.Id, err)
 	} else {
+		// insert oncalls into the hal directory
+		for _, oncall := range oncalls {
+			attrs := map[string]string{
+				"email":          oncall.User.Email,
+				"name":           oncall.User.Name,
+				"pd-user-id":     oncall.User.Id,
+				"pd-schedule-id": oncall.Schedule.Id,
+				"pd-policy-id":   oncall.EscalationPolicy.Id,
+			}
+
+			// plug in the contact methods
+			// per PD docs, types can be: email_contact_method, phone_contact_method, push_notification_contact_method, or sms_contact_method
+			for _, cm := range oncall.User.ContactMethods {
+				attrs["contact-method-id"] = cm.Id
+				attrs[cm.Type] = cm.Address
+			}
+
+			edges := []string{"name", "email", "phone_contact_method", "sms_contact_method"}
+			hal.Directory().Put(oncall.User.Id, "pd-oncall", attrs, edges)
+		}
+
 		return oncalls
 	}
 
