@@ -25,7 +25,7 @@ import (
 
 // https://v2.developer.pagerduty.com/v2/page/api-reference#!/On-Calls/get_oncalls
 // TODO: figure out if query should be a typed struct or validated
-func GetOncalls(token string, query map[string]string) ([]Oncall, error) {
+func GetOncalls(token string, query map[string][]string) ([]Oncall, error) {
 	oncalls := make([]Oncall, 0)
 	offset := 0
 	limit := 100

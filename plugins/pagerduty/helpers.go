@@ -64,7 +64,7 @@ func authenticatedPost(token string, body []byte) (*http.Response, error) {
 	return client.Do(req)
 }
 
-func pagedUrl(resource string, offset, limit int, params map[string]string) string {
+func pagedUrl(resource string, offset, limit int, params map[string][]string) string {
 	out := fmt.Sprintf("https://api.pagerduty.com%s", resource)
 
 	query := make([]string, 0)
@@ -78,8 +78,10 @@ func pagedUrl(resource string, offset, limit int, params map[string]string) stri
 	}
 
 	if params != nil {
-		for k, v := range params {
-			query = append(query, fmt.Sprintf("%s=%s", k, url.QueryEscape(v)))
+		for k, vlist := range params {
+			for _, vv := range vlist {
+				query = append(query, fmt.Sprintf("%s=%s", k, url.QueryEscape(vv)))
+			}
 		}
 	}
 

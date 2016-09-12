@@ -45,9 +45,9 @@ func getServices(token, serviceKey string) ([]Service, error) {
 	offset := 0
 	limit := 100
 
-	qdata := make(map[string]string)
+	qdata := make(map[string][]string)
 	if serviceKey != "" {
-		qdata["query"] = serviceKey
+		qdata["query"] = []string{serviceKey}
 	}
 
 	for {
