@@ -50,7 +50,7 @@ func GetScheduleOncalls(token, id string) ([]User, error) {
 	return out.Users, nil
 }
 
-func GetSchedules(token string) ([]Schedule, error) {
+func GetSchedules(token string, params map[string][]string) ([]Schedule, error) {
 	schedules := make([]Schedule, 0)
 	offset := 0
 	limit := 100
@@ -58,7 +58,7 @@ func GetSchedules(token string) ([]Schedule, error) {
 	for {
 		schedulesResp := SchedulesResponse{}
 
-		url := pagedUrl("/schedules", offset, limit, nil)
+		url := pagedUrl("/schedules", offset, limit, params)
 
 		resp, err := authenticatedGet(url, token)
 		if err != nil {
