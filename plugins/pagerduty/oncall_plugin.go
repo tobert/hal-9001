@@ -126,7 +126,6 @@ func oncall(msg hal.Evt) {
 	// check team names if there were no matches
 	// TODO: cache some of these results and always check team names
 	if len(matches) == 0 {
-		log.Printf("GETTING TEAMS!")
 		teams, err := GetTeams(token)
 		if err != nil {
 			log.Printf("REST call to Pagerduty /teams failed: %s", err)
@@ -152,7 +151,7 @@ func getTeamOncalls(token string, team Team) []Oncall {
 	out := make([]Oncall, 0)
 	log.Printf("Returning empty list but should have fetched oncalls for team %+v", team)
 
-	params := map[string]string{"team_ids[]": team.Id}
+	params := map[string][]string{"team_ids[]": []string{team.Id}}
 	policies, err := GetEscalationPolicies(token, params)
 	if err != nil {
 		log.Printf("Error while fetching escalation policies for team id %q: %s", team.Id, err)
@@ -164,32 +163,16 @@ func getTeamOncalls(token string, team Team) []Oncall {
 		policy_ids = append(policy_ids, policy.Id)
 	}
 
-	params = map[string]string{"escalation_policy_ids[]": strings.Join(policy_ids, ",")}
+	params = map[string][]string{
+		"include[]":               []string{"users", "schedules", "escalation_policies"},
+		"escalation_policy_ids[]": policy_ids,
+	}
+
 	oncalls, err := GetOncalls(token, params)
 	if err != nil {
 		log.Printf("Error while fetching oncalls for team id %q's policies: %s", team.Id, err)
 	} else {
-		// insert oncalls into the hal directory
-		for _, oncall := range oncalls {
-			attrs := map[string]string{
-				"email":          oncall.User.Email,
-				"name":           oncall.User.Name,
-				"pd-user-id":     oncall.User.Id,
-				"pd-schedule-id": oncall.Schedule.Id,
-				"pd-policy-id":   oncall.EscalationPolicy.Id,
-			}
-
-			// plug in the contact methods
-			// per PD docs, types can be: email_contact_method, phone_contact_method, push_notification_contact_method, or sms_contact_method
-			for _, cm := range oncall.User.ContactMethods {
-				attrs["contact-method-id"] = cm.Id
-				attrs[cm.Type] = cm.Address
-			}
-
-			edges := []string{"name", "email", "phone_contact_method", "sms_contact_method"}
-			hal.Directory().Put(oncall.User.Id, "pd-oncall", attrs, edges)
-		}
-
+		oncalls2directory(oncalls)
 		return oncalls
 	}
 
@@ -217,7 +200,10 @@ func getOncallCache(token string, forceUpdate bool) []Oncall {
 
 	// get all of the defined policies
 	var err error
-	oncalls, err = GetOncalls(token, nil)
+	params := map[string][]string{
+		"include[]": []string{"users", "schedules", "escalation_policies"},
+	}
+	oncalls, err = GetOncalls(token, params)
 	if err != nil {
 		log.Printf("Returning empty list. REST call to Pagerduty failed: %s", err)
 		return []Oncall{}
@@ -225,6 +211,8 @@ func getOncallCache(token string, forceUpdate bool) []Oncall {
 
 	// always update the cache regardless of ttl
 	hal.Cache().Set(CacheKey, &oncalls, cacheExpire)
+
+	oncalls2directory(oncalls)
 
 	return oncalls
 }
@@ -294,9 +282,9 @@ func topicUpdater(token, roomId, brokerName string) {
 		return
 	}
 
-	params := map[string]string{
-		"include[]":      "users",
-		"schedule_ids[]": pref.Value,
+	params := map[string][]string{
+		"include[]":      []string{"users", "schedules", "escalation_policies"},
+		"schedule_ids[]": []string{pref.Value},
 	}
 
 	oncalls, err := GetOncalls(token, params)
@@ -384,4 +372,30 @@ func formatOncallReply(wanted string, exactMatchFound bool, oncalls []Oncall) st
 	}
 
 	return buf.String()
+}
+
+func oncalls2directory(oncalls []Oncall) {
+	// insert oncalls into the hal directory
+	for _, oncall := range oncalls {
+		attrs := map[string]string{
+			"email":          oncall.User.Email,
+			"name":           oncall.User.Name,
+			"pd-user-id":     oncall.User.Id,
+			"pd-schedule-id": oncall.Schedule.Id,
+			"pd-policy-id":   oncall.EscalationPolicy.Id,
+		}
+
+		// plug in the contact methods
+		// per PD docs, types can be: email_contact_method, phone_contact_method, push_notification_contact_method, or sms_contact_method
+		for _, cm := range oncall.User.ContactMethods {
+			attrs["contact-method-id"] = cm.Id
+			attrs[cm.Type] = cm.Address
+		}
+
+		edges := []string{"name", "email", "phone_contact_method", "sms_contact_method"}
+		err := hal.Directory().Put(oncall.User.Id, "pd-oncall", attrs, edges)
+		if err != nil {
+			log.Println(err)
+		}
+	}
 }
