@@ -106,14 +106,15 @@ func (dir *directory) query(sql string, params ...interface{}) ([][]string, erro
 
 	for rows.Next() {
 		irow := make([]interface{}, len(cols))
+		row := make([]string, len(irow))
+
+		for i, _ := range irow {
+			irow[i] = &row[i]
+		}
+
 		err := rows.Scan(irow...)
 		if err != nil {
 			return out, errors.Annotate(err, "rows.Scan()")
-		}
-
-		row := make([]string, len(irow))
-		for i, c := range irow {
-			row[i] = c.(string)
 		}
 
 		out = append(out, row)
@@ -159,13 +160,13 @@ func (dir *directory) Put(key, kind string, attrs map[string]string, edgeAttrs [
 
 func (dir *directory) PutNode(key, kind string) error {
 	sql := `INSERT IGNORE INTO dir_node (pkey, kind) VALUES (?, ?)`
-	return dir.exec(sql, kind, key)
+	return dir.exec(sql, key, kind)
 }
 
 func (dir *directory) HasNode(key, kind string) (bool, error) {
 	sql := `SELECT pkey, kind FROM dir_node WHERE pkey=? AND kind=?`
 
-	data, err := dir.query(sql, key, kind)
+	data, err := dir.query(sql, &key, &kind)
 	if err != nil {
 		return false, err
 	}
@@ -193,7 +194,7 @@ func (dir *directory) GetAttrNodes(attr, value string) ([][2]string, error) {
 	out := make([][2]string, 0)
 	sql := `SELECT pkey, kind FROM dir_node_attr WHERE attr=? AND value=? GROUP BY pkey, kind`
 
-	data, err := dir.query(sql, attr, value)
+	data, err := dir.query(sql, &attr, &value)
 	if err != nil {
 		return out, err
 	}
@@ -220,7 +221,7 @@ func (dir *directory) GetNodeAttrs(key, kind string) (map[string]string, error) 
 	}
 
 	sql := `SELECT attr, value FROM dir_node_attr WHERE pkey=? AND kind=?`
-	data, err := dir.query(sql, key, kind)
+	data, err := dir.query(sql, &key, &kind)
 	if err != nil {
 		return out, err
 	}
@@ -235,7 +236,7 @@ func (dir *directory) GetNodeAttrs(key, kind string) (map[string]string, error) 
 func (dir *directory) HasEdge(keyA, kindA, keyB, kindB string) (bool, error) {
 	sql := `SELECT "y" FROM dir_edge WHERE keyA=? AND kindA=? AND keyB=? AND kindB=?`
 
-	data, err := dir.query(sql, keyA, kindA, keyB, kindB)
+	data, err := dir.query(sql, &keyA, &kindA, &keyB, &kindB)
 	if err != nil {
 		return false, err
 	}
@@ -262,7 +263,7 @@ func (dir *directory) GetNeighbors(key, kind string) ([][2]string, error) {
 
 	sql := `SELECT keyA, kindA, keyB, kindB FROM dir_edge WHERE (keyA=? AND kindA=?) OR (keyB=? AND kindB=?)`
 
-	edges, err := dir.query(sql, key, kind, key, kind)
+	edges, err := dir.query(sql, &key, &kind, &key, &kind)
 	if err != nil {
 		return out, err
 	}
