@@ -64,19 +64,19 @@ type TeamsResponse struct {
 }
 
 type Schedule struct {
-	Id                   string           `json:"id"`
-	Summary              string           `json:"summary"`
-	Type                 string           `json:"type"`
-	Self                 string           `json:"self"`
-	HtmlUrl              string           `json:"html_url"`
-	ScheduleLayers       []ScheduleLayer  `json:"schedule_layers"`
-	Timezone             string           `json:"time_zone"`
-	Name                 string           `json:"name"`
-	Description          string           `json:"description"`
-	FinalSchedule        SubSchedule      `json:"final_schedule,omitempty"`
-	OverridesSubSchedule SubSchedule      `json:"overrides_subschedule,omitempty"`
-	EscalationPolicies   EscalationPolicy `json:"escalation_policies"`
-	Users                []UserRef        `json:"users"`
+	Id                   string             `json:"id"`
+	Summary              string             `json:"summary"`
+	Type                 string             `json:"type"`
+	Self                 string             `json:"self"`
+	HtmlUrl              string             `json:"html_url"`
+	ScheduleLayers       []ScheduleLayer    `json:"schedule_layers"`
+	Timezone             string             `json:"time_zone"`
+	Name                 string             `json:"name"`
+	Description          string             `json:"description"`
+	FinalSchedule        SubSchedule        `json:"final_schedule,omitempty"`
+	OverridesSubSchedule SubSchedule        `json:"overrides_subschedule,omitempty"`
+	EscalationPolicies   []EscalationPolicy `json:"escalation_policies"`
+	Users                []UserRef          `json:"users"`
 }
 
 type ScheduleRef struct {
