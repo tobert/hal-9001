@@ -58,3 +58,38 @@ func GetUsersOncall(token string) ([]Oncall, error) {
 
 	return out, nil
 }
+
+func GetUsers(token string, params map[string][]string) ([]User, error) {
+	out := make([]User, 0)
+	offset := 0
+	limit := 100
+
+	for {
+		url := pagedUrl("/users", offset, limit, params)
+
+		resp, err := authenticatedGet(url, token)
+		if err != nil {
+			log.Printf("GET %s failed: %s", url, err)
+			return out, err
+		}
+
+		data, err := ioutil.ReadAll(resp.Body)
+
+		uresp := UsersResponse{}
+		err = json.Unmarshal(data, &uresp)
+		if err != nil {
+			log.Printf("json.Unmarshal failed: %s", err)
+			return out, err
+		}
+
+		out = append(out, uresp.Users...)
+
+		if uresp.More {
+			offset = offset + limit
+		} else {
+			break
+		}
+	}
+
+	return out, nil
+}
