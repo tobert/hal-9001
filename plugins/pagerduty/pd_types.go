@@ -180,6 +180,14 @@ type PolicyService struct {
 	EscalationPolicyId string `json:"escalation_policy_id"`
 }
 
+type IntegrationRef struct {
+	Id      string `json:"id"`
+	Type    string `json:"type"`
+	Summary string `json:"summary"`
+	Self    string `json:"self"`
+	HtmlUrl string `json:"html_url"`
+}
+
 type IncidentCounts struct {
 	Triggered    int `json:"triggered"`
 	Acknowledged int `json:"acknowledged"`
@@ -189,20 +197,23 @@ type IncidentCounts struct {
 
 // Service represents a Pagerduty service object from /api/v1/services/:id
 type Service struct {
-	Id                     string         `json:"id"`
-	Type                   string         `json:"type"`
-	Name                   string         `json:"name"`
-	ServiceUrl             string         `json:"service_url"`
-	ServiceKey             string         `json:"service_key"`
-	AutoResolveTimeout     int            `json:"auto_resolve_timeout"`
-	AcknowledgementTimeout int            `json:"acknowledgement_timeout"`
-	CreatedAt              string         `json:"created_at"`
-	Status                 string         `json:"status"`
-	LastIncidentTimestamp  string         `json:"last_incident_timestamp"`
-	EmailIncidentCreation  string         `json:"email_incident_creation"`
-	IncidentCounts         IncidentCounts `json:"incident_counts"`
-	EmailFilterMode        string         `json:"email_filter_mode"`
-	Description            string         `json:"description"`
+	Id                     string           `json:"id"`
+	Type                   string           `json:"type"`
+	Name                   string           `json:"name"`
+	ServiceUrl             string           `json:"service_url"`
+	ServiceKey             string           `json:"service_key"`
+	AutoResolveTimeout     int              `json:"auto_resolve_timeout"`
+	AcknowledgementTimeout int              `json:"acknowledgement_timeout"`
+	CreatedAt              string           `json:"created_at"`
+	Status                 string           `json:"status"`
+	LastIncidentTimestamp  string           `json:"last_incident_timestamp"`
+	EmailIncidentCreation  string           `json:"email_incident_creation"`
+	IncidentCounts         IncidentCounts   `json:"incident_counts"`
+	EmailFilterMode        string           `json:"email_filter_mode"`
+	Description            string           `json:"description"`
+	Integrations           []IntegrationRef `json:"integrations"`
+	EscalationPolicy       EscalationPolicy `json:"escalation_policy"`
+	Teams                  []Team           `json:"teams"`
 }
 
 type ServiceRef struct {
@@ -253,8 +264,9 @@ type UserRef struct {
 
 type UsersResponse struct {
 	Users  []User `json:"users"`
-	Limit  int    `json:"limit"`
 	Offset int    `json:"offset"`
+	Limit  int    `json:"limit"`
+	More   bool   `json:"more"`
 	Total  int    `json:"total"`
 }
 
