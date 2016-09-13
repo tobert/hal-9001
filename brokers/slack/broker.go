@@ -495,6 +495,19 @@ func (sb *Broker) FillUserCache() {
 		sb.u2i[user.Name] = user.ID
 		sb.i2u[user.ID] = user.Name
 	}
+
+	// push the users into the directory async so it doesn't hold up bot
+	// startup (FillUserCache is called preemptively at startup)
+	go func() {
+		for _, user := range users {
+			attrs := map[string]string{
+				"username": user.Name,
+				"name":     user.RealName,
+				"email":    user.Profile.Email,
+			}
+			hal.Directory().Put(user.ID, "slack-user", attrs, []string{"email"})
+		}
+	}()
 }
 
 func (sb *Broker) FillRoomCache() {
@@ -538,6 +551,13 @@ func (sb Broker) UserIdToName(id string) string {
 
 		sb.i2u[user.ID] = user.Name
 		sb.i2u[user.Name] = user.ID
+
+		attrs := map[string]string{
+			"username": user.Name,
+			"name":     user.RealName,
+			"email":    user.Profile.Email,
+		}
+		hal.Directory().Put(user.ID, "slack-user", attrs, []string{"email"})
 
 		return user.Name
 	}
