@@ -20,40 +20,19 @@ package pagerduty
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 )
 
-func GetServiceByKey(token, serviceKey string) (Service, error) {
-	svcs, err := getServices(token, serviceKey)
-	if err != nil {
-		return Service{}, err
-	} else if len(svcs) == 1 {
-		return svcs[0], nil
-	} else {
-		return Service{}, fmt.Errorf("Got %d services, expected 1.", len(svcs))
-	}
-}
-
-func GetServices(token, serviceKey string) ([]Service, error) {
-	return getServices(token, "")
-}
-
-func getServices(token, serviceKey string) ([]Service, error) {
+func GetServices(token string, params map[string][]string) ([]Service, error) {
 	services := make([]Service, 0)
 	offset := 0
 	limit := 100
 
-	qdata := make(map[string][]string)
-	if serviceKey != "" {
-		qdata["query"] = []string{serviceKey}
-	}
-
 	for {
 		svcResp := ServicesResponse{}
 
-		svcsUrl := pagedUrl("/api/v1/services", offset, limit, qdata)
+		svcsUrl := pagedUrl("/services", offset, limit, params)
 
 		resp, err := authenticatedGet(svcsUrl, token)
 		if err != nil {
@@ -62,8 +41,6 @@ func getServices(token, serviceKey string) ([]Service, error) {
 		}
 
 		data, err := ioutil.ReadAll(resp.Body)
-
-		fmt.Printf("\n\n\n%s\n\n\n", data)
 
 		err = json.Unmarshal(data, &svcResp)
 		if err != nil {
@@ -88,15 +65,13 @@ func GetService(token, id string) (Service, error) {
 		IncidentCounts: IncidentCounts{},
 	}
 
-	svcsUrl := pagedUrl("/api/v1/services/"+id, 0, 0, nil)
+	svcsUrl := pagedUrl("/services/"+id, 0, 0, nil)
 
 	resp, err := authenticatedGet(svcsUrl, token)
 	if err != nil {
 		log.Printf("GET %s failed: %s", svcsUrl, err)
 		return out, err
 	}
-
-	log.Printf("%q", resp.Status)
 
 	data, err := ioutil.ReadAll(resp.Body)
 
