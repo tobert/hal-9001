@@ -24,13 +24,13 @@ import (
 
 // https://v2.developer.pagerduty.com/v2/page/api-reference#!/Teams/get_teams
 
-func GetTeams(token string) ([]Team, error) {
+func GetTeams(token string, params map[string][]string) ([]Team, error) {
 	out := make([]Team, 0)
 	offset := 0
 	limit := 100
 
 	for {
-		url := pagedUrl("/teams", offset, limit, nil)
+		url := pagedUrl("/teams", offset, limit, params)
 
 		resp, err := authenticatedGet(url, token)
 		if err != nil {
