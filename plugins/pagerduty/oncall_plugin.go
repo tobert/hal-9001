@@ -126,7 +126,7 @@ func oncall(msg hal.Evt) {
 	// check team names if there were no matches
 	// TODO: cache some of these results and always check team names
 	if len(matches) == 0 {
-		teams, err := GetTeams(token)
+		teams, err := GetTeams(token, nil)
 		if err != nil {
 			log.Printf("REST call to Pagerduty /teams failed: %s", err)
 		} else {
@@ -164,7 +164,7 @@ func getTeamOncalls(token string, team Team) []Oncall {
 	}
 
 	params = map[string][]string{
-		"include[]":               []string{"users", "schedules", "escalation_policies"},
+		"include[]":               []string{"users"},
 		"escalation_policy_ids[]": policy_ids,
 	}
 
@@ -172,7 +172,6 @@ func getTeamOncalls(token string, team Team) []Oncall {
 	if err != nil {
 		log.Printf("Error while fetching oncalls for team id %q's policies: %s", team.Id, err)
 	} else {
-		oncalls2directory(oncalls)
 		return oncalls
 	}
 
@@ -199,11 +198,8 @@ func getOncallCache(token string, forceUpdate bool) []Oncall {
 	}
 
 	// get all of the defined policies
-	var err error
-	params := map[string][]string{
-		"include[]": []string{"users", "schedules", "escalation_policies"},
-	}
-	oncalls, err = GetOncalls(token, params)
+	params := map[string][]string{"include[]": []string{"users"}}
+	oncalls, err := GetOncalls(token, params)
 	if err != nil {
 		log.Printf("Returning empty list. REST call to Pagerduty failed: %s", err)
 		return []Oncall{}
@@ -211,8 +207,6 @@ func getOncallCache(token string, forceUpdate bool) []Oncall {
 
 	// always update the cache regardless of ttl
 	hal.Cache().Set(CacheKey, &oncalls, cacheExpire)
-
-	oncalls2directory(oncalls)
 
 	return oncalls
 }
@@ -283,7 +277,7 @@ func topicUpdater(token, roomId, brokerName string) {
 	}
 
 	params := map[string][]string{
-		"include[]":      []string{"users", "schedules", "escalation_policies"},
+		"include[]":      []string{"users", "contact_methods"},
 		"schedule_ids[]": []string{pref.Value},
 	}
 
@@ -372,30 +366,4 @@ func formatOncallReply(wanted string, exactMatchFound bool, oncalls []Oncall) st
 	}
 
 	return buf.String()
-}
-
-func oncalls2directory(oncalls []Oncall) {
-	// insert oncalls into the hal directory
-	for _, oncall := range oncalls {
-		attrs := map[string]string{
-			"email":          oncall.User.Email,
-			"name":           oncall.User.Name,
-			"pd-user-id":     oncall.User.Id,
-			"pd-schedule-id": oncall.Schedule.Id,
-			"pd-policy-id":   oncall.EscalationPolicy.Id,
-		}
-
-		// plug in the contact methods
-		// per PD docs, types can be: email_contact_method, phone_contact_method, push_notification_contact_method, or sms_contact_method
-		for _, cm := range oncall.User.ContactMethods {
-			attrs["contact-method-id"] = cm.Id
-			attrs[cm.Type] = cm.Address
-		}
-
-		edges := []string{"name", "email", "phone_contact_method", "sms_contact_method"}
-		err := hal.Directory().Put(oncall.User.Id, "pd-oncall", attrs, edges)
-		if err != nil {
-			log.Println(err)
-		}
-	}
 }
