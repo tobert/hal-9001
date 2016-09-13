@@ -180,12 +180,18 @@ type PolicyService struct {
 	EscalationPolicyId string `json:"escalation_policy_id"`
 }
 
-type IntegrationRef struct {
-	Id      string `json:"id"`
-	Type    string `json:"type"`
-	Summary string `json:"summary"`
-	Self    string `json:"self"`
-	HtmlUrl string `json:"html_url"`
+type Integration struct {
+	Id             string `json:"id"`
+	Type           string `json:"type"`
+	Summary        string `json:"summary"`
+	Self           string `json:"self"`
+	HtmlUrl        string `json:"html_url"`
+	Name           string `json:"name"`
+	CreatedAt      string `json:"created_at"`
+	IntegrationKey string `json:"integration_key"`
+	// ignore service
+	// ignore vendor
+	// ignore config
 }
 
 type IncidentCounts struct {
@@ -211,7 +217,7 @@ type Service struct {
 	IncidentCounts         IncidentCounts   `json:"incident_counts"`
 	EmailFilterMode        string           `json:"email_filter_mode"`
 	Description            string           `json:"description"`
-	Integrations           []IntegrationRef `json:"integrations"`
+	Integrations           []Integration    `json:"integrations"`
 	EscalationPolicy       EscalationPolicy `json:"escalation_policy"`
 	Teams                  []Team           `json:"teams"`
 }

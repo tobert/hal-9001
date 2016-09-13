@@ -110,7 +110,8 @@ func ingestPDteams(token string) {
 }
 
 func ingestPDservices(token string) {
-	services, err := GetServices(token, nil)
+	params := map[string][]string{"include[]": []string{"integrations"}}
+	services, err := GetServices(token, params)
 	if err != nil {
 		log.Printf("Could not retreive services from the Pagerduty API: %s", err)
 		return
@@ -125,12 +126,25 @@ func ingestPDservices(token string) {
 			"pd-escalation-policy-id": service.EscalationPolicy.Id,
 		}
 
-		edges := []string{"pd-service-key", "pd-service-id", "pd-escalation-policy-id"}
+		if len(service.Integrations) == 1 && service.Integrations[0].IntegrationKey != "" {
+			attrs["pd-integration-key"] = service.Integrations[0].IntegrationKey
+		}
+
+		edges := []string{"pd-service-key", "pd-service-id", "pd-escalation-policy-id", "pd-integration-key"}
 		logit(hal.Directory().Put(service.Id, "pd-service", attrs, edges))
 
 		for _, team := range service.Teams {
 			logit(hal.Directory().PutNode(team.Id, "pd-team"))
 			logit(hal.Directory().PutEdge(team.Id, "pd-team", service.Id, "pd-service"))
+		}
+
+		for _, igr := range service.Integrations {
+			if igr.IntegrationKey == "" {
+				continue
+			}
+
+			logit(hal.Directory().PutNode(igr.IntegrationKey, "pd-integration-key"))
+			logit(hal.Directory().PutEdge(igr.IntegrationKey, "pd-integration-key", service.Id, "pd-service"))
 		}
 	}
 }
