@@ -49,6 +49,14 @@ func Register() {
 		Regex: "^[[:space:]]*!oncall",
 	}
 	oc.Register()
+
+	poller := hal.Plugin{
+		Name:  "pd_poller",
+		Func:  pollerHandler,
+		Init:  pollerInit,
+		Regex: "^[[:space:]]*!pdpoller",
+	}
+	poller.Register()
 }
 
 // TODO: consider making the token key per-room so different rooms can use different tokens
