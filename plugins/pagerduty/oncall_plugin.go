@@ -59,14 +59,14 @@ func oncall(msg hal.Evt) {
 
 	if parts[1] == "cache-now" {
 		msg.Reply("Updating Pagerduty policy cache now.")
-		cacheNow(token, msg.RoomId)
+		getOncallCache(token, true)
 		msg.Reply("Pagerduty policy cache update complete.")
 		return
 	} else if parts[1] == "cache-status" {
 		age := int(hal.Cache().Age(CacheKey).Seconds())
 		next := time.Time{}
 		status := "broken"
-		pf := hal.GetPeriodicFunc(cacheFuncName(msg.RoomId))
+		pf := hal.GetPeriodicFunc("pagerduty-oncall-cache")
 		if pf != nil {
 			next = pf.Last().Add(pf.Interval)
 			status = pf.Status()
@@ -181,20 +181,22 @@ func getTeamOncalls(token string, team Team) []Oncall {
 func getOncallCache(token string, forceUpdate bool) []Oncall {
 	oncalls := []Oncall{}
 
-	// see if there's a copy cached
-	if hal.Cache().Exists(CacheKey) {
-		ttl, err := hal.Cache().Get(CacheKey, &oncalls)
-		if err != nil {
-			log.Printf("Error retreiving oncalls from the Hal TTL cache: %s", err)
-			oncalls = []Oncall{}
-		} else if ttl == 0 || forceUpdate {
-			oncalls = []Oncall{}
+	if !forceUpdate {
+		// see if there's a copy cached
+		if hal.Cache().Exists(CacheKey) {
+			ttl, err := hal.Cache().Get(CacheKey, &oncalls)
+			if err != nil {
+				log.Printf("Error retreiving oncalls from the Hal TTL cache: %s", err)
+				oncalls = []Oncall{}
+			} else if ttl == 0 {
+				oncalls = []Oncall{}
+			}
 		}
-	}
 
-	// the cache exists and is still valid, return it now
-	if len(oncalls) > 0 {
-		return oncalls
+		// the cache exists and is still valid, return it now
+		if len(oncalls) > 0 {
+			return oncalls
+		}
 	}
 
 	// get all of the defined policies
@@ -205,24 +207,36 @@ func getOncallCache(token string, forceUpdate bool) []Oncall {
 		return []Oncall{}
 	}
 
-	// always update the cache regardless of ttl
+	// set the cache to expire 1 minute later than the polling interval
+	cacheExpire := getCacheFreq() + time.Minute
 	hal.Cache().Set(CacheKey, &oncalls, cacheExpire)
 
 	return oncalls
 }
 
-func oncallInit(i *hal.Instance) {
-	cacheFreq := hal.GetPref("", "", i.RoomId, "pagerduty", "cache-update-frequency", DefaultCacheInterval)
+func getCacheFreq() time.Duration {
+	cacheFreq := hal.GetPref("", "", "", "pagerduty", "cache-update-frequency", DefaultCacheInterval)
 	cd, err := time.ParseDuration(cacheFreq.Value)
 	if err != nil {
 		log.Panicf("BUG: could not parse cache update frequency preference: %q", cacheFreq.Value)
 	}
 
-	topicFreq := hal.GetPref("", "", i.RoomId, "pagerduty", "topic-update-frequency", DefaultTopicInterval)
+	return cd
+}
+
+func getTopicFreq(roomId string) time.Duration {
+	topicFreq := hal.GetPref("", "", roomId, "pagerduty", "topic-update-frequency", DefaultTopicInterval)
 	td, err := time.ParseDuration(topicFreq.Value)
 	if err != nil {
 		log.Panicf("BUG: could not parse topic update frequency preference: %q", topicFreq.Value)
 	}
+
+	return td
+}
+
+func oncallInit(i *hal.Instance) {
+	cacheFreq := getCacheFreq()
+	topicFreq := getTopicFreq(i.RoomId)
 
 	token, err := getSecrets()
 	if err != nil || token == "" {
@@ -231,9 +245,9 @@ func oncallInit(i *hal.Instance) {
 
 	go func() {
 		pf := hal.PeriodicFunc{
-			Name:     cacheFuncName(i.RoomId),
-			Interval: cd,
-			Function: func() { cacheNow(token, i.RoomId) },
+			Name:     "pagerduty-oncall-cache",
+			Interval: cacheFreq,
+			Function: func() { pollOncalls(token) },
 		}
 
 		pf.Register()
@@ -243,7 +257,7 @@ func oncallInit(i *hal.Instance) {
 	go func() {
 		pf := hal.PeriodicFunc{
 			Name:     topicFuncName(i.RoomId),
-			Interval: td,
+			Interval: topicFreq,
 			Function: func() { topicUpdater(token, i.RoomId, i.Broker.Name()) },
 		}
 
@@ -254,7 +268,7 @@ func oncallInit(i *hal.Instance) {
 	// TODO: add a command to stop, etc.
 }
 
-func cacheNow(token, roomId string) {
+func pollOncalls(token string) {
 	getOncallCache(token, true)
 }
 
@@ -315,10 +329,6 @@ func topicUpdater(token, roomId, brokerName string) {
 	if topic != oldTopic {
 		broker.SetTopic(roomId, topic)
 	}
-}
-
-func cacheFuncName(roomId string) string {
-	return fmt.Sprintf("pagerduty-cache-updater-%s", roomId)
 }
 
 func topicFuncName(roomId string) string {
