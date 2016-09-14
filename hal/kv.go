@@ -18,12 +18,9 @@ package hal
 
 import (
 	dbsql "database/sql"
-	"fmt"
 	"log"
 	"sync"
 	"time"
-
-	"github.com/juju/errors"
 )
 
 const KVTable = `
@@ -36,14 +33,6 @@ CREATE TABLE IF NOT EXISTS kv (
 	 PRIMARY KEY(pkey)
 )`
 
-type kvRecord struct {
-	key     string
-	value   string
-	expires time.Time     // when the key expires
-	ttl     time.Duration // the desired ttl
-	ttlSecs int64         // raw value from the db
-}
-
 type KVExpiredTtlError struct {
 	Key     string
 	Ttl     time.Duration
@@ -51,12 +40,6 @@ type KVExpiredTtlError struct {
 }
 
 var kvLateInitOnce sync.Once
-var kvCache map[string]*kvRecord
-var kvMut sync.Mutex
-
-func init() {
-	kvCache = make(map[string]*kvRecord)
-}
 
 func kvLazyInit() {
 	kvLateInitOnce.Do(func() {
@@ -68,24 +51,11 @@ func kvLazyInit() {
 func kvCleanup() {
 	c := time.Tick(time.Minute)
 
-	for now := range c {
-		log.Printf("Cleaning up ttl keys")
-
-		kvMut.Lock()
-		defer kvMut.Unlock()
-
+	for _ = range c {
 		db := SqlDB()
 		_, err := db.Exec("DELETE FROM kv WHERE expires < NOW()")
 		if err != nil {
 			log.Printf("DELETE of expired keys from the DB failed: %s", err)
-		}
-
-		// clean the in-memory cache
-		for key, kv := range kvCache {
-			if now.After(kv.expires) {
-				log.Printf("Deleting %q from the kvCache. It expired at %s", key, kv.expires)
-				delete(kvCache, key)
-			}
 		}
 	}
 }
@@ -93,96 +63,56 @@ func kvCleanup() {
 // ExistsKV checks to see if a key exists in the kv. False if any errors are
 // encountered.
 func ExistsKV(key string) bool {
-	_, err := GetKV(key)
+	kvLazyInit()
+	db := SqlDB()
+
+	var count int64
+	sql := "SELECT COUNT(pkey) FROM kv WHERE pkey=? AND expires > NOW()"
+	err := db.QueryRow(sql, key).Scan(&count)
 	if err != nil {
+		log.Printf("ExistsKV query %q failed: %s", sql, err)
 		return false
 	}
 
-	return true
+	return count > 0
 }
 
-// NOTE: this will probably change to an ok,value style
-func GetKV(key string) (value string, err error) {
+// GetKV retreives a value from the database. Returns value,ok style. Returns
+// "", false if the query fails and "", true if there was no value available.
+func GetKV(key string) (string, bool) {
 	kvLazyInit()
 	db := SqlDB()
-	now := time.Now()
 
-	kvMut.Lock()
-	defer kvMut.Unlock()
-
-	// check the cache and return immediately if it's present and valid
-	if cached, exists := kvCache[key]; exists {
-		if now.After(cached.expires) {
-			delete(kvCache, key)
-		} else {
-			return cached.value, nil
-		}
-	}
-
-	kv := kvRecord{key: key}
-
-	var expireTs int64
-	sql := "SELECT value,ttl,UNIX_TIMESTAMP(expires) FROM kv WHERE pkey=?"
-	err = db.QueryRow(sql, key).Scan(&kv.value, &kv.ttlSecs, &expireTs)
+	var value string
+	sql := "SELECT value FROM kv WHERE pkey=? AND expires > NOW()"
+	err := db.QueryRow(sql, key).Scan(&value)
 	if err == dbsql.ErrNoRows {
-		// TODO: might just want to swallow errors and return two-val exists,value instead
-		return "", errors.NewNotFound(err, sql)
+		return "", true
 	} else if err != nil {
-		return "", errors.Annotate(err, "GetKV SQL query failed")
+		log.Printf("GetKV query %q failed: %s", sql, err)
+		return "", false
 	}
 
-	kv.expires = time.Unix(expireTs, 0)
-	kv.ttl = time.Second * time.Duration(kv.ttlSecs)
-
-	// 0 seconds means no ttl
-	if kv.ttlSecs == 0 {
-		return kv.value, nil
-	}
-
-	// check the ttl and return empty string + an error if it's expired
-	if now.After(kv.expires) {
-		delete(kvCache, key)
-		return "", kv.NewKVExpiredTtlError()
-	}
-
-	return kv.value, nil
+	return value, true
 }
 
+// SetKV inserts a new value in the database with the provided TTL. If the TTL
+// is 0, it defaults to 10 years.
 func SetKV(key, value string, ttl time.Duration) (err error) {
 	kvLazyInit()
-
-	kvMut.Lock()
-	defer kvMut.Unlock()
-
+	db := SqlDB()
 	now := time.Now()
 
-	kvCache[key] = &kvRecord{
-		key:     key,
-		value:   value,
-		ttl:     ttl,
-		expires: now.Add(ttl),
+	if ttl == 0 {
+		ttl = time.Hour * 24 * 3650
 	}
 
-	db := SqlDB()
-	_, err = db.Exec("INSERT INTO kv (pkey,value,expires,ttl) VALUES (?,?,?,?)",
-		key, value, now.Add(ttl), int(ttl.Seconds()))
+	sql := "INSERT INTO kv (pkey,value,expires,ttl) VALUES (?,?,?,?)"
+	_, err = db.Exec(sql, key, value, now.Add(ttl), int(ttl.Seconds()))
 
 	if err != nil {
-		log.Printf("SetKV INSERT failed: %s", err)
+		log.Printf("SetKV query %q failed: %s", sql, err)
 	}
 
 	return err
-}
-
-func (kv *kvRecord) NewKVExpiredTtlError() KVExpiredTtlError {
-	return KVExpiredTtlError{
-		Key:     kv.key,
-		Ttl:     kv.ttl,
-		Expires: kv.expires,
-	}
-}
-
-func (e KVExpiredTtlError) Error() string {
-	return fmt.Sprintf("key %q expired at %s after its ttl of %s ran out",
-		e.Key, e.Expires.String(), e.Ttl.String())
 }
