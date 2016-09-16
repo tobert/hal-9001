@@ -40,7 +40,7 @@ Aliases that have a comma-separated list of service keys will result in one page
 !page list
 `
 
-const PageDefaultMessage = `HAL: your presence is requested in the chat room.`
+const PageDefaultMessage = `your presence is requested in the chat room`
 
 func page(msg hal.Evt) {
 	parts := msg.BodyAsArgv()
@@ -52,7 +52,7 @@ func page(msg hal.Evt) {
 		parts = append([]string{"!page", team}, parts[1:]...)
 	}
 
-	// should be 2 parts now, "!page" and the target team
+	// should be 2 parts now, "!page" and the target team at a minimum
 	if parts[0] != "!page" || len(parts) < 2 {
 		msg.Reply(PageUsage)
 		return
@@ -72,38 +72,44 @@ func page(msg hal.Evt) {
 	}
 }
 
-func pageAlias(msg hal.Evt, parts []string) {
+func pageAlias(evt hal.Evt, parts []string) {
 	pageMessage := PageDefaultMessage
+	msgPref := evt.AsPref().FindKey("default-message").Room(evt.RoomId).One()
+
+	// Caller slices off the !page. parts[0] should be the alias.
+	// Anything after is a custom message.
 	if len(parts) > 1 {
-		pageMessage = strings.Join(parts, " ")
+		pageMessage = strings.Join(parts[1:], " ")
+	} else if msgPref.Success {
+		pageMessage = msgPref.Value
 	}
 
 	// map alias name to PD token via prefs
 	key := aliasKey(parts[0])
 	// make sure to filter on at least room id since FindKey might find duplicate
 	// aliases from other rooms
-	pref := msg.AsPref().FindKey(key).Room(msg.RoomId).One()
+	pref := evt.AsPref().FindKey(key).Room(evt.RoomId).One()
 
 	// make sure the query succeeded
 	if !pref.Success {
 		if pref.Error != nil {
-			msg.Replyf("Unable to access preferences: %#q", pref.Error)
+			evt.Replyf("Unable to access preferences: %#q", pref.Error)
 		} else {
-			msg.Replyf("Alias %q is not configured. Try !page add %s <pagerduty integration key>", parts[0], parts[0])
+			evt.Replyf("Alias %q is not configured. Try !page add %s <pagerduty integration key>", parts[0], parts[0])
 		}
 		return
 	}
 
 	// if qpref.Get returned the default, the alias was not found
 	if pref.Value == "" {
-		msg.Replyf("Alias %q is not configured. Try !page add %s <pagerduty integration key>", parts[0], parts[0])
+		evt.Replyf("Alias %q is not configured. Try !page add %s <pagerduty integration key>", parts[0], parts[0])
 		return
 	}
 
 	// make sure the hal secrets are set up
 	token, err := getSecrets()
 	if err != nil {
-		msg.Error(err)
+		evt.Error(err)
 		return
 	}
 
@@ -113,14 +119,13 @@ func pageAlias(msg hal.Evt, parts []string) {
 		pde := NewTrigger(svckey, pageMessage) // in ./pagerduty.go
 		resp, err := pde.Send(token)
 		if err != nil {
-			msg.Replyf("Error while communicating with Pagerduty. %d %s", resp.StatusCode, resp.Message)
+			evt.Replyf("Error while communicating with Pagerduty. %d %s", resp.StatusCode, resp.Message)
 			return
 		}
 
 		log.Printf("Pagerduty response message: %s\n", resp.Message)
+		evt.Replyf("Message sent to %s using integration key %s.", parts[0], pref.Value)
 	}
-
-	msg.Replyf("Notification sent.")
 }
 
 func addAlias(msg hal.Evt, parts []string) {
