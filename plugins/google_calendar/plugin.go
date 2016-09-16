@@ -29,7 +29,11 @@ import (
 	"github.com/netflix/hal-9001/hal"
 )
 
-const Usage = `
+const Usage = `!gcal (silence|status|expire|reload)
+!gcal silence 4h
+!gcal reload
+
+
 Even when attached, this plugin will not do anything until it is fully configured
 for the room. At a mininum the calendar-id needs to be set. One or all of autoreply,
 announce-start, and announce-end should be set to true to make anything happen.
@@ -101,9 +105,7 @@ func initData(inst *hal.Instance) {
 	pf.Register()
 
 	go func() {
-		// wait one minute before kicking off the background refresh
-		time.Sleep(time.Minute)
-
+		time.Sleep(time.Second * 5)
 		pf.Start()
 	}()
 }
@@ -112,23 +114,27 @@ func initData(inst *hal.Instance) {
 // directly with the calendar API and relies on the background goroutine to populate
 // the cache.
 func handleEvt(evt hal.Evt) {
+	// don't process non-chat or messages with an empty body
+	if !evt.IsChat || evt.Body == "" {
+		return
+	}
+
 	if strings.HasPrefix(strings.TrimSpace(evt.Body), "!") {
 		handleCommand(&evt)
 		return
 	}
 
-	// use the hal kv store to prevent spamming
-	roomKey := getRoomNotifiedKey(evt.RoomId)
-	repliedToRoom := hal.ExistsKV(roomKey)
-
-	// the room has been notified in the last hour, nothing to do now
-	if repliedToRoom {
-		return
-	}
-
-	hal.SetKV(roomKey, "-", time.Hour) // prevent spamming
-
 	now := time.Now()
+
+	// use the hal kv store to prevent spamming
+	// the spam keys are written with a 1 hour TTL so there's no need to examine the time
+	// except for debugging purposes
+	userSpamKey := getUserSpamKey(evt.RoomId, evt.UserId)
+	userTs, _ := hal.GetKV(userSpamKey)
+	// users can !gcal silence to silence the messages for the whole room e.g. during an incident
+	roomSpamKey := getRoomSpamKey(evt.RoomId)
+	roomTs, _ := hal.GetKV(roomSpamKey)
+
 	config := getCachedConfig(evt.RoomId, now)
 	calEvents, err := config.getCachedCalEvents(now)
 	if err != nil {
@@ -136,14 +142,29 @@ func handleEvt(evt hal.Evt) {
 		return
 	}
 
+	// temporary debugging
+	log.Printf("google_calendar/handleEvt checking message. Replied to user at: %q. Replied to room at: %q.", userTs, roomTs)
+
+	// the user/room has been notified in the last hour, nothing to do now
+	if userTs != "" || roomTs != "" {
+		log.Printf("Not responding to message because a reply was sent already. user @ %q, room @ %q", userTs, roomTs)
+		return
+	}
+
 	for _, e := range calEvents {
+		log.Printf("Autoreply: %t, Now: %q, Start: %q, End: %q", config.Autoreply, now.String(), e.Start.String(), e.End.String())
 		if config.Autoreply && e.Start.Before(now) && e.End.After(now) {
 			msg := e.Description
 			if msg == "" {
 				msg = fmt.Sprintf(DefaultMsg, e.Name)
 			}
 
-			evt.ReplyToRoom(msg)
+			evt.Reply(msg)
+
+			hal.SetKV(userSpamKey, now.String(), time.Hour*2)    // prevent spamming
+			hal.SetKV(roomSpamKey, now.String(), time.Minute*10) // prevent spamming
+			log.Printf("google_calendar: will not notify room %q for 10 minutes or the user %q for 2 hours", roomSpamKey, userSpamKey)
+
 			break // only notify once even if there are overlapping entries
 		}
 	}
@@ -183,7 +204,7 @@ func handleCommand(evt *hal.Evt) {
 			if err != nil {
 				evt.Replyf("Invalid silence duration %q: %s", argv[2], err)
 			} else {
-				key := getRoomNotifiedKey(evt.RoomId)
+				key := getRoomSpamKey(evt.RoomId)
 				hal.SetKV(key, "-", d)
 				evt.Replyf("Calendar notifications silenced for %s.", d.String())
 			}
@@ -193,31 +214,37 @@ func handleCommand(evt *hal.Evt) {
 	}
 }
 
-func getRoomNotifiedKey(roomId string) string {
-	return "gcal-notified-" + roomId
+func getUserSpamKey(userId, roomId string) string {
+	return "gcal-spam-" + userId + "-" + roomId
+}
+
+func getRoomSpamKey(roomId string) string {
+	return "gcal-spam-" + roomId
 }
 
 func updateCachedCalEvents(roomId string) {
 	log.Printf("START: updateCachedCalEvents(%q)", roomId)
-	topMut.Lock()
-	defer topMut.Unlock()
 
 	now := time.Now()
 
+	topMut.Lock()
 	c := configCache[roomId]
+	topMut.Unlock()
 
-	// update the config from prefs
-	c.LoadFromPrefs()
+	c.LoadFromPrefs() // update the config from prefs
 
-	// force-expire the cache
-	c.calTs = now.Add(time.Hour * -2)
-
-	_, err := c.getCachedCalEvents(now)
+	evts, err := getEvents(c.CalendarId, now)
 	if err != nil {
 		log.Printf("FAILED: updateCachedCalEvents(%q): %s", roomId, err)
+		return
 	}
 
-	log.Printf("DONE: updateCachedCalEvents(%q) @ %s", roomId, now)
+	c.mut.Lock()
+	c.calTs = now
+	c.CalEvents = evts
+	c.mut.Unlock()
+
+	log.Printf("DONE: updateCachedCalEvents(%q)", roomId)
 }
 
 func getCachedConfig(roomId string, now time.Time) *Config {
@@ -235,14 +262,10 @@ func getCachedConfig(roomId string, now time.Time) *Config {
 }
 
 // getCachedEvents fetches the calendar data from the Google Calendar API,
-// holding a mutex while doing so. This prevents handleEvt from firing until
-// the first load of data is complete and will block the goroutines for a short
-// time.
 func (c *Config) getCachedCalEvents(now time.Time) ([]CalEvent, error) {
 	c.mut.Lock()
-	defer c.mut.Unlock()
-
 	calAge := now.Sub(c.calTs)
+	c.mut.Unlock()
 
 	if calAge.Hours() > 1.1 {
 		log.Printf("%q's calendar cache appears to be expired after %f hours", c.RoomId, calAge.Hours())
@@ -251,8 +274,10 @@ func (c *Config) getCachedCalEvents(now time.Time) ([]CalEvent, error) {
 			log.Printf("Error encountered while fetching calendar events: %s", err)
 			return nil, err
 		} else {
+			c.mut.Lock()
 			c.calTs = now
 			c.CalEvents = evts
+			c.mut.Unlock()
 		}
 	}
 
