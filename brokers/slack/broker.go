@@ -311,12 +311,20 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 
 			case *slack.MessageEvent:
 				m := msg.Data.(*slack.MessageEvent)
+				isChat := true
 
 				log.Printf("MessageEvent.Text: %q", m.Text)
 
 				if m.User == sb.UserId {
 					log.Printf("ignoring MessageEvent from bot with id %s", sb.UserId)
 					continue // ignore bot-created events
+				}
+
+				// the slack server sends join/part messages as chat events in addition to
+				// the presence events - mark these as not chat
+				if strings.HasSuffix(m.Text, " has joined the channel") ||
+					strings.HasSuffix(m.Text, " has left the channel") {
+					isChat = false
 				}
 
 				// slack channels = hal rooms, see hal-9001/hal/event.go
@@ -329,7 +337,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					UserId:   m.User,
 					Broker:   sb,
 					Time:     slackTime(m.Timestamp),
-					IsChat:   true,
+					IsChat:   isChat,
 					Original: m,
 				}
 
