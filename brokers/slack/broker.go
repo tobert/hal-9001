@@ -310,22 +310,19 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				log.Printf("brokers/slack ConnectedEvent - retreived bot ID %q", sb.UserId)
 
 			case *slack.MessageEvent:
+				// https://api.slack.com/events/message
 				m := msg.Data.(*slack.MessageEvent)
-				isChat := true
 
-				log.Printf("MessageEvent.Text: %q", m.Text)
+				log.Printf("Message [%s]: %q", m.SubType, m.Text)
 
 				if m.User == sb.UserId {
 					log.Printf("ignoring MessageEvent from bot with id %s", sb.UserId)
 					continue // ignore bot-created events
 				}
 
-				// the slack server sends join/part messages as chat events in addition to
-				// the presence events - mark these as not chat
-				if strings.HasSuffix(m.Text, " has joined the channel") ||
-					strings.HasSuffix(m.Text, " has left the channel") {
-					isChat = false
-				}
+				// A few other kinds of events are bundled as messages with a subtype.
+				// Only allow isChat to remain true if it's an actual chat message.
+				isChat := m.SubType == ""
 
 				// slack channels = hal rooms, see hal-9001/hal/event.go
 				e := hal.Evt{
