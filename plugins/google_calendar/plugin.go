@@ -75,6 +75,7 @@ type Config struct {
 
 var configCache map[string]*Config
 var topMut sync.Mutex
+var mentionWords = [...]string{"@here", "@all"}
 
 func init() {
 	configCache = make(map[string]*Config)
@@ -135,6 +136,15 @@ func handleEvt(evt hal.Evt) {
 	roomSpamKey := getRoomSpamKey(evt.RoomId)
 	roomTs, _ := hal.GetKV(roomSpamKey)
 
+	// always reply to @here/@everyone, etc.
+	var isBroadcast bool
+	for _, mention := range mentionWords {
+		if strings.Contains(evt.Body, mention) {
+			isBroadcast = true
+			break
+		}
+	}
+
 	config := getCachedConfig(evt.RoomId, now)
 	calEvents, err := config.getCachedCalEvents(now)
 	if err != nil {
@@ -146,7 +156,7 @@ func handleEvt(evt hal.Evt) {
 	log.Printf("google_calendar/handleEvt checking message. Replied to user at: %q. Replied to room at: %q.", userTs, roomTs)
 
 	// the user/room has been notified in the last hour, nothing to do now
-	if userTs != "" || roomTs != "" {
+	if !isBroadcast && (userTs != "" || roomTs != "") {
 		log.Printf("Not responding to message because a reply was sent already. user @ %q, room @ %q", userTs, roomTs)
 		return
 	}
