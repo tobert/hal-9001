@@ -146,6 +146,14 @@ func pluginmgr(evt hal.Evt) {
 	app.HelpName = NAME
 	app.Usage = "manage plugin instances"
 	app.Writer = outbuf
+	app.OnUsageError = func(ctx *cli.Context, err error, isSubCmd bool) error {
+		evt.Replyf("Invalid command: %s", err)
+		return err
+	}
+	app.CommandNotFound = func(ctx *cli.Context, cmd string) {
+		evt.Replyf("No help topic or subcommand %q", cmd)
+	}
+
 	app.Commands = []cli.Command{
 		{
 			Name:   "list",
