@@ -159,6 +159,11 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 			continue
 		}
 
+		// only process IsBot messages if the plugin has asked for them
+		if evt.IsBot && !inst.Plugin.BotEvents {
+			continue
+		}
+
 		// finally, check message text against the regex
 		if inst.Regex == "" || inst.regex.MatchString(evt.Body) {
 			// this will copy the struct twice. It's intentional to avoid

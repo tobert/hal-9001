@@ -66,14 +66,16 @@ CREATE TABLE IF NOT EXISTS reactions (
 
 func Register() {
 	archive := hal.Plugin{
-		Name: "message_archive",
-		Func: archiveRecorder,
+		Name:      "message_archive",
+		Func:      archiveRecorder,
+		BotEvents: true,
 	}
 	archive.Register()
 
 	reactions := hal.Plugin{
-		Name: "reaction_tracker",
-		Func: archiveReaction,
+		Name:      "reaction_tracker",
+		Func:      archiveReaction,
+		BotEvents: true,
 	}
 	reactions.Register()
 
