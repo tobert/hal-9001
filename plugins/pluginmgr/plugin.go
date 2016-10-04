@@ -154,6 +154,8 @@ func pluginmgr(evt hal.Evt) {
 		evt.Replyf("No help topic or subcommand %q", cmd)
 	}
 
+	var roomId string // cheezy
+
 	app.Commands = []cli.Command{
 		{
 			Name:   "list",
@@ -163,7 +165,15 @@ func pluginmgr(evt hal.Evt) {
 		{
 			Name:   "instances",
 			Usage:  "list the currently attached and running plugins",
-			Action: func(c *cli.Context) { listInstances(c, &evt) },
+			Action: func(c *cli.Context) { listInstances(c, &evt, roomId) },
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:        "room",
+					Value:       "",
+					Destination: &roomId,
+					Usage:       "only show the desired room id",
+				},
+			},
 		},
 		{
 			Name:   "save",
@@ -207,7 +217,8 @@ func pluginmgr(evt hal.Evt) {
 
 	err := app.Run(evt.BodyAsArgv())
 	if err != nil {
-		log.Fatalf("Command parsing failed: %s", err)
+		evt.Replyf("Command parsing failed: %s", err)
+		return
 	}
 
 	evt.Reply(outbuf.String())
@@ -231,12 +242,20 @@ func listPlugins(c *cli.Context, evt *hal.Evt) {
 	evt.ReplyTable(hdr, rows)
 }
 
-func listInstances(c *cli.Context, evt *hal.Evt) {
+func listInstances(c *cli.Context, evt *hal.Evt, roomId string) {
 	hdr := []string{"Plugin Name", "Broker", "Room", "RE"}
 	rows := [][]string{}
 	pr := hal.PluginRegistry()
 
+	if roomId == "*" {
+		roomId = evt.RoomId
+	}
+
 	for _, inst := range pr.InstanceList() {
+		if roomId != "" && inst.RoomId != roomId {
+			continue
+		}
+
 		row := []string{
 			inst.Plugin.Name,
 			inst.Broker.Name(),
