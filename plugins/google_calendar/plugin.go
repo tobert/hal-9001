@@ -67,7 +67,7 @@ type Config struct {
 	AnnounceStart bool
 	AnnounceEnd   bool
 	CalEvents     []CalEvent
-	LastReply     time.Time
+	EvtsSinceLast int
 	mut           sync.Mutex
 	configTs      time.Time
 	calTs         time.Time
@@ -153,7 +153,20 @@ func handleEvt(evt hal.Evt) {
 	}
 
 	// temporary debugging
-	log.Printf("google_calendar/handleEvt checking message. Replied to user at: %q. Replied to room at: %q.", userTs, roomTs)
+	log.Printf("google_calendar/handleEvt checking message. Replied to user at: %q. Replied to room at: %q. %d events since last reply", userTs, roomTs, config.EvtsSinceLast)
+
+	// count events since the last notification to the room
+	if roomTs != "" {
+		config.EvtsSinceLast++
+
+		// wait for at least 20 events before notifying again
+		// TODO: should this be configurable?
+		if config.EvtsSinceLast > 20 {
+			// some events have passed and the message has likely been scrolled
+			// off most screens so let it hit the room again
+			roomTs = ""
+		}
+	}
 
 	// the user/room has been notified in the last hour, nothing to do now
 	if !isBroadcast && (userTs != "" || roomTs != "") {
@@ -171,9 +184,12 @@ func handleEvt(evt hal.Evt) {
 
 			evt.Reply(msg)
 
-			hal.SetKV(userSpamKey, now.String(), time.Hour*2)    // prevent spamming
-			hal.SetKV(roomSpamKey, now.String(), time.Minute*10) // prevent spamming
+			expire := e.End.Sub(now)
+			hal.SetKV(userSpamKey, now.Format(time.RFC3339), expire) // only notify each user once per calendar event
+			hal.SetKV(roomSpamKey, now.Format(time.RFC3339), expire) // only notify the room again if it gets busy
 			log.Printf("google_calendar: will not notify room %q for 10 minutes or the user %q for 2 hours", roomSpamKey, userSpamKey)
+
+			config.EvtsSinceLast = 0
 
 			break // only notify once even if there are overlapping entries
 		}
