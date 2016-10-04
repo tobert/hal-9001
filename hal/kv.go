@@ -33,12 +33,6 @@ CREATE TABLE IF NOT EXISTS kv (
 	 PRIMARY KEY(pkey)
 )`
 
-type KVExpiredTtlError struct {
-	Key     string
-	Ttl     time.Duration
-	Expires time.Time
-}
-
 var kvLateInitOnce sync.Once
 
 func kvLazyInit() {
