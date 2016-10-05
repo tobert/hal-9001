@@ -31,16 +31,14 @@ func pollerHandler(evt hal.Evt) {
 }
 
 func pollerInit(inst *hal.Instance) {
-	go func() {
-		pf := hal.PeriodicFunc{
-			Name:     "pagerduty-poller",
-			Interval: time.Hour,
-			Function: ingestPagerdutyAccount,
-		}
+	pf := hal.PeriodicFunc{
+		Name:     "pagerduty-poller",
+		Interval: time.Hour,
+		Function: ingestPagerdutyAccount,
+	}
 
-		pf.Register()
-		pf.Start()
-	}()
+	pf.Register()
+	go pf.Start()
 }
 
 func ingestPagerdutyAccount() {

@@ -22,6 +22,7 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/netflix/hal-9001/hal"
@@ -37,6 +38,13 @@ a subcommand.
 `
 
 const DefaultTopicInterval = "10m"
+
+var onePerToken map[string]sync.Mutex
+var mapLock sync.Mutex
+
+func init() {
+	onePerToken = make(map[string]sync.Mutex)
+}
 
 // TODO: add the service key to the output such that someone trying to contact a team
 // can page them from within Slack without having to set up a page alias or go out
@@ -148,6 +156,10 @@ func oncall(msg hal.Evt) {
 // getTeamOncalls fetches escalation policies for the team then the oncalls for those
 // policies and returns a list.
 func getTeamOncalls(token string, team Team) []Oncall {
+	mut := getMutex(token)
+	mut.Lock()
+	defer mut.Unlock()
+
 	out := make([]Oncall, 0)
 	log.Printf("Returning empty list but should have fetched oncalls for team %+v", team)
 
@@ -179,6 +191,10 @@ func getTeamOncalls(token string, team Team) []Oncall {
 }
 
 func getOncallCache(token string, forceUpdate bool) []Oncall {
+	mut := getMutex(token)
+	mut.Lock()
+	defer mut.Unlock()
+
 	oncalls := []Oncall{}
 
 	if !forceUpdate {
@@ -243,27 +259,23 @@ func oncallInit(i *hal.Instance) {
 		return // getSecrets will log the error
 	}
 
-	go func() {
-		pf := hal.PeriodicFunc{
-			Name:     "pagerduty-oncall-cache",
-			Interval: cacheFreq,
-			Function: func() { pollOncalls(token) },
-		}
+	pf := hal.PeriodicFunc{
+		Name:     "pagerduty-oncall-cache",
+		Interval: cacheFreq,
+		Function: func() { pollOncalls(token) },
+	}
 
-		pf.Register()
-		pf.Start()
-	}()
+	pf.Register()
+	go pf.Start()
 
-	go func() {
-		pf := hal.PeriodicFunc{
-			Name:     topicFuncName(i.RoomId),
-			Interval: topicFreq,
-			Function: func() { topicUpdater(token, i.RoomId, i.Broker.Name()) },
-		}
+	tpf := hal.PeriodicFunc{
+		Name:     topicFuncName(i.RoomId),
+		Interval: topicFreq,
+		Function: func() { topicUpdater(token, i.RoomId, i.Broker.Name()) },
+	}
 
-		pf.Register()
-		pf.Start()
-	}()
+	tpf.Register()
+	go tpf.Start()
 
 	// TODO: add a command to stop, etc.
 }
@@ -280,6 +292,10 @@ func pollOncalls(token string) {
 // !prefs set --room * --broker slack --plugin pagerduty --key topic-suffix --value <text>
 // TODO: see if there's a way to also resolve integration keys instead of using the schedule id
 func topicUpdater(token, roomId, brokerName string) {
+	mut := getMutex(token)
+	mut.Lock()
+	defer mut.Unlock()
+
 	log.Printf("ENTER topicUpdater(token, %q, %q)", roomId, brokerName)
 
 	pref := hal.GetPref("", brokerName, roomId, "pagerduty", "topic-updater-schedule-id", "-")
@@ -376,4 +392,16 @@ func formatOncallReply(wanted string, exactMatchFound bool, oncalls []Oncall) st
 	}
 
 	return buf.String()
+}
+
+func getMutex(token string) sync.Mutex {
+	mapLock.Lock()
+	defer mapLock.Unlock()
+
+	if _, exists := onePerToken[token]; !exists {
+		var mut sync.Mutex
+		onePerToken[token] = mut
+	}
+
+	return onePerToken[token]
 }
