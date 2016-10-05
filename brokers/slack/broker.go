@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/netflix/hal-9001/hal"
@@ -35,7 +36,6 @@ import (
 )
 
 // Broker interacts with the slack service.
-// TODO: consider using the hal.Cache() for [iuc]2[iuc]
 // TODO: add a miss cache to avoid hammering the room/user info apis
 type Broker struct {
 	Client  *slack.Client     // slack API object
@@ -47,7 +47,10 @@ type Broker struct {
 	u2i     map[string]string // name->id cache
 	c2i     map[string]string // name->id cache
 	imcs    map[string]string // userId -> channelId im channels
+	lufill  time.Time         // timestamp of the last user cache fill
+	lrfill  time.Time         // timestamp of the last room cache fill
 	idRegex *regexp.Regexp    // compiled RE to match user/room ids
+	mut     sync.Mutex        // protect access to the lookup maps
 }
 
 type Config struct {
@@ -266,6 +269,9 @@ func (sb Broker) SendAsImage(evt hal.Evt) {
 }
 
 func (sb Broker) LooksLikeRoomId(room string) bool {
+	sb.mut.Lock()
+	defer sb.mut.Unlock()
+
 	if _, exists := sb.i2c[room]; exists {
 		return true
 	}
@@ -274,6 +280,9 @@ func (sb Broker) LooksLikeRoomId(room string) bool {
 }
 
 func (sb Broker) LooksLikeUserId(user string) bool {
+	sb.mut.Lock()
+	defer sb.mut.Unlock()
+
 	if _, exists := sb.i2u[user]; exists {
 		return true
 	}
@@ -283,6 +292,9 @@ func (sb Broker) LooksLikeUserId(user string) bool {
 
 // checks the cache to see if the room is known to this broker
 func (sb Broker) HasRoom(room string) bool {
+	sb.mut.Lock()
+	defer sb.mut.Unlock()
+
 	if LooksLikeIdRE.MatchString(room) {
 		_, exists := sb.i2c[room]
 		return exists
@@ -300,6 +312,9 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 		select {
 		case msg := <-sb.RTM.IncomingEvents:
 			switch ev := msg.Data.(type) {
+			case *slack.UserTypingEvent:
+				// frequent and mostly useless in a bot: ignore
+
 			case *slack.HelloEvent:
 				log.Println("brokers/slack HelloEvent")
 
@@ -365,7 +380,6 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					UserId:   sae.User,
 					Broker:   sb,
 					Time:     slackTime(sae.EventTimestamp),
-					IsChat:   false,
 					Original: sae,
 				}
 
@@ -390,7 +404,6 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					UserId:   sre.User,
 					Broker:   sb,
 					Time:     slackTime(sre.EventTimestamp),
-					IsChat:   false,
 					Original: sre,
 				}
 
@@ -415,7 +428,6 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					UserId:   rae.User,
 					Broker:   sb,
 					Time:     slackTime(rae.EventTimestamp),
-					IsChat:   false,
 					Original: rae,
 				}
 
@@ -440,8 +452,48 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					UserId:   rre.User,
 					Broker:   sb,
 					Time:     slackTime(rre.EventTimestamp),
-					IsChat:   false,
 					Original: rre,
+				}
+
+				out <- &e
+
+			case *slack.ChannelJoinedEvent:
+				je := msg.Data.(*slack.ChannelJoinedEvent)
+				now := time.Now()
+
+				sb.injectRoomId(je.Channel.ID, je.Channel.Name) // cache the id:name
+
+				e := hal.Evt{
+					ID:       now.String(), // fake an id
+					Body:     je.Channel.Name,
+					Room:     je.Channel.Name,
+					RoomId:   je.Channel.ID,
+					User:     sb.UserId,
+					UserId:   sb.UserId,
+					Broker:   sb,
+					Time:     now,
+					Original: je,
+				}
+
+				out <- &e
+
+			case *slack.GroupJoinedEvent:
+				// exactly the same as ChannelJoinedEvent ^^ in a separate type
+				je := msg.Data.(*slack.GroupJoinedEvent)
+				now := time.Now()
+
+				sb.injectRoomId(je.Channel.ID, je.Channel.Name) // cache the id:name
+
+				e := hal.Evt{
+					ID:       now.String(), // fake an id
+					Body:     je.Channel.Name,
+					Room:     je.Channel.Name,
+					RoomId:   je.Channel.ID,
+					User:     sb.UserId,
+					UserId:   sb.UserId,
+					Broker:   sb,
+					Time:     now,
+					Original: je,
 				}
 
 				out <- &e
@@ -490,15 +542,18 @@ func slackTime(t string) time.Time {
 }
 
 func (sb *Broker) FillUserCache() {
+	// don't let this fire more than once every half hour
+	now := time.Now()
+	if now.Sub(sb.lufill) < time.Minute*30 {
+		log.Printf("refusing to fill cache because it has been less than 30 minutes since the last fill @ %s", sb.lufill.String())
+		return
+	}
+	sb.lufill = now
+
 	users, err := sb.Client.GetUsers()
 	if err != nil {
 		log.Printf("brokers/slack failed to fetch user list: %s", err)
 		return
-	}
-
-	for _, user := range users {
-		sb.u2i[user.Name] = user.ID
-		sb.i2u[user.ID] = user.Name
 	}
 
 	// push the users into the directory async so it doesn't hold up bot
@@ -513,18 +568,49 @@ func (sb *Broker) FillUserCache() {
 			hal.Directory().Put(user.ID, "slack-user", attrs, []string{"email"})
 		}
 	}()
+
+	sb.mut.Lock()
+	defer sb.mut.Unlock()
+
+	for _, user := range users {
+		sb.u2i[user.Name] = user.ID
+		sb.i2u[user.ID] = user.Name
+	}
 }
 
 func (sb *Broker) FillRoomCache() {
+	// don't let this fire more than once every half hour
+	now := time.Now()
+	if now.Sub(sb.lrfill) < time.Minute*30 {
+		log.Printf("refusing to fill cache because it has been less than 30 minutes since the last fill @ %s", sb.lrfill.String())
+		return
+	}
+	sb.lrfill = now
+
 	rooms, err := sb.Client.GetChannels(true)
 	if err != nil {
 		log.Printf("brokers/slack failed to fetch room list: %s", err)
 		return
 	}
 
+	// now get private channels a.k.a. groups
+	groups, err := sb.Client.GetGroups(true)
+	if err != nil {
+		log.Printf("brokers/slack failed to fetch private channel list: %s", err)
+		return
+	}
+
+	sb.mut.Lock()
+	defer sb.mut.Unlock()
+
 	for _, room := range rooms {
 		sb.c2i[room.Name] = room.ID
 		sb.i2c[room.ID] = room.Name
+	}
+
+	for _, group := range groups {
+		sb.c2i[group.Name] = group.ID
+		sb.i2c[group.ID] = group.Name
 	}
 }
 
@@ -536,7 +622,11 @@ func (sb Broker) UserIdToName(id string) string {
 		return ""
 	}
 
-	if name, exists := sb.i2u[id]; exists {
+	sb.mut.Lock()
+	name, exists := sb.i2u[id]
+	sb.mut.Unlock()
+
+	if exists {
 		return name
 	} else {
 		user, err := sb.Client.GetUserInfo(id)
@@ -545,24 +635,22 @@ func (sb Broker) UserIdToName(id string) string {
 			return ""
 		}
 
-		// TODO: verify if room/user names are enforced unique in slack or if this is madness
-		// remove this if it proves unnecessary (tobert/2016-03-02)
-		if _, exists := sb.u2i[user.Name]; exists {
-			if sb.u2i[user.Name] != user.ID {
-				log.Fatalf("BUG(brokers/slack): found a non-unique user name:ID pair. Had: %q/%q. Got: %q/%q",
-					user.Name, sb.u2i[user.Name], user.Name, user.ID)
+		// don't wait around for this - it can block
+		go func() {
+			attrs := map[string]string{
+				"username": user.Name,
+				"name":     user.RealName,
+				"email":    user.Profile.Email,
 			}
-		}
+
+			hal.Directory().Put(user.ID, "slack-user", attrs, []string{"email"})
+		}()
+
+		sb.mut.Lock()
+		defer sb.mut.Unlock()
 
 		sb.i2u[user.ID] = user.Name
 		sb.i2u[user.Name] = user.ID
-
-		attrs := map[string]string{
-			"username": user.Name,
-			"name":     user.RealName,
-			"email":    user.Profile.Email,
-		}
-		hal.Directory().Put(user.ID, "slack-user", attrs, []string{"email"})
 
 		return user.Name
 	}
@@ -571,6 +659,9 @@ func (sb Broker) UserIdToName(id string) string {
 // RoomIdToName gets the human-readable room name for a user ID using an
 // in-memory cache that falls through to the Slack API
 func (sb Broker) RoomIdToName(id string) string {
+	sb.mut.Lock()
+	defer sb.mut.Unlock()
+
 	if id == "" {
 		log.Println("broker/slack/RoomIdToName(): Cannot look up empty string!")
 		return ""
@@ -601,15 +692,6 @@ func (sb Broker) RoomIdToName(id string) string {
 			name = room.Name
 		}
 
-		// TODO: verify if room/user names are enforced unique in slack or if this is madness
-		// remove this if it proves unnecessary (tobert/2016-03-02)
-		if _, exists := sb.c2i[name]; exists {
-			if sb.c2i[name] != id {
-				log.Fatalf("BUG(brokers/slack): found a non-unique room name:ID pair. Had: %q/%q. Got: %q/%q",
-					name, sb.c2i[name], name, id)
-			}
-		}
-
 		sb.i2c[id] = name
 		sb.c2i[name] = id
 
@@ -625,12 +707,20 @@ func (sb Broker) UserNameToId(name string) string {
 		return ""
 	}
 
-	if id, exists := sb.u2i[name]; exists {
+	sb.mut.Lock()
+	id, exists := sb.u2i[name]
+	sb.mut.Unlock()
+
+	if exists {
 		return id
 	} else {
 		// there doesn't seem to be a name->id lookup so refresh the cache
 		// and try again if we get here
 		sb.FillUserCache()
+
+		sb.mut.Lock()
+		defer sb.mut.Unlock()
+
 		if id, exists := sb.u2i[name]; exists {
 			return id
 		}
@@ -640,7 +730,7 @@ func (sb Broker) UserNameToId(name string) string {
 	}
 }
 
-// RoomNameToId gets the human-readable room name for a user ID using an
+// RoomNameToId gets the id for a room name using an
 // in-memory cache that falls through to the Slack API
 func (sb Broker) RoomNameToId(name string) string {
 	if name == "" {
@@ -648,15 +738,33 @@ func (sb Broker) RoomNameToId(name string) string {
 		return ""
 	}
 
-	if id, exists := sb.c2i[name]; exists {
+	sb.mut.Lock()
+	id, exists := sb.c2i[name]
+	sb.mut.Unlock()
+
+	if exists {
 		return id
 	} else {
 		sb.FillRoomCache()
-		if id, exists := sb.c2i[name]; exists {
+
+		sb.mut.Lock()
+		defer sb.mut.Unlock()
+
+		if id, exists = sb.c2i[name]; exists {
 			return id
 		}
 
 		log.Printf("brokers/slack service does not seem to have knowledge of room name %q", name)
 		return ""
 	}
+}
+
+// injectRoomId adds an id:name mapping to the forward and reverse lookup maps
+// for internal use only, used to inject groups (private channels) on join
+func (sb Broker) injectRoomId(id, name string) {
+	sb.mut.Lock()
+	defer sb.mut.Unlock()
+
+	sb.c2i[name] = id
+	sb.i2c[id] = name
 }
