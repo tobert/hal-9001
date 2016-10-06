@@ -354,7 +354,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				}
 
 				// let everyone know the bot is working if it appears to be a command
-				if strings.HasPrefix(strings.TrimSpace(m.Text), "!") {
+				if !isBot && strings.HasPrefix(strings.TrimSpace(m.Text), "!") {
 					tm := sb.RTM.NewTypingMessage(m.Channel)
 					sb.RTM.SendMessage(tm)
 				}
