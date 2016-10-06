@@ -58,6 +58,7 @@ func (e *Evt) Clone() Evt {
 		Time:     time.Now(),
 		Broker:   e.Broker,
 		IsChat:   e.IsChat,
+		IsBot:    e.IsBot,
 		Original: e.Original,
 	}
 
