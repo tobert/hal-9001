@@ -184,16 +184,24 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 		}
 	}
 
+	if evt.IsBot {
+		return
+	}
+
+	// no plugins were executed but evt.Body looks like a command
 	if ranPlugins == 0 && strings.HasPrefix(strings.TrimSpace(evt.Body), "!") {
-		mgr, err := pr.GetPlugin("pluginmgr")
-		// only proceed if there is no error - bots may choose to exclude pluginmgr
-		if strings.HasPrefix(strings.TrimSpace(evt.Body), "!plugin") && err == nil {
-			inst := mgr.Instance(evt.RoomId, evt.Broker)
-			evtcpy := *evt
-			evtcpy.instance = inst
-			inst.Func(evtcpy)
+		// automatically load the pluginmgr plugin if someone tries to use it and it wasn't attached
+		// don't bother if the bot was built without pluginmgr, in which case err != nil
+		if strings.HasPrefix(strings.TrimSpace(evt.Body), "!plugin") {
+			mgr, err := pr.GetPlugin("pluginmgr")
+			if err == nil {
+				inst := mgr.Instance(evt.RoomId, evt.Broker)
+				evtcpy := *evt
+				evtcpy.instance = inst
+				inst.Func(evtcpy)
+			}
 		} else {
-			evt.Replyf("%q: invalid command (%d plugins were executed for the event).", evt.Body, ranPlugins)
+			evt.Replyf("invalid bot command: %q (IsBot: %t) (%d plugins were executed for the event).", evt.Body, evt.IsBot, ranPlugins)
 		}
 	}
 }
