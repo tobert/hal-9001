@@ -159,6 +159,8 @@ type cmdorsubcmd interface {
 
 type NamedParam interface {
 	Name() string
+	Usage() string
+	IsRequired() bool
 }
 
 type SubCmdNotFound struct{}
@@ -171,31 +173,11 @@ func (e SubCmdNotFound) Error() string {
 // and a method was used to access the value but no value was set in the
 // command.
 type RequiredParamNotFound struct {
-	//Param interface{}
 	Param NamedParam
 }
 
 // Error fulfills the Error interface.
 func (e RequiredParamNotFound) Error() string {
-	/*
-		name := "BUG(unknown)"
-
-		switch e.Param.(type) {
-		case KVParam:
-			name = e.Param.(KVParam).key
-		case *KVParam:
-			name = e.Param.(*KVParam).key
-		case BoolParam:
-			name = e.Param.(BoolParam).key
-		case *BoolParam:
-			name = e.Param.(*BoolParam).key
-		case IdxParam:
-			name = strconv.Itoa(e.Param.(IdxParam).idx)
-		case *IdxParam:
-			name = strconv.Itoa(e.Param.(*IdxParam).idx)
-		}
-	*/
-
 	return fmt.Sprintf("Parameter %q is required but not set.", e.Param.Name())
 }
 
@@ -407,7 +389,37 @@ func (c *Cmd) MustSubCmd() bool {
 
 // Usage returns the auto-generated usage string.
 func (c *Cmd) Usage() string {
-	return "not implemented yet"
+	out := make([]string, 1)
+	out[0] = c.token + " - " + c.usage
+
+	for _, scmd := range c.ListSubCmds() {
+		params := scmd.ListNamedParams()
+		opttxt := make([]string, len(params))
+
+		for i, p := range params {
+			var txt, required string
+
+			if p.IsRequired() {
+				required = " (required)"
+			}
+
+			switch p.(type) {
+			case *KVParam:
+				txt = fmt.Sprintf("-%s <%s>", p.Name(), p.Name())
+			case *BoolParam:
+				txt = fmt.Sprintf("-%s", p.Name())
+			case *IdxParam:
+				txt = p.Name()
+			}
+
+			opttxt[i] = fmt.Sprintf("\t\t%s%s: %s", txt, required, p.Usage())
+		}
+
+		out = append(out, "\t"+scmd.Usage())
+		out = append(out, opttxt...)
+	}
+
+	return strings.Join(out, "\n")
 }
 
 // SetUsage sets the usage string for the command. Returns the command.
@@ -497,6 +509,16 @@ func (p *BoolParam) Name() string {
 // Implements NamedParam.
 func (p *IdxParam) Name() string {
 	return strconv.Itoa(p.idx)
+}
+
+func (p *KVParam) IsRequired() bool {
+	return p.required
+}
+func (p *BoolParam) IsRequired() bool {
+	return p.required
+}
+func (p *IdxParam) IsRequired() bool {
+	return p.required
 }
 
 // Cmd returns the command the parameter belongs to. Panics if no command is attached.
@@ -1071,6 +1093,26 @@ func (c *Cmd) HasKeyParam(key string) bool {
 	}
 
 	return false
+}
+
+// ListNamedParams returns a list of all parameters via the interface NamedParam.
+// Mainly for use in printing options, etc..
+func (c *Cmd) ListNamedParams() []NamedParam {
+	out := make([]NamedParam, 0)
+
+	for _, p := range c._boolparams() {
+		out = append(out, p)
+	}
+
+	for _, p := range c._kvparams() {
+		out = append(out, p)
+	}
+
+	for _, p := range c._idxparams() {
+		out = append(out, p)
+	}
+
+	return out
 }
 
 // SubCmdToken returns the subcommand's token string. Returns empty string
