@@ -140,7 +140,7 @@ type stringValuedParamInst interface {
 	Int() (int, error)
 	Float() (float64, error)
 	Bool() (bool, error)
-	errParam() interface{}
+	errParam() NamedParam
 }
 
 // cmdorsubcmd is used internally to pass either a Cmd or SubCmd
@@ -157,27 +157,46 @@ type cmdorsubcmd interface {
 	appendIdxParamInst(*IdxParamInst)
 }
 
+type NamedParam interface {
+	Name() string
+}
+
+type SubCmdNotFound struct{}
+
+func (e SubCmdNotFound) Error() string {
+	return "A subcommand is required."
+}
+
 // RequiredParamNotFound is returned when a parameter has Required=true
 // and a method was used to access the value but no value was set in the
 // command.
 type RequiredParamNotFound struct {
-	Param interface{}
+	//Param interface{}
+	Param NamedParam
 }
 
 // Error fulfills the Error interface.
 func (e RequiredParamNotFound) Error() string {
-	name := "BUG(unknown)"
+	/*
+		name := "BUG(unknown)"
 
-	switch e.Param.(type) {
-	case KVParam:
-		name = e.Param.(KVParam).key
-	case BoolParam:
-		name = e.Param.(BoolParam).key
-	case IdxParam:
-		name = strconv.Itoa(e.Param.(IdxParam).idx)
-	}
+		switch e.Param.(type) {
+		case KVParam:
+			name = e.Param.(KVParam).key
+		case *KVParam:
+			name = e.Param.(*KVParam).key
+		case BoolParam:
+			name = e.Param.(BoolParam).key
+		case *BoolParam:
+			name = e.Param.(*BoolParam).key
+		case IdxParam:
+			name = strconv.Itoa(e.Param.(IdxParam).idx)
+		case *IdxParam:
+			name = strconv.Itoa(e.Param.(*IdxParam).idx)
+		}
+	*/
 
-	return fmt.Sprintf("Parameter %q is required but not set.", name)
+	return fmt.Sprintf("Parameter %q is required but not set.", e.Param.Name())
 }
 
 // UnsupportedTimeFormatError is returned when a provided time string cannot
@@ -462,6 +481,24 @@ func (p *IdxParamInst) Idx() int {
 	return p.idx
 }
 
+// Name returns the key string. Mostly for use in printing errors, etc.
+// Implements NamedParam.
+func (p *KVParam) Name() string {
+	return p.key
+}
+
+// Name returns the key string. Mostly for use in printing errors, etc.
+// Implements NamedParam.
+func (p *BoolParam) Name() string {
+	return p.key
+}
+
+// Name returns the index as a string. Mostly for use in printing errors, etc.
+// Implements NamedParam.
+func (p *IdxParam) Name() string {
+	return strconv.Itoa(p.idx)
+}
+
 // Cmd returns the command the parameter belongs to. Panics if no command is attached.
 func (p *KVParam) Cmd() *Cmd {
 	if p.cmd == nil {
@@ -586,17 +623,17 @@ func (p *IdxParamInst) Param() *IdxParam {
 
 // errParam is used to get an interface{} handle to return in errors.
 // See: RequiredParamNotFound
-func (p *KVParamInst) errParam() interface{} {
+func (p *KVParamInst) errParam() NamedParam {
 	return p.param
 }
 
 // errParam is used to get an interface{} handle to return in errors.
-func (p *BoolParamInst) errParam() interface{} {
+func (p *BoolParamInst) errParam() NamedParam {
 	return p.param
 }
 
 // errParam is used to get an interface{} handle to return in errors.
-func (p *IdxParamInst) errParam() interface{} {
+func (p *IdxParamInst) errParam() NamedParam {
 	return p.param
 }
 
@@ -706,7 +743,7 @@ func (c *Cmd) GetSubCmd(token string) *SubCmd {
 // TODO: automatic emdash cleanup
 // TODO: enforce MustSubCmd
 // TODO: return errors instead of nil/panic
-func (c *Cmd) Process(argv []string) *CmdInst {
+func (c *Cmd) Process(argv []string) (*CmdInst, error) {
 	// a hand-coded argument processor that evaluates the provided argv list
 	// against the command definition and returns a CmdInst with all of the
 	// available data parsed and ready to use with CmdInst/ParamInst methods.
@@ -716,7 +753,7 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 
 	// no arguments were provided
 	if len(argv) == 1 {
-		return &topInst
+		return &topInst, nil
 	}
 
 	var curSubCmdInst *SubCmdInst // the current subcommand - changes during parsing
@@ -849,6 +886,10 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 		}
 	}
 
+	if c.mustSubCmd && topInst.subCmdInst == nil {
+		return nil, SubCmdNotFound{}
+	}
+
 	// find a home for out-of-order parameters, panic if that fails since it's a bug
 	for _, linst := range looseParams {
 		if topInst.subCmdInst == nil {
@@ -857,7 +898,56 @@ func (c *Cmd) Process(argv []string) *CmdInst {
 		linst.findAndAttachKeyParam(topInst.subCmdInst)
 	}
 
-	return &topInst
+	// check for required parameters on the command
+	for _, p := range c.kvparams {
+		if p.required && !topInst.HasKVParamInst(p.Key()) {
+			return nil, RequiredParamNotFound{p}
+		}
+	}
+
+	for _, p := range c.boolparams {
+		if p.required && !topInst.HasBoolParamInst(p.Key()) {
+			return nil, RequiredParamNotFound{p}
+		}
+	}
+
+	for idx, p := range c.idxparams {
+		if p.required && !topInst.HasIdxParamInst(idx) {
+			return nil, RequiredParamNotFound{p}
+		}
+	}
+
+	// check that the subcommand has all of its required parameters
+	if topInst.subCmdInst != nil {
+		sci := topInst.SubCmdInst()
+
+		for _, p := range sci.subCmd.kvparams {
+			if p.required && !sci.HasKVParamInst(p.Key()) {
+				return nil, RequiredParamNotFound{p}
+			}
+		}
+
+		for _, p := range sci.subCmd.boolparams {
+			if p.required && !sci.HasBoolParamInst(p.Key()) {
+				return nil, RequiredParamNotFound{p}
+			}
+		}
+
+		for idx, p := range sci.subCmd.idxparams {
+			if p.required && !sci.HasIdxParamInst(idx) {
+				return nil, RequiredParamNotFound{p}
+			}
+		}
+	}
+
+	/*
+		subCmds    []*SubCmd
+		kvparams   []*KVParam
+		boolparams []*BoolParam
+		idxparams  map[int]*IdxParam
+	*/
+
+	return &topInst, nil
 }
 
 // looksLikeBool checks to see if the provided value contains "true" or "false"
@@ -1062,6 +1152,17 @@ func (c *CmdInst) GetKVParamInst(key string) *KVParamInst {
 	panic("BUG: refusing to return nil")
 }
 
+// GetKVParamInst gets a key/value parameter instance by its key.
+func (c *SubCmdInst) GetKVParamInst(key string) *KVParamInst {
+	for _, p := range c.ListKVParamInsts() {
+		if p.key == key {
+			return p
+		}
+	}
+
+	panic("BUG: refusing to return nil")
+}
+
 func (c *CmdInst) GetKVParam(key string) *KVParam {
 	for _, p := range c.cmd._kvparams() {
 		if p.key == key {
@@ -1222,6 +1323,24 @@ func (p *IdxParamInst) Value() string {
 	return p.value
 }
 
+// Name returns the key string. Mostly for use in printing errors, etc.
+// Implements NamedParam.
+func (p *KVParamInst) Name() string {
+	return p.key
+}
+
+// Name returns the key string. Mostly for use in printing errors, etc.
+// Implements NamedParam.
+func (p *BoolParamInst) Name() string {
+	return p.key
+}
+
+// Name returns the index as a string. Mostly for use in printing errors, etc.
+// Implements NamedParam.
+func (p *IdxParamInst) Name() string {
+	return strconv.Itoa(p.idx)
+}
+
 // String returns the value as a string.
 func (p *KVParamInst) String() (string, error) {
 	if !p.found && p.param.required {
@@ -1253,7 +1372,7 @@ func (p *IdxParamInst) String() (string, error) {
 	return p.value, nil
 }
 
-// String returns the value as an int. If the param is required and it was
+// intParam returns the value as an int. If the param is required and it was
 // not set, RequiredParamNotFound is returned. Additionally, any errors in
 // conversion are returned.
 func intParam(p stringValuedParamInst) (int, error) {
