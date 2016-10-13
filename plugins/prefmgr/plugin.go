@@ -98,7 +98,11 @@ func Register() {
 
 // prefmgr is called when someone executes !pref in the chat system
 func prefmgr(evt hal.Evt) {
-	req := cli.Process(evt.BodyAsArgv())
+	req, err := cli.Process(evt.BodyAsArgv())
+	if err != nil {
+		evt.Reply(err.Error())
+		return
+	}
 
 	switch req.SubCmdToken() {
 	case "set":
