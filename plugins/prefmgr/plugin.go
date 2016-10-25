@@ -100,11 +100,19 @@ func Register() {
 func prefmgr(evt hal.Evt) {
 	req, err := cli.Process(evt.BodyAsArgv())
 	if err != nil {
-		evt.Reply(err.Error())
+		// eww...
+		switch err.(type) {
+		case hal.SubCmdNotFound:
+			evt.Reply(cli.Usage())
+		default:
+			evt.Reply(err.Error())
+		}
 		return
 	}
 
 	switch req.SubCmdToken() {
+	case "", "help":
+		evt.Reply(cli.Usage())
 	case "set":
 		cliSet(req.SubCmdInst(), &evt)
 	case "list":
