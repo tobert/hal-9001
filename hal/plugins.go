@@ -86,6 +86,29 @@ func (p *Plugin) Register() error {
 	return nil
 }
 
+// Unregister removes a plugin from the bot.
+func (p *Plugin) Unregister() error {
+	pr := PluginRegistry()
+	pr.mut.Lock()
+	defer pr.mut.Unlock()
+
+	plugins := make([]*Plugin, len(pr.plugins)-1)
+	var i int
+	for _, plugin := range pr.plugins {
+		if plugin.Name == p.Name {
+			continue
+		} else {
+			// TODO: this might segfault if this is called on an unregistered or never-registered plugin
+			plugins[i] = plugin
+			i++
+		}
+	}
+
+	pr.plugins = plugins
+
+	return nil
+}
+
 // Instance creates an instance of a plugin. It is *not* registered (and
 // therefore not considered by the router until that is done).
 func (p *Plugin) Instance(roomId string, broker Broker) *Instance {
