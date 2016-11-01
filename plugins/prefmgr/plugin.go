@@ -89,11 +89,9 @@ func Register() {
 	plugin := hal.Plugin{
 		Name:  NAME,
 		Func:  prefmgr,
-		Regex: "^!prefs",
+		Regex: "^!pref",
 	}
 	plugin.Register()
-
-	http.HandleFunc("/v1/prefs", httpPrefs)
 }
 
 // prefmgr is called when someone executes !pref in the chat system
@@ -261,8 +259,4 @@ func stripAutoLinks(in string) string {
 	}
 
 	return in
-}
-
-// httpPrefs is the http handler for returning preferences as JSON
-func httpPrefs(w http.ResponseWriter, r *http.Request) {
 }
