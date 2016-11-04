@@ -101,8 +101,11 @@ func SetKV(key, value string, ttl time.Duration) (err error) {
 		ttl = time.Hour * 24 * 3650
 	}
 
-	sql := "INSERT INTO kv (pkey,value,expires,ttl) VALUES (?,?,?,?)"
-	_, err = db.Exec(sql, key, value, now.Add(ttl), int(ttl.Seconds()))
+	sql := "INSERT INTO kv (pkey,value,expires,ttl) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE value=?, expires=?, ttl=?"
+
+	expires := now.Add(ttl)
+	ttlsecs := int(ttl.Seconds())
+	_, err = db.Exec(sql, key, value, expires, ttlsecs, value, expires, ttlsecs)
 
 	if err != nil {
 		log.Printf("SetKV query %q failed: %s", sql, err)
