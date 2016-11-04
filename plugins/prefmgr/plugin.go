@@ -19,7 +19,6 @@ package prefmgr
 
 import (
 	"fmt"
-	"net/http"
 	"regexp"
 	"strings"
 
