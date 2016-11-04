@@ -130,10 +130,10 @@ func handleEvt(evt hal.Evt) {
 	// use the hal kv store to prevent spamming
 	// the spam keys are written with a 1 hour TTL so there's no need to examine the time
 	// except for debugging purposes
-	userSpamKey := getUserSpamKey(evt.RoomId, evt.UserId)
+	userSpamKey := getSpamKey("user", evt.UserId)
 	userTs, _ := hal.GetKV(userSpamKey)
 	// users can !gcal silence to silence the messages for the whole room e.g. during an incident
-	roomSpamKey := getRoomSpamKey(evt.RoomId)
+	roomSpamKey := getSpamKey("room", evt.RoomId)
 	roomTs, _ := hal.GetKV(roomSpamKey)
 
 	// always reply to @here/@everyone, etc.
@@ -148,7 +148,7 @@ func handleEvt(evt hal.Evt) {
 	config := getCachedConfig(evt.RoomId, now)
 	calEvents, err := config.getCachedCalEvents(now)
 	if err != nil {
-		evt.Replyf("Error while getting calendar data: %s", err)
+		nospamReplyf(&evt, "Error while getting calendar data: %s", err)
 		return
 	}
 
@@ -176,6 +176,7 @@ func handleEvt(evt hal.Evt) {
 
 	for _, e := range calEvents {
 		log.Printf("Autoreply: %t, Now: %q, Start: %q, End: %q", config.Autoreply, now.String(), e.Start.String(), e.End.String())
+		log.Printf("e.Description: %q, e.Name: %q", e.Description, e.Name)
 		if config.Autoreply && e.Start.Before(now) && e.End.After(now) {
 			msg := e.Description
 			if msg == "" {
@@ -194,6 +195,24 @@ func handleEvt(evt hal.Evt) {
 			break // only notify once even if there are overlapping entries
 		}
 	}
+}
+
+// nospamReplyf keeps track of error replies and only replies with the same message
+// once per hour.
+func nospamReplyf(evt *hal.Evt, msg string, a ...interface{}) {
+	errSpamKey := getSpamKey("err", evt.RoomId)
+	errStr, _ := hal.GetKV(errSpamKey)
+
+	reply := fmt.Sprintf(msg, a...)
+
+	if errStr == reply {
+		log.Println(reply)
+		return
+	}
+
+	evt.Reply(reply)
+
+	hal.SetKV(errSpamKey, reply, time.Hour)
 }
 
 func handleCommand(evt *hal.Evt) {
@@ -230,7 +249,7 @@ func handleCommand(evt *hal.Evt) {
 			if err != nil {
 				evt.Replyf("Invalid silence duration %q: %s", argv[2], err)
 			} else {
-				key := getRoomSpamKey(evt.RoomId)
+				key := getSpamKey("room", evt.RoomId)
 				hal.SetKV(key, "-", d)
 				evt.Replyf("Calendar notifications silenced for %s.", d.String())
 			}
@@ -240,12 +259,8 @@ func handleCommand(evt *hal.Evt) {
 	}
 }
 
-func getUserSpamKey(userId, roomId string) string {
-	return "gcal-spam-" + userId + "-" + roomId
-}
-
-func getRoomSpamKey(roomId string) string {
-	return "gcal-spam-" + roomId
+func getSpamKey(scope, id string) string {
+	return "gcal-" + scope + "-spam-" + id
 }
 
 func updateCachedCalEvents(roomId string) {
