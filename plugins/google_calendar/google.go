@@ -2,6 +2,7 @@ package google_calendar
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/netflix/hal-9001/hal"
@@ -17,6 +18,7 @@ const oauthJsonKey = `google-calendar-oauth-client-json`
 type CalEvent struct {
 	Start       time.Time
 	End         time.Time
+	AllDay      bool
 	Name        string
 	Description string
 }
@@ -78,10 +80,69 @@ func getEvents(calendarId string, now time.Time) ([]CalEvent, error) {
 
 	out := make([]CalEvent, len(events.Items))
 	for i, event := range events.Items {
-		start, _ := time.Parse(time.RFC3339, event.Start.DateTime)
+		var start, end time.Time
+		var allday bool
+
+		// try twice to parse the time fields:
+		// all-day events have a date field and datetime is empty
+		if event.Start.DateTime != "" {
+			start, err = time.Parse(time.RFC3339, event.Start.DateTime)
+			if err != nil {
+				log.Printf("Failed to parse start time from calendar event: %s", err)
+			}
+		} else if event.Start.Date != "" {
+			// the timezone seems to always be blank - not sure if it's a bug in
+			// the API or expected behavior. Either way, the downstream code
+			// evaluating the returned time will have to check for all-day
+			// and do the right thing
+			// leaving this here (and in the end block below) for now while I
+			// investigate what's going on
+			zone, err := time.LoadLocation(event.Start.TimeZone)
+			if err != nil {
+				log.Printf("Failed to parse start date TimeZone %q from calendar event: %s", event.Start.TimeZone, err)
+			}
+
+			start, err = time.ParseInLocation("2006-01-02", event.Start.Date, zone)
+			if err != nil {
+				log.Printf("Failed to parse start date from all-day calendar event: %s", err)
+				continue
+			}
+
+			allday = true
+		} else {
+			log.Println("event start time/date are both empty!")
+			continue
+		}
+
+		if event.End.DateTime != "" {
+			end, err = time.Parse(time.RFC3339, event.End.DateTime)
+			if err != nil {
+				log.Printf("Failed to parse end time from calendar event: %s", err)
+			}
+		} else if event.End.Date != "" {
+			zone, err := time.LoadLocation(event.End.TimeZone)
+			if err != nil {
+				log.Printf("Failed to parse end date TimeZone %q from calendar event: %s", event.End.TimeZone, err)
+			}
+
+			log.Printf("endZone: %q", event.End.TimeZone)
+
+			end, err = time.ParseInLocation("2006-01-02", event.End.Date, zone)
+			if err != nil {
+				log.Printf("Failed to parse end date from all-day calendar event: %s", err)
+			}
+			// the event actually ends at 00:00:00 the next day so add a day
+			end = end.AddDate(0, 0, 1)
+
+			allday = true
+		} else {
+			log.Println("event end time/date are both empty!")
+			continue
+		}
+
 		out[i].Start = start
-		end, _ := time.Parse(time.RFC3339, event.End.DateTime)
 		out[i].End = end
+		out[i].AllDay = allday
 		out[i].Name = event.Summary
 		out[i].Description = event.Description
 	}
