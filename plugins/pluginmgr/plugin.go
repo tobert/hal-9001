@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/codegangsta/cli"
@@ -79,8 +78,6 @@ func Register() {
 	plugin.Register()
 
 	hal.SqlInit(PluginGroupTable)
-
-	http.HandleFunc("/v1/plugins", httpPlugins)
 }
 
 func pluginmgr(evt hal.Evt) {
@@ -440,14 +437,4 @@ func delGroupPlugin(c *cli.Context, evt *hal.Evt) {
 	} else {
 		evt.Replyf("deleted %q from group %q", pgr.Plugin, pgr.Group)
 	}
-}
-
-func httpPlugins(w http.ResponseWriter, r *http.Request) {
-	pr := hal.PluginRegistry()
-	plugins := pr.PluginList()
-	js, err := json.Marshal(plugins)
-	if err != nil {
-		log.Fatalf("Failed to marshal plugin list to JSON: %s", err)
-	}
-	w.Write(js)
 }
