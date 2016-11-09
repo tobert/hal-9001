@@ -6,11 +6,18 @@ import (
 )
 
 func TestCmd(t *testing.T) {
+	assertError := func(err error) {
+		if err != nil {
+			t.Error(err)
+			t.Fail()
+		}
+	}
+
 	// example 1 - smoke test
 	oc := NewCmd("oncall", true).
 		SetUsage("search Pagerduty escalation policies for a string")
 	oc.AddSubCmd("cache-status")
-	oc.AddSubCmd("cache-interval").AddIdxParam(0, true)
+	oc.AddSubCmd("cache-interval").AddIdxParam(0, "interval", true)
 	//oc.AddCmd("*"), // everything else is a search string
 
 	oc.GetSubCmd("cache-status").SetUsage("check the status of the background caching job")
@@ -19,25 +26,32 @@ func TestCmd(t *testing.T) {
 
 	// evt.BodyAsArgv()
 	var res *CmdInst
+	var err error
 	// make sure a command with no args doesn't blow up
-	res = oc.Process([]string{"!oncall"})
+	res, err = oc.Process([]string{"!oncall"})
+	assertError(err)
 
-	res = oc.Process([]string{"!oncall", "help"})
+	res, err = oc.Process([]string{"!oncall", "help"})
+	assertError(err)
 
 	// TODO: add help functionality and auto-wire it
-	res = oc.Process([]string{"!oncall", "h"})
+	res, err = oc.Process([]string{"!oncall", "h"})
+	assertError(err)
 
-	res = oc.Process([]string{"!oncall", "sre"})
+	res, err = oc.Process([]string{"!oncall", "sre"})
+	assertError(err)
 	if len(res.Remainder()) != 1 || res.Remainder()[0] != "sre" {
 		t.Fail()
 	}
 
-	res = oc.Process([]string{"!oncall", "cache-status"})
+	res, err = oc.Process([]string{"!oncall", "cache-status"})
+	assertError(err)
 	if res.SubCmdToken() != "cache-status" {
 		t.Fail()
 	}
 
-	res = oc.Process([]string{"!oncall", "cache-interval"})
+	res, err = oc.Process([]string{"!oncall", "cache-interval"})
+	assertError(err)
 	if res.SubCmdToken() != "cache-interval" {
 		t.Fail()
 	}
@@ -60,10 +74,11 @@ func TestCmd(t *testing.T) {
 		SubCmd().AddKVParam("user", false).AddAlias("u").
 		SubCmd().AddKVParam("broker", false).AddAlias("b")
 
-	pc.AddSubCmd("rm").AddIdxParam(0, true)
+	pc.AddSubCmd("rm").AddIdxParam(0, "id", true)
 
 	argv2 := strings.Split("prefs set --room * --user foo --broker console --key ohai --value nevermind", " ")
-	res = pc.Process(argv2)
+	res, err = pc.Process(argv2)
+	assertError(err)
 
 	if len(res.Remainder()) != 0 {
 		t.Error("There should not be any remainder")
@@ -98,7 +113,8 @@ func TestCmd(t *testing.T) {
 
 	// again with out-of-order parameters
 	argv3 := strings.Split("prefs --user bob --key testing get --value lol", " ")
-	res = pc.Process(argv3)
+	res, err = pc.Process(argv3)
+	assertError(err)
 	if len(res.Remainder()) != 0 {
 		t.Error("There should not be any remainder")
 	}
@@ -120,7 +136,8 @@ func TestCmd(t *testing.T) {
 	}
 
 	argv4 := []string{"!prefs", "rm", "4"}
-	res = pc.Process(argv4)
+	res, err = pc.Process(argv4)
+	assertError(err)
 	if res.SubCmdToken() != "rm" {
 		t.Errorf("Expected rm, got %q", res.SubCmdToken())
 	}

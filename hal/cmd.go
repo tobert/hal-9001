@@ -82,6 +82,7 @@ type BoolParam struct {
 // positional parameters (0 indexed)
 type IdxParam struct {
 	idx      int // positional arg index
+	name     string
 	usage    string
 	required bool
 	cmd      *Cmd
@@ -117,6 +118,7 @@ type IdxParamInst struct {
 	param      *IdxParam
 	found      bool
 	idx        int
+	name       string
 	value      string
 }
 
@@ -291,7 +293,7 @@ func (c *Cmd) AddBoolParam(key string, required bool) *BoolParam {
 
 // AddIdxParam adds a positional parameter to the command and returns the
 // new parameter.
-func (c *Cmd) AddIdxParam(position int, required bool) *IdxParam {
+func (c *Cmd) AddIdxParam(position int, name string, required bool) *IdxParam {
 	c.assertZeroKeyParams()
 
 	ips := c._idxparams()
@@ -300,13 +302,15 @@ func (c *Cmd) AddIdxParam(position int, required bool) *IdxParam {
 		log.Panicf("position %d already has an IdxParam defined on this command", position)
 	}
 
-	p := IdxParam{idx: position}
-	p.required = required
-	p.cmd = c.Cmd()
+	ips[position] = &IdxParam{
+		idx:      position,
+		name:     name,
+		usage:    name, // what you want most of the time
+		required: required,
+		cmd:      c.Cmd(),
+	}
 
-	ips[position] = &p
-
-	return &p
+	return ips[position]
 }
 
 // AddKVParam creates and adds a key/value parameter to the subcommand
@@ -342,7 +346,7 @@ func (c *SubCmd) AddBoolParam(key string, required bool) *BoolParam {
 
 // AddIdxParam adds a positional parameter to the subcommand and returns the
 // new parameter.
-func (c *SubCmd) AddIdxParam(position int, required bool) *IdxParam {
+func (c *SubCmd) AddIdxParam(position int, name string, required bool) *IdxParam {
 	c.assertZeroKeyParams()
 
 	ips := c._idxparams()
@@ -351,14 +355,16 @@ func (c *SubCmd) AddIdxParam(position int, required bool) *IdxParam {
 		log.Panicf("position %d already has an IdxParam defined on this subcommand", position)
 	}
 
-	p := IdxParam{idx: position}
-	p.required = required
-	p.cmd = c.cmd
-	p.subcmd = c
+	ips[position] = &IdxParam{
+		idx:      position,
+		name:     name,
+		usage:    name, // what you want most of the time
+		required: required,
+		cmd:      c.cmd,
+		subcmd:   c,
+	}
 
-	ips[position] = &p
-
-	return &p
+	return ips[position]
 }
 
 // AddAlias adds an alias to the command and returns the paramter.
@@ -505,10 +511,10 @@ func (p *BoolParam) Name() string {
 	return p.key
 }
 
-// Name returns the index as a string. Mostly for use in printing errors, etc.
+// Name returns the name given to the indexed param.
 // Implements NamedParam.
 func (p *IdxParam) Name() string {
-	return strconv.Itoa(p.idx)
+	return p.name
 }
 
 func (p *KVParam) IsRequired() bool {
@@ -978,13 +984,6 @@ func (c *Cmd) Process(argv []string) (*CmdInst, error) {
 		}
 	}
 
-	/*
-		subCmds    []*SubCmd
-		kvparams   []*KVParam
-		boolparams []*BoolParam
-		idxparams  map[int]*IdxParam
-	*/
-
 	return &topInst, nil
 }
 
@@ -1124,7 +1123,13 @@ func (c *Cmd) ListNamedParams() []NamedParam {
 		out = append(out, p)
 	}
 
+	// use 2 passes to append idx parameters in order
+	ipm := c._idxparams()
+	ips := make([]*IdxParam, len(ipm))
 	for _, p := range c._idxparams() {
+		ips[p.idx] = p
+	}
+	for _, p := range ips {
 		out = append(out, p)
 	}
 
@@ -1207,7 +1212,17 @@ func (c *CmdInst) GetKVParamInst(key string) *KVParamInst {
 		}
 	}
 
-	panic("BUG: refusing to return nil")
+	if c.HasKVParam(key) {
+		// not provided, return empty value with found: false
+		return &KVParamInst{
+			param:   c.GetKVParam(key),
+			key:     key,
+			cmdinst: c,
+		}
+	} else {
+		panic("BUG: invalid KVParam key '" + key + "'")
+	}
+
 }
 
 // GetKVParamInst gets a key/value parameter instance by its key.
@@ -1218,7 +1233,17 @@ func (c *SubCmdInst) GetKVParamInst(key string) *KVParamInst {
 		}
 	}
 
-	panic("BUG: refusing to return nil")
+	if c.HasKVParam(key) {
+		// not provided, return empty value with found: false
+		return &KVParamInst{
+			param:      c.GetKVParam(key),
+			key:        key,
+			cmdinst:    &c.CmdInst,
+			subcmdinst: c,
+		}
+	} else {
+		panic("BUG: invalid KVParam key '" + key + "'")
+	}
 }
 
 func (c *CmdInst) GetKVParam(key string) *KVParam {
@@ -1238,7 +1263,7 @@ func (c *SubCmdInst) GetKVParam(key string) *KVParam {
 		}
 	}
 
-	panic("BUG: refusing to return nil")
+	panic("BUG: refusing to return nil" + key)
 }
 
 // GetBoolParamInst gets a key/value parameter instance by its key.
@@ -1249,7 +1274,38 @@ func (c *CmdInst) GetBoolParamInst(key string) *BoolParamInst {
 		}
 	}
 
-	panic("BUG: refusing to return nil")
+	// not provided, return empty value with found: false
+	if c.HasBoolParam(key) {
+		return &BoolParamInst{
+			param:   c.GetBoolParam(key),
+			key:     key,
+			cmdinst: c,
+		}
+	} else {
+		panic("BUG: invalid BoolParam key '" + key + "'")
+	}
+
+}
+
+// GetBoolParamInst gets a key/value parameter instance by its key.
+func (c *SubCmdInst) GetBoolParamInst(key string) *BoolParamInst {
+	for _, p := range c.ListBoolParamInsts() {
+		if p.key == key {
+			return p
+		}
+	}
+
+	// not provided, return empty value with found: false
+	if c.HasBoolParam(key) {
+		return &BoolParamInst{
+			param:      c.GetBoolParam(key),
+			key:        key,
+			cmdinst:    &c.CmdInst,
+			subcmdinst: c,
+		}
+	} else {
+		panic("BUG: invalid BoolParam key '" + key + "'")
+	}
 }
 
 func (c *CmdInst) GetBoolParam(key string) *BoolParam {
@@ -1279,7 +1335,61 @@ func (c *CmdInst) GetIdxParamInst(idx int) *IdxParamInst {
 		return p
 	}
 
-	panic("BUG: refusing to return nil")
+	// not provided, return empty value with found: false
+	if c.HasIdxParam(idx) {
+		return &IdxParamInst{
+			param:   c.GetIdxParam(idx),
+			idx:     idx,
+			cmdinst: c,
+		}
+	} else {
+		panic(fmt.Sprintf("BUG: invalid IdxParam index: %d", idx))
+	}
+}
+
+// GetIdxParamInst gets an indexed parameter instance by its index.
+func (c *SubCmdInst) GetIdxParamInst(idx int) *IdxParamInst {
+	ipis := c.mapIdxParamInsts()
+	if p, exists := ipis[idx]; exists {
+		return p
+	}
+
+	// not provided, return empty value with found: false
+	if c.HasIdxParam(idx) {
+		return &IdxParamInst{
+			param:      c.GetIdxParam(idx),
+			idx:        idx,
+			cmdinst:    &c.CmdInst,
+			subcmdinst: c,
+		}
+	} else {
+		panic(fmt.Sprintf("BUG: invalid IdxParam index: %d", idx))
+	}
+}
+
+// GetIdxParamInsByNamet gets an indexed parameter instance by its name.
+func (c *CmdInst) GetIdxParamInstByName(name string) *IdxParamInst {
+	ips := c.cmd._idxparams()
+	for _, p := range ips {
+		if p.name == name {
+			return c.GetIdxParamInst(p.idx)
+		}
+	}
+
+	panic("BUG: No indexed parameter with name: " + name)
+}
+
+// GetIdxParamInstByName gets an indexed parameter instance by its name.
+func (c *SubCmdInst) GetIdxParamInstByName(name string) *IdxParamInst {
+	ips := c.subCmd._idxparams()
+	for _, p := range ips {
+		log.Printf("if %q == %q {", p.name, name)
+		if p.name == name {
+			return c.GetIdxParamInst(p.idx)
+		}
+	}
+
+	panic("BUG: No indexed parameter with name: " + name)
 }
 
 func (c *CmdInst) GetIdxParam(idx int) *IdxParam {
@@ -1393,10 +1503,10 @@ func (p *BoolParamInst) Name() string {
 	return p.key
 }
 
-// Name returns the index as a string. Mostly for use in printing errors, etc.
+// Name returns the name given to the indexed param.
 // Implements NamedParam.
 func (p *IdxParamInst) Name() string {
-	return strconv.Itoa(p.idx)
+	return p.name
 }
 
 // String returns the value as a string.
