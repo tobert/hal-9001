@@ -78,7 +78,7 @@ func init() {
 
 	cli.AddSubCmd("rm").
 		SetUsage("delete a preference by id").
-		AddIdxParam(0, true).
+		AddIdxParam(0, "id", true).
 		SetUsage("the preference id to delete")
 
 	slackLinkRE = regexp.MustCompile("^<(?:http|mailto):.*|.*>$")
