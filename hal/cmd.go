@@ -556,6 +556,22 @@ func (p *KVParam) SubCmd() *SubCmd {
 	return p.subcmd
 }
 
+func (p *BoolParam) SubCmd() *SubCmd {
+	if p.subcmd == nil {
+		panic("Can't call SubCmd() on this BoolParam because it is not attached to a SubCmd!")
+	}
+
+	return p.subcmd
+}
+
+func (p *IdxParam) SubCmd() *SubCmd {
+	if p.subcmd == nil {
+		panic("Can't call SubCmd() on this IdxParam because it is not attached to a SubCmd!")
+	}
+
+	return p.subcmd
+}
+
 // Cmd returns the command the parameter belongs to. Panics if no command is attached.
 func (p *KVParamInst) Cmd() *Cmd {
 	if p.param == nil {
