@@ -19,13 +19,9 @@ package pluginmgr
  */
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
 	"log"
 	"time"
 
-	"github.com/codegangsta/cli"
 	"github.com/netflix/hal-9001/hal"
 )
 
@@ -67,6 +63,8 @@ type PluginGroupRow struct {
 
 type PluginGroup []*PluginGroupRow
 
+var cli *hal.Cmd
+
 // Register makes this plugin available to the system.
 func Register() {
 	plugin := hal.Plugin{
@@ -78,150 +76,131 @@ func Register() {
 	plugin.Register()
 
 	hal.SqlInit(PluginGroupTable)
+
+	cli = hal.NewCmd("!plugin", true).SetUsage("Manage bot plugins.")
+
+	cli.AddSubCmd("attach").
+		SetUsage("attach a plugin to the current or specified room with an optional command regex").
+		SubCmd().AddIdxParam(0, "plugin", true).
+		SubCmd().AddIdxParam(1, "room", false).
+		SubCmd().AddIdxParam(2, "regex", false)
+
+	cli.AddSubCmd("detach").
+		SetUsage("detach a plugin from a room").
+		SubCmd().AddIdxParam(0, "plugin", true).
+		SubCmd().AddIdxParam(1, "room", false).
+		SubCmd().AddIdxParam(2, "regex", false)
+
+	cli.AddSubCmd("save").
+		SetUsage("persist the configured plugins to the database")
+
+	cli.AddSubCmd("list").
+		SetUsage("list the attached plugins")
+
+	cli.AddSubCmd("instances").
+		SetUsage("list the available plugin instances").
+		SubCmd().AddIdxParam(0, "room", false)
+
+	grp := cli.AddSubCmd("group")
+	grp.SetUsage("Plugin groups.")
+
+	grp.AddSubCmd("list").
+		AddIdxParam(0, "group", false)
+
+	grp.AddSubCmd("add").
+		SubCmd().AddIdxParam(0, "group", true).
+		SubCmd().AddIdxParam(1, "plugin", true)
+
+	grp.AddSubCmd("del").
+		SubCmd().AddIdxParam(0, "group", true).
+		SubCmd().AddIdxParam(1, "plugin", true)
 }
 
 func pluginmgr(evt hal.Evt) {
-	// expose plugin names as subcommands so users can do
-	// !plugin attach uptime --regex ^!up --room CORE
-	attachCmds := make([]cli.Command, 0)
-	detachCmds := make([]cli.Command, 0)
-
-	pr := hal.PluginRegistry()
-
-	for _, p := range pr.PluginList() {
-		var name, room, regex string
-		name = p.Name
-
-		attachCmd := cli.Command{
-			Name:  name,
-			Usage: fmt.Sprintf("Attach the %s plugin.", p.Name),
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:        "regex",
-					Value:       p.Regex,
-					Destination: &regex,
-					Usage:       "set a regex filter to select messages to send the plugin, overriding the plugin default",
-				},
-				cli.StringFlag{
-					Name:        "room",
-					Value:       evt.RoomId, // default to the room where the command originated
-					Destination: &room,
-					Usage:       "the room to attach the plugin to",
-				},
-			},
-			Action: func(c *cli.Context) {
-				attachPlugin(c, &evt, room, name, regex)
-			},
-		}
-
-		attachCmds = append(attachCmds, attachCmd)
-
-		detachCmd := cli.Command{
-			Name:  name,
-			Usage: fmt.Sprintf("Attach the %s plugin.", p.Name),
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:        "room",
-					Value:       evt.RoomId, // default to the room where the command originated
-					Destination: &room,      // should be safe to use this again...
-					Usage:       "the room to detach from",
-				},
-			},
-			Action: func(c *cli.Context) {
-				detachPlugin(c, &evt, room, name)
-			},
-		}
-
-		detachCmds = append(detachCmds, detachCmd)
-	}
-
-	// have cli write output to a buffer instead of stdio
-	outbuf := bytes.NewBuffer([]byte{})
-
-	app := cli.NewApp()
-	app.Name = NAME
-	app.HelpName = NAME
-	app.Usage = "manage plugin instances"
-	app.Writer = outbuf
-	app.OnUsageError = func(ctx *cli.Context, err error, isSubCmd bool) error {
-		evt.Replyf("Invalid command: %s", err)
-		return err
-	}
-	app.CommandNotFound = func(ctx *cli.Context, cmd string) {
-		evt.Replyf("No help topic or subcommand %q", cmd)
-	}
-
-	var roomId string // cheezy
-
-	app.Commands = []cli.Command{
-		{
-			Name:   "list",
-			Usage:  "list the available plugins",
-			Action: func(c *cli.Context) { listPlugins(c, &evt) },
-		},
-		{
-			Name:   "instances",
-			Usage:  "list the currently attached and running plugins",
-			Action: func(c *cli.Context) { listInstances(c, &evt, roomId) },
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:        "room",
-					Value:       "",
-					Destination: &roomId,
-					Usage:       "only show the desired room id",
-				},
-			},
-		},
-		{
-			Name:   "save",
-			Usage:  "save the runtime plugin configuration",
-			Action: func(c *cli.Context) { savePlugins(c, &evt) },
-		},
-		{
-			Name:        "attach",
-			Usage:       "attach a plugin to a room (creates an instance)",
-			Subcommands: attachCmds, // composed above
-		},
-		// for now, plugins are restricted to one instance per room to avoid having to
-		// generate and manage some kind of ID, which will probably get added later
-		{
-			Name:        "detach",
-			Usage:       "detach a plugin from a room",
-			Subcommands: detachCmds,
-		},
-		{
-			Name:  "group",
-			Usage: "manage plugin groups",
-			Subcommands: []cli.Command{
-				{
-					Name:   "list",
-					Usage:  "list",
-					Action: func(c *cli.Context) { listGroupPlugin(c, &evt) },
-				},
-				{
-					Name:   "add",
-					Usage:  "add <group_name> <plugin_name>",
-					Action: func(c *cli.Context) { addGroupPlugin(c, &evt) },
-				},
-				{
-					Name:   "del",
-					Usage:  "del <group_name> <plugin_name>",
-					Action: func(c *cli.Context) { delGroupPlugin(c, &evt) },
-				},
-			},
-		},
-	}
-
-	err := app.Run(evt.BodyAsArgv())
+	req, err := cli.Process(evt.BodyAsArgv())
 	if err != nil {
-		evt.Replyf("Command parsing failed: %s", err)
+		evt.Replyf("%s\n%s", err, cli.Usage())
 		return
 	}
 
-	evt.Reply(outbuf.String())
+	sub := req.SubCmdInst()
+	pr := hal.PluginRegistry()
+
+	// read the param, check validity, return string
+	plugin := func() string {
+		name := sub.GetIdxParamInstByName("plugin").MustString()
+		p, err := pr.GetPlugin(name)
+		if err != nil {
+			evt.Replyf("No such plugin: %q", name)
+			return ""
+		}
+
+		return p.Name
+	}
+
+	// read the param, resolve name -> id as needed, return string
+	room := func() string {
+		// automatically defaults to the current room with or without the *
+		r := evt.RoomId
+		rp := sub.GetIdxParamInstByName("room")
+		if rp.Found() {
+			r = rp.MustString()
+		}
+
+		// the user may have provided --room with a room name
+		// try to resolve a roomId with the broker, falling back to the name
+		if evt.Broker != nil {
+			roomId := evt.Broker.RoomNameToId(r)
+			if roomId != "" {
+				return roomId
+			}
+		}
+
+		return r
+	}
+
+	// read the param, grab the plugin, return string w/ default from
+	// the plugin metadata
+	regex := func() string {
+		// only needs to work with commands that require the plugin arg
+		pn := sub.GetIdxParamInstByName("plugin").MustString()
+		p, err := pr.GetPlugin(pn)
+		if err != nil {
+			return "" // doesn't matter, nothing works without a good plugin
+		}
+		return sub.GetIdxParamInstByName("regex").DefString(p.Regex)
+	}
+
+	switch req.SubCmdToken() {
+	case "", "help":
+		evt.Reply(cli.Usage())
+	case "attach":
+		attachPlugin(evt, plugin(), room(), regex())
+	case "detach":
+		detachPlugin(evt, plugin(), room())
+	case "save":
+		savePlugins(evt)
+	case "list":
+		listPlugins(evt)
+	case "instances":
+		listInstances(evt, room())
+	case "group":
+		gsub := sub.SubCmdInst()
+		g := gsub.GetIdxParamInstByName("group").MustString()
+		switch sub.SubCmdToken() {
+		case "add":
+			p := gsub.GetIdxParamInstByName("plugin").MustString()
+			addGroupPlugin(evt, g, p)
+		case "del":
+			p := gsub.GetIdxParamInstByName("plugin").MustString()
+			delGroupPlugin(evt, g, p)
+		case "list":
+			listGroupPlugin(evt, g)
+		}
+	}
 }
 
-func listPlugins(c *cli.Context, evt *hal.Evt) {
+func listPlugins(evt hal.Evt) {
 	hdr := []string{"Plugin Name", "Default RE", "Status"}
 	rows := [][]string{}
 	pr := hal.PluginRegistry()
@@ -239,7 +218,7 @@ func listPlugins(c *cli.Context, evt *hal.Evt) {
 	evt.ReplyTable(hdr, rows)
 }
 
-func listInstances(c *cli.Context, evt *hal.Evt, roomId string) {
+func listInstances(evt hal.Evt, roomId string) {
 	hdr := []string{"Plugin Name", "Broker", "Room", "RE"}
 	rows := [][]string{}
 	pr := hal.PluginRegistry()
@@ -265,7 +244,7 @@ func listInstances(c *cli.Context, evt *hal.Evt, roomId string) {
 	evt.ReplyTable(hdr, rows)
 }
 
-func savePlugins(c *cli.Context, evt *hal.Evt) {
+func savePlugins(evt hal.Evt) {
 	pr := hal.PluginRegistry()
 
 	err := pr.SaveInstances()
@@ -276,20 +255,7 @@ func savePlugins(c *cli.Context, evt *hal.Evt) {
 	}
 }
 
-func roomToId(evt *hal.Evt, room string) string {
-	// the user may have provided --room with a room name
-	// try to resolve a roomId with the broker, falling back to the name
-	if evt.Broker != nil {
-		roomId := evt.Broker.RoomNameToId(room)
-		if roomId != "" {
-			return roomId
-		}
-	}
-
-	return room
-}
-
-func attachPlugin(c *cli.Context, evt *hal.Evt, room, pluginName, regex string) {
+func attachPlugin(evt hal.Evt, pluginName, roomId, regex string) {
 	pr := hal.PluginRegistry()
 	plugin, err := pr.GetPlugin(pluginName)
 	if err != nil {
@@ -297,7 +263,6 @@ func attachPlugin(c *cli.Context, evt *hal.Evt, room, pluginName, regex string) 
 		return
 	}
 
-	roomId := roomToId(evt, room)
 	inst := plugin.Instance(roomId, evt.Broker)
 	inst.RoomId = roomId
 	inst.Regex = regex
@@ -310,20 +275,21 @@ func attachPlugin(c *cli.Context, evt *hal.Evt, room, pluginName, regex string) 
 	}
 }
 
-func detachPlugin(c *cli.Context, evt *hal.Evt, room, plugin string) {
+func detachPlugin(evt hal.Evt, plugin, roomId string) {
 	pr := hal.PluginRegistry()
-	roomId := roomToId(evt, room)
 	instances := pr.FindInstances(roomId, evt.BrokerName(), plugin)
 
 	// there should be only one, for now just log if that is not the case
 	if len(instances) > 1 {
 		log.Printf("FindInstances(%q, %q) returned %d instances. Expected 0 or 1.",
-			room, plugin, len(instances))
+			roomId, plugin, len(instances))
+	} else if len(instances) == 0 {
+		evt.Replyf("No plugin named %q is attached to room %q.", plugin, roomId)
 	}
 
 	for _, inst := range instances {
 		inst.Unregister()
-		evt.Replyf("%q/%q unregistered", room, plugin)
+		evt.Replyf("%q/%q unregistered", roomId, plugin)
 	}
 }
 
@@ -378,7 +344,7 @@ func (pgr *PluginGroupRow) Delete() error {
 	return err
 }
 
-func listGroupPlugin(c *cli.Context, evt *hal.Evt) {
+func listGroupPlugin(evt hal.Evt, group string) {
 	pgs, err := GetPluginGroup("")
 	if err != nil {
 		evt.Replyf("Could not fetch plugin group list: %s", err)
@@ -393,16 +359,10 @@ func listGroupPlugin(c *cli.Context, evt *hal.Evt) {
 	evt.ReplyTable([]string{"Group Name", "Plugin Name"}, tbl)
 }
 
-func addGroupPlugin(c *cli.Context, evt *hal.Evt) {
-	args := c.Args()
-	if len(args) != 2 {
-		evt.Replyf("group add requires 2 arguments, only %d were provided, <group_name> <plugin_name>", len(args))
-		return
-	}
-
+func addGroupPlugin(evt hal.Evt, group, pluginName string) {
 	pr := hal.PluginRegistry()
 	// make sure the plugin name is valid
-	plugin, err := pr.GetPlugin(args[1])
+	plugin, err := pr.GetPlugin(pluginName)
 	if err != nil {
 		evt.Error(err)
 		return
@@ -410,7 +370,7 @@ func addGroupPlugin(c *cli.Context, evt *hal.Evt) {
 
 	// no checking for group other than "can it be inserted as a string"
 	pgr := PluginGroupRow{
-		Group:     args[0],
+		Group:     group,
 		Plugin:    plugin.Name,
 		Timestamp: time.Now(),
 	}
@@ -423,14 +383,8 @@ func addGroupPlugin(c *cli.Context, evt *hal.Evt) {
 	}
 }
 
-func delGroupPlugin(c *cli.Context, evt *hal.Evt) {
-	args := c.Args()
-	if len(args) != 2 {
-		evt.Replyf("group add requires 2 arguments, only %d were provided, <group_name> <plugin_name>", len(args))
-		return
-	}
-
-	pgr := PluginGroupRow{Group: args[0], Plugin: args[1]}
+func delGroupPlugin(evt hal.Evt, group, plugin string) {
+	pgr := PluginGroupRow{Group: group, Plugin: plugin}
 	err := pgr.Delete()
 	if err != nil {
 		evt.Replyf("failed to delete %q from group %q: %s", pgr.Plugin, pgr.Group, err)
