@@ -6,52 +6,54 @@ import (
 )
 
 func TestCmd(t *testing.T) {
-	assertError := func(err error) {
-		if err != nil {
-			t.Error(err)
-			t.Fail()
-		}
-	}
-
 	// example 1 - smoke test
-	oc := NewCmd("oncall", true).
+	oc := NewCmd("oncall", false).
 		SetUsage("search Pagerduty escalation policies for a string")
 	oc.AddSubCmd("cache-status")
 	oc.AddSubCmd("cache-interval").AddIdxParam(0, "interval", true)
-	//oc.AddCmd("*"), // everything else is a search string
+	oc.AddSubCmd("help").AddAlias("h")
 
 	oc.GetSubCmd("cache-status").SetUsage("check the status of the background caching job")
 	oc.GetSubCmd("cache-interval").SetUsage("set the background caching job interval")
-	//oc.GetSubCmd("*").SetUsage("create a mark in time with an (optional) text note")
 
-	// evt.BodyAsArgv()
 	var res *CmdInst
 	var err error
 	// make sure a command with no args doesn't blow up
 	res, err = oc.Process([]string{"!oncall"})
-	assertError(err)
+	if err != nil {
+		t.Fail()
+	}
 
 	res, err = oc.Process([]string{"!oncall", "help"})
-	assertError(err)
+	if err != nil {
+		t.Fail()
+	}
 
-	// TODO: add help functionality and auto-wire it
 	res, err = oc.Process([]string{"!oncall", "h"})
-	assertError(err)
+	if err != nil {
+		t.Error(err)
+		t.Fail()
+	}
 
 	res, err = oc.Process([]string{"!oncall", "sre"})
-	assertError(err)
 	if len(res.Remainder()) != 1 || res.Remainder()[0] != "sre" {
 		t.Fail()
 	}
 
 	res, err = oc.Process([]string{"!oncall", "cache-status"})
-	assertError(err)
+	if err != nil {
+		t.Error(err)
+		t.Fail()
+	}
 	if res.SubCmdToken() != "cache-status" {
 		t.Fail()
 	}
 
-	res, err = oc.Process([]string{"!oncall", "cache-interval"})
-	assertError(err)
+	res, err = oc.Process([]string{"!oncall", "cache-interval", "1h"})
+	if err != nil {
+		t.Error(err)
+		t.Fail()
+	}
 	if res.SubCmdToken() != "cache-interval" {
 		t.Fail()
 	}
@@ -71,14 +73,17 @@ func TestCmd(t *testing.T) {
 		SubCmd().AddKVParam("key", true).AddAlias("k").
 		SubCmd().AddKVParam("value", true).AddAlias("v").
 		SubCmd().AddKVParam("room", false).AddAlias("r").
-		SubCmd().AddKVParam("user", false).AddAlias("u").
+		SubCmd().AddKVParam("user", false).AddAlias("u").SetDefault("*").
 		SubCmd().AddKVParam("broker", false).AddAlias("b")
 
 	pc.AddSubCmd("rm").AddIdxParam(0, "id", true)
 
 	argv2 := strings.Split("prefs set --room * --user foo --broker console --key ohai --value nevermind", " ")
 	res, err = pc.Process(argv2)
-	assertError(err)
+	if err != nil {
+		t.Error(err)
+		t.Fail()
+	}
 
 	if len(res.Remainder()) != 0 {
 		t.Error("There should not be any remainder")
@@ -114,7 +119,10 @@ func TestCmd(t *testing.T) {
 	// again with out-of-order parameters
 	argv3 := strings.Split("prefs --user bob --key testing get --value lol", " ")
 	res, err = pc.Process(argv3)
-	assertError(err)
+	if err != nil {
+		t.Error(err)
+		t.Fail()
+	}
 	if len(res.Remainder()) != 0 {
 		t.Error("There should not be any remainder")
 	}
@@ -137,7 +145,10 @@ func TestCmd(t *testing.T) {
 
 	argv4 := []string{"!prefs", "rm", "4"}
 	res, err = pc.Process(argv4)
-	assertError(err)
+	if err != nil {
+		t.Error(err)
+		t.Fail()
+	}
 	if res.SubCmdToken() != "rm" {
 		t.Errorf("Expected rm, got %q", res.SubCmdToken())
 	}
@@ -146,11 +157,35 @@ func TestCmd(t *testing.T) {
 		t.Errorf("wrong value from positional parameter. got %d, expected 4", pp.idx)
 	}
 
-	/*
-		// make sure it doesn't blow up on invalid subcmd
-		argv5 := []string{"!prefs", "asdfasdfasdfasdf", "asdf"}
-		res = pc.Process(argv5)
-		// at this point res.SubCmdInst is nil ... *sigh*
-		res.SubCmdInst.GetPParamInst(0)
-	*/
+	dc := NewCmd("dc", false)
+	dc.AddKVParam("dc_required_kvparam_with_default", true).SetDefault("this is the default")
+	sdc := dc.AddSubCmd("test")
+	sdc.AddKVParam("kvparam_with_default", false).SetDefault("this is the default 1")
+	sdc.AddKVParam("required_kvparam_with_default", true).SetDefault("this is the default 2")
+	sdc.AddKVParam("required_kvparam_without_default", true)
+	sdc.AddBoolParam("boolparam_with_default", false).SetDefault(true)
+	sdc.AddBoolParam("required_boolparam_with_default", true).SetDefault(false)
+	sdc.AddBoolParam("required_boolparam_without_default", true)
+
+	res, err = dc.Process([]string{"dc"})
+	if err != nil {
+		t.Errorf("command should parse ok with no arguments: %s", err)
+		t.Fail()
+	}
+
+	res, err = dc.Process([]string{"dc", "--dc_required_kvparam_with_default", "whatever"})
+	if err != nil {
+		t.Fail()
+	}
+
+	res, err = dc.Process([]string{"dc", "test"})
+	if res != nil || err == nil {
+		t.Errorf("subcommand should NOT parse ok with no arguments: %s", err)
+		t.Fail()
+	}
+
+	res, err = dc.Process([]string{"dc", "test", "required_kvparam_without_default=yes", "--required_boolparam_without_default"})
+	if err != nil {
+		t.Fail()
+	}
 }
