@@ -23,8 +23,6 @@ import (
 	"github.com/netflix/hal-9001/hal"
 )
 
-var booted time.Time
-
 func Register() {
 	p := hal.Plugin{
 		Name: "spam",
