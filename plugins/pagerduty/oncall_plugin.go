@@ -105,28 +105,37 @@ func oncall(msg hal.Evt) {
 
 	// search over all policies looking for matching policy name, escalation
 	// rule name, or service name
-	matches := make([]Oncall, 0)
+	matches := make(map[string][]Oncall)
 	oncalls := getOncallCache(token, false)
 	var exactMatchFound bool
+
+	addMatch := func(matches map[string][]Oncall, oncall Oncall) {
+		key := oncall.EscalationPolicy.Summary
+		if _, exists := matches[key]; exists {
+			matches[key] = append(matches[key], oncall)
+		} else {
+			matches[key] = []Oncall{oncall}
+		}
+	}
 
 	for _, oncall := range oncalls {
 		schedSummary := strings.ToLower(oncall.Schedule.Summary)
 		if schedSummary == want {
-			matches = append(matches, oncall)
+			addMatch(matches, oncall)
 			exactMatchFound = true
 			continue
 		} else if !exactMatchFound && strings.Contains(schedSummary, want) {
-			matches = append(matches, oncall)
+			addMatch(matches, oncall)
 			continue
 		}
 
 		epSummary := strings.ToLower(oncall.EscalationPolicy.Summary)
 		if epSummary == want {
-			matches = append(matches, oncall)
+			addMatch(matches, oncall)
 			exactMatchFound = true
 			continue
 		} else if !exactMatchFound && strings.Contains(epSummary, want) {
-			matches = append(matches, oncall)
+			addMatch(matches, oncall)
 			continue
 		}
 	}
@@ -143,7 +152,10 @@ func oncall(msg hal.Evt) {
 				ltdesc := strings.ToLower(team.Description)
 
 				if strings.Contains(ltname, want) || strings.Contains(ltdesc, want) {
-					matches = getTeamOncalls(token, team)
+					oncalls := getTeamOncalls(token, team)
+					for _, oncall := range oncalls {
+						addMatch(matches, oncall)
+					}
 				}
 			}
 		}
@@ -365,29 +377,40 @@ func (a OncallsByLevel) Less(i, j int) bool {
 	return a[i].EscalationLevel < a[j].EscalationLevel
 }
 
-func formatOncallReply(wanted string, exactMatchFound bool, oncalls []Oncall) string {
+func formatOncallReply(wanted string, exactMatchFound bool, matches map[string][]Oncall) string {
 	buf := bytes.NewBuffer([]byte{})
 
 	if exactMatchFound {
-		fmt.Fprintf(buf, "exact match found for %q\n", oncalls[0].EscalationPolicy.Summary)
+		for _, oncalls := range matches {
+			fmt.Fprintf(buf, "exact match found for %q\n", oncalls[0].EscalationPolicy.Summary)
+		}
 	} else {
-		fmt.Fprintf(buf, "%d records matched for query: %q\n", len(oncalls), wanted)
+		fmt.Fprintf(buf, "%d records matched for query: %q\n", len(matches), wanted)
 	}
 
-	sort.Sort(OncallsByLevel(oncalls))
+	keys := make([]string, 0)
+	for key, _ := range matches {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
 
-	for _, oncall := range oncalls {
-		indent := strings.Repeat("    ", oncall.EscalationLevel)
-		sched := oncall.Schedule.Summary
-		if sched == "" {
-			sched = "always on call"
-		}
+	for _, key := range keys {
+		oncalls := matches[key]
+		sort.Sort(OncallsByLevel(oncalls))
 
-		if exactMatchFound {
-			fmt.Fprintf(buf, "%s%s - %s\n", indent, oncall.User.Summary, sched)
-		} else {
-			fmt.Fprintf(buf, "%s%s - %s - %s\n", indent,
-				oncall.EscalationPolicy.Summary, oncall.User.Summary, sched)
+		for _, oncall := range oncalls {
+			indent := strings.Repeat("    ", oncall.EscalationLevel)
+			sched := oncall.Schedule.Summary
+			if sched == "" {
+				sched = "always on call"
+			}
+
+			if exactMatchFound {
+				fmt.Fprintf(buf, "%s%s - %s\n", indent, oncall.User.Summary, sched)
+			} else {
+				fmt.Fprintf(buf, "%s%s - %s - %s\n", indent,
+					oncall.EscalationPolicy.Summary, oncall.User.Summary, sched)
+			}
 		}
 	}
 
