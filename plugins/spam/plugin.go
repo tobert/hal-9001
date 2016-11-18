@@ -18,7 +18,6 @@ package spam
 
 import (
 	"log"
-	"time"
 
 	"github.com/netflix/hal-9001/hal"
 )
