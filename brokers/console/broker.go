@@ -106,6 +106,11 @@ func REPL(name, prefix string) {
 			break
 		}
 
+		// no input, user likely hit enter on an empty line
+		if trimmed == "" {
+			continue
+		}
+
 		// e.g. prefix="!prefs" translates "list" to "!prefs list"
 		// so the plugin system automatically takes care of things
 		// without hacks in the core code
