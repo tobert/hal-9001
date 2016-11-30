@@ -29,6 +29,7 @@ type RouterCTX struct {
 	brokers map[string]Broker
 	in      chan *Evt     // messages from brokers --> plugins
 	out     chan *Evt     // messages from plugins --> brokers
+	quit    chan struct{} // to shut down the router loop
 	update  chan struct{} // to notify the router that the instance list changed
 	mut     sync.Mutex
 	init    sync.Once
@@ -47,6 +48,7 @@ func Router() *RouterCTX {
 	routerSingleton.init.Do(func() {
 		routerSingleton.in = make(chan *Evt, 1000)
 		routerSingleton.out = make(chan *Evt, 1000)
+		routerSingleton.quit = make(chan struct{}, 1)
 		routerSingleton.update = make(chan struct{}, 1)
 		routerSingleton.brokers = make(map[string]Broker)
 	})
@@ -114,12 +116,19 @@ func (r *RouterCTX) Brokers() []Broker {
 	return out
 }
 
+func (r *RouterCTX) Quit() {
+	r.quit <- struct{}{}
+}
+
 // Route is the main method for the router. It blocks and should be run in a
 // goroutine exactly once. Running more than one router in the same process
 // will result in shenanigans.
 func (r *RouterCTX) Route() {
 	for {
 		select {
+		case <-r.quit:
+			close(r.quit)
+			break
 		case evt := <-r.in:
 			// events are processed concurrently, plugins are not
 			go r.processEvent(evt)
