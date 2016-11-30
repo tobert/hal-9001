@@ -19,11 +19,13 @@ package console
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/chzyer/readline"
 	"github.com/netflix/hal-9001/hal"
 )
 
@@ -39,6 +41,85 @@ type Broker struct {
 
 type SlashReaction string
 
+// REPL starts a readline-like bot REPL on the console.
+// All plugins that are present and registered are automatically enabled.
+// name should be a non-empty string. It is reported as the room name/id and
+// will be the string in the REPL prompt, e.g. "foo" -> "foo> ".
+// If prefix is set, it is prepended to every line so you can do, e.g.
+// REPL("foo", "!foo") and every line in the REPL will show up in the hal
+// Evt.Body as "!foo <whatever>". To avoid this, set it to empty string.
+// This will start 2 goroutines.
+func REPL(name, prefix string) {
+	conf := Config{}
+	broker := conf.NewBroker(name)
+	router := hal.Router()
+	router.AddBroker(broker)
+	go router.Route()
+
+	// automatically wire up all loaded & registered plugins
+	pr := hal.PluginRegistry()
+	for _, p := range pr.PluginList() {
+		i := p.Instance(broker.Room, broker)
+		i.Register()
+	}
+
+	lines := make(chan string, 100)
+	quit := make(chan struct{}, 1)
+
+	// a simple forwarder - lines from the REPL are forwarded to the router
+	// lines from the router are printed to stdout
+	// when the user quits, the goroutine is shut down gracefully
+	go func() {
+		for {
+			select {
+			case <-quit:
+				close(quit)
+				close(lines)
+				return
+			case line := <-broker.Stdout:
+				println(line)
+			case line := <-lines:
+				broker.Stdin <- line
+			}
+		}
+	}()
+
+	rl, err := readline.New(name + "> ")
+	if err != nil {
+		panic(err)
+	}
+	defer rl.Close()
+
+	// block forever reading lines from stdin
+	for {
+		line, err := rl.Readline()
+		if err == io.EOF {
+			time.Sleep(time.Millisecond * 100)
+			continue
+		} else if err != nil {
+			panic(err)
+		}
+
+		// quit or exit immediately exit the REPL
+		trimmed := strings.Trim(line, "\r\n		")
+		if trimmed == "quit" || trimmed == "exit" {
+			break
+		}
+
+		// e.g. prefix="!prefs" translates "list" to "!prefs list"
+		// so the plugin system automatically takes care of things
+		// without hacks in the core code
+		if prefix != "" {
+			lines <- prefix + " " + strings.Trim(line, " ")
+		} else {
+			lines <- line
+		}
+	}
+
+	quit <- struct{}{}
+}
+
+// NewBroker returns a new console.Broker.
 func (c Config) NewBroker(name string) Broker {
 	user := os.Getenv("USER")
 	if user == "" {
