@@ -129,6 +129,16 @@ func oncall(msg hal.Evt) {
 			continue
 		}
 
+		epDesc := strings.ToLower(oncall.EscalationPolicy.Description)
+		if epDesc == want {
+			addMatch(matches, oncall)
+			exactMatchFound = true
+			continue
+		} else if !exactMatchFound && strings.Contains(epDesc, want) {
+			addMatch(matches, oncall)
+			continue
+		}
+
 		epSummary := strings.ToLower(oncall.EscalationPolicy.Summary)
 		if epSummary == want {
 			addMatch(matches, oncall)
