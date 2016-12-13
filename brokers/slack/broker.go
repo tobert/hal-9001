@@ -174,6 +174,11 @@ func (sb Broker) SendDM(evt hal.Evt) {
 	}
 }
 
+func (sb Broker) Leave(roomId string) error {
+	_, err := sb.Client.LeaveChannel(roomId)
+	return err
+}
+
 func (sb Broker) GetTopic(roomId string) (string, error) {
 	ch, err := sb.Client.GetChannelInfo(roomId)
 	return ch.Topic.Value, err

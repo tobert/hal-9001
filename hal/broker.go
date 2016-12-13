@@ -25,6 +25,7 @@ type Broker interface {
 	SendDM(evt Evt)
 	SetTopic(roomId, topic string) error
 	GetTopic(roomId string) (topic string, err error)
+	Leave(roomId string) (err error)
 	LooksLikeRoomId(room string) bool
 	LooksLikeUserId(user string) bool
 	RoomIdToName(id string) (name string)

@@ -115,6 +115,17 @@ func (hb Broker) SendDM(e hal.Evt) {
 	panic("SendDM not implemented in Hipchat yet.")
 }
 
+// TODO: this is untested and may not be entirely correct
+func (hb Broker) Leave(roomId string) error {
+	for jid, name := range c.Rooms {
+		if roomId == name {
+			_, err := hb.Client.LeaveMUC(jid)
+			return err
+		}
+	}
+	return fmt.Errorf("Unable to determine JID of room %q.", roomId)
+}
+
 // TODO: implement
 func (hb Broker) GetTopic(roomId string) (string, error) {
 	panic("SetTopic not implemented in Hipchat yet. Pull requests welcome.")

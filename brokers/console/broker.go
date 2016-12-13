@@ -153,6 +153,11 @@ func (cb Broker) SendDM(e hal.Evt) {
 	cb.Stdout <- e.Body
 }
 
+func (cb Broker) Leave(roomId string) error {
+	log.Println("Leave(roomId string) not implemented.")
+	return nil
+}
+
 func (cb Broker) GetTopic(roomId string) (string, error) {
 	return cb.Topic, nil
 }

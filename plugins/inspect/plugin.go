@@ -17,6 +17,7 @@ package inspect
  */
 
 import "github.com/netflix/hal-9001/hal"
+import "log"
 
 func Register() {
 	getid := hal.Plugin{
@@ -25,6 +26,13 @@ func Register() {
 		Regex: "^!getid",
 	}
 	getid.Register()
+
+	leave := hal.Plugin{
+		Name:  "leave",
+		Func:  leave,
+		Regex: "^[[:space:]]*!leave",
+	}
+	leave.Register()
 }
 
 // getid resolves user & room names to ids using the broker's RoomNameToId
@@ -46,5 +54,14 @@ func getid(evt hal.Evt) {
 		evt.Replyf("User: %q => %q", args[1], maybeUserId)
 	} else {
 		evt.Replyf("Could not resolve %q as a user or room.", args[1])
+	}
+}
+
+func leave(evt hal.Evt) {
+	log.Printf("Leaving room %q as requested by %s.", evt.RoomId, evt.User)
+	evt.Replyf("Leaving room %q as requested by %s.", evt.RoomId, evt.User)
+	err := evt.Broker.Leave(evt.RoomId)
+	if err != nil {
+		evt.Replyf("Error leaving room %q: %s", evt.RoomId, err)
 	}
 }
