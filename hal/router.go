@@ -88,6 +88,10 @@ func (r *RouterCTX) AddBroker(b Broker) {
 	r.brokers[b.Name()] = b
 }
 
+func (r *RouterCTX) Send(evt Evt) {
+	r.in <- &evt
+}
+
 // GetBroker retrieves a broker handle by name.
 func (r *RouterCTX) GetBroker(name string) Broker {
 	r.mut.Lock()
