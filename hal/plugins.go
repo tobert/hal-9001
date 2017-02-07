@@ -115,16 +115,11 @@ func (p *Plugin) Unregister() error {
 // Instance creates an instance of a plugin. It is *not* registered (and
 // therefore not considered by the router until that is done).
 func (p *Plugin) Instance(roomId string, broker Broker) *Instance {
-	re := p.Regex
-	if re == "" && p.Command != "" {
-		re = "^[[:space:]]*![[:space:]]*" + p.Command
-	}
-
 	i := Instance{
 		Plugin: p,
 		RoomId: roomId,
 		Broker: broker,
-		Regex:  re,
+		Regex:  p.Regex,
 	}
 
 	return &i
