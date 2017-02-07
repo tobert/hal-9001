@@ -348,7 +348,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					User:     sb.UserIdToName(m.User),
 					UserId:   m.User,
 					Broker:   sb,
-					Time:     slackTime(m.Timestamp),
+					Time:     SlackTime(m.Timestamp),
 					IsChat:   isChat,
 					IsBot:    isBot,
 					Original: m,
@@ -380,7 +380,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					User:     user,
 					UserId:   sae.User,
 					Broker:   sb,
-					Time:     slackTime(sae.EventTimestamp),
+					Time:     SlackTime(sae.EventTimestamp),
 					Original: sae,
 				}
 
@@ -404,7 +404,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					User:     user,
 					UserId:   sre.User,
 					Broker:   sb,
-					Time:     slackTime(sre.EventTimestamp),
+					Time:     SlackTime(sre.EventTimestamp),
 					Original: sre,
 				}
 
@@ -428,7 +428,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					User:     user,
 					UserId:   rae.User,
 					Broker:   sb,
-					Time:     slackTime(rae.EventTimestamp),
+					Time:     SlackTime(rae.EventTimestamp),
 					Original: rae,
 				}
 
@@ -452,7 +452,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 					User:     user,
 					UserId:   rre.User,
 					Broker:   sb,
-					Time:     slackTime(rre.EventTimestamp),
+					Time:     SlackTime(rre.EventTimestamp),
 					Original: rre,
 				}
 
@@ -525,8 +525,8 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 	}
 }
 
-// slackTime converts the timestamp string to time.Time
-func slackTime(t string) time.Time {
+// SlackTime converts the timestamp string to time.Time
+func SlackTime(t string) time.Time {
 	if t == "" {
 		return time.Now()
 	}
