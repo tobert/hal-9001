@@ -27,9 +27,8 @@ import (
 // Register makes this plugin available to the system.
 func Register() {
 	plugin := hal.Plugin{
-		Name:  "cross_the_streams",
-		Func:  crossStreams,
-		Regex: "", // get all messages
+		Name: "cross_the_streams",
+		Func: crossStreams,
 		//  source: Pref.Room / Pref.Broker
 		Settings: hal.Prefs{
 			hal.Pref{Plugin: "cross_the_streams", Key: "to.broker"},

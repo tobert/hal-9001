@@ -86,9 +86,9 @@ func init() {
 
 func Register() {
 	plugin := hal.Plugin{
-		Name:  NAME,
-		Func:  prefmgr,
-		Regex: "^!pref",
+		Name:    NAME,
+		Func:    prefmgr,
+		Command: "pref",
 	}
 	plugin.Register()
 }

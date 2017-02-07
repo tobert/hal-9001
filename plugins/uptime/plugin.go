@@ -32,9 +32,9 @@ func init() {
 
 func Register() {
 	p := hal.Plugin{
-		Name:  "uptime",
-		Func:  uptime,
-		Regex: "^!uptime",
+		Name:    "uptime",
+		Func:    uptime,
+		Command: "uptime",
 	}
 	p.Register()
 }

@@ -47,9 +47,9 @@ CREATE TABLE IF NOT EXISTS marks (
 
 func Register() {
 	mark := hal.Plugin{
-		Name:  "mark",
-		Regex: "^[[:space:]]*!mark[^s]?",
-		Func:  mark,
+		Name:    "mark",
+		Command: "mark",
+		Func:    mark,
 	}
 	mark.Register()
 

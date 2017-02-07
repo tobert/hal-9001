@@ -35,6 +35,7 @@ const cacheExpire = time.Minute * 10
 const DefaultCacheInterval = "1h"
 
 func Register() {
+	// use a custom RE because !page might be "!page foo" or "!pagefoo"
 	pg := hal.Plugin{
 		Name:  "page",
 		Func:  page,
@@ -43,18 +44,18 @@ func Register() {
 	pg.Register()
 
 	oc := hal.Plugin{
-		Name:  "oncall",
-		Func:  oncall,
-		Init:  oncallInit,
-		Regex: "^[[:space:]]*!oncall",
+		Name:    "oncall",
+		Func:    oncall,
+		Init:    oncallInit,
+		Command: "oncall",
 	}
 	oc.Register()
 
 	poller := hal.Plugin{
-		Name:  "pd_poller",
-		Func:  pollerHandler,
-		Init:  pollerInit,
-		Regex: "^[[:space:]]*!pdpoller",
+		Name:    "pd_poller",
+		Func:    pollerHandler,
+		Init:    pollerInit,
+		Command: "pdpoller",
 	}
 	poller.Register()
 }

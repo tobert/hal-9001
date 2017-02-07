@@ -35,9 +35,9 @@ Examples:
 // Register makes this plugin available to the system.
 func Register() {
 	plugin := hal.Plugin{
-		Name:  Name,
-		Func:  docker,
-		Regex: "^!docker",
+		Name:    Name,
+		Func:    docker,
+		Command: "docker",
 	}
 
 	plugin.Register()

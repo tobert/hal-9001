@@ -46,9 +46,8 @@ func Register() {
 	// rostertracker gets all messages and keeps a database of when users
 	// were last seen to support !last, and the web roster.
 	roster := hal.Plugin{
-		Name:  "roster_tracker",
-		Func:  rostertracker,
-		Regex: "",
+		Name: "roster_tracker",
+		Func: rostertracker,
 	}
 	roster.Register()
 

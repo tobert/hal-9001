@@ -21,9 +21,9 @@ import "log"
 
 func Register() {
 	getid := hal.Plugin{
-		Name:  "getid",
-		Func:  getid,
-		Regex: "^!getid",
+		Name:    "getid",
+		Func:    getid,
+		Command: "getid",
 	}
 	getid.Register()
 

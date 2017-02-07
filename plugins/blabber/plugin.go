@@ -57,16 +57,15 @@ CREATE TABLE IF NOT EXISTS blabberwords (
 
 func Register() {
 	bw := hal.Plugin{
-		Name:  "blabberwords",
-		Func:  bwCounter,
-		Regex: "",
+		Name: "blabberwords",
+		Func: bwCounter,
 	}
 	bw.Register()
 
 	bb := hal.Plugin{
-		Name:  "blab",
-		Func:  blab,
-		Regex: "^[[:space:]]*!blab",
+		Name:    "blab",
+		Func:    blab,
+		Command: "blab",
 	}
 	bb.Register()
 

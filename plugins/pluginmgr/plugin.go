@@ -68,9 +68,9 @@ var cli *hal.Cmd
 // Register makes this plugin available to the system.
 func Register() {
 	plugin := hal.Plugin{
-		Name:  NAME,
-		Func:  pluginmgr,
-		Regex: "^!plugin",
+		Name:    NAME,
+		Func:    pluginmgr,
+		Command: "plugin",
 	}
 
 	plugin.Register()

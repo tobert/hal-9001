@@ -177,8 +177,15 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 			continue
 		}
 
-		// finally, check message text against the regex
-		if inst.Regex == "" || inst.regex.MatchString(evt.Body) {
+		// plugins with no RE filter receive every event
+		noRegex := (inst.Regex == "")
+		// events that match the RE filter are passed onto the plugin
+		matchesRegex := inst.regex.MatchString(evt.Body)
+		// events with a Command field that matches exactly are passed to the plugin
+		isCommand := (evt.Command != "" && inst.Plugin.Command == evt.Command)
+
+		// forward to plugins when any of the above rules passes
+		if noRegex || matchesRegex || isCommand {
 			// this will copy the struct twice. It's intentional to avoid
 			// mutating the evt between calls. The plugin func signature
 			// forces the second copy.
