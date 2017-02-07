@@ -162,6 +162,18 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 		}
 	}()
 
+	// if the event doesn't have a command, try to extract one
+	if evt.Command == "" {
+		body := strings.TrimSpace(evt.Body)
+		// check for a leading "!", which indicates it's a command
+		if strings.HasPrefix(body, "!") {
+			parts := strings.SplitN(body, " ", 2) // split off the first word
+			if len(parts) > 0 {
+				evt.Command = strings.TrimPrefix(parts[0], "!")
+			}
+		}
+	}
+
 	for _, inst := range instances {
 		// the recovery handler will pick this up in a panic to provide
 		// the name of the plugin that caused the panic
@@ -178,14 +190,14 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 		}
 
 		// plugins with no RE filter receive every event
-		noRegex := (inst.Regex == "")
+		noFilter := (inst.Regex == "" && inst.Plugin.Command == "")
 		// events that match the RE filter are passed onto the plugin
-		matchesRegex := inst.regex.MatchString(evt.Body)
+		matchesRegex := (inst.Regex != "" && inst.regex.MatchString(evt.Body))
 		// events with a Command field that matches exactly are passed to the plugin
-		isCommand := (evt.Command != "" && inst.Plugin.Command == evt.Command)
+		isCommand := (inst.Plugin.Command != "" && evt.Command == inst.Plugin.Command)
 
 		// forward to plugins when any of the above rules passes
-		if noRegex || matchesRegex || isCommand {
+		if noFilter || matchesRegex || isCommand {
 			// this will copy the struct twice. It's intentional to avoid
 			// mutating the evt between calls. The plugin func signature
 			// forces the second copy.
