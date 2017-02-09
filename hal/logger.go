@@ -29,17 +29,24 @@ type Logger struct {
 	prefix string // logging prefix string - eventually will be prepended to all messages
 }
 
+type LogEntry struct {
+	Time    time.Time
+	Prefix  string
+	Body    string
+	IsDebug bool
+}
+
 // logger contains the state for the logger
 type logger struct {
-	debug       bool          // for enabling/disabling debug logs
-	logSinks    []chan string // a list of channels to receive log messages
-	dbgSinks    []chan string // a list of channels to receive debug messages
-	logFwdQuit  chan struct{} // used to quit the default log message forwarder
-	dbgFwdQuit  chan struct{} // used to quit the default debug message forwarder
-	logFwdClose chan struct{} // used to signal it's ok to close the log channel
-	dbgFwdClose chan struct{} // used to signal it's ok to close the debug channel
-	listLock    sync.Mutex    // protect concurrent access to the sink lists
-	once        sync.Once     // initialize on first use
+	debug       bool            // for enabling/disabling debug logs
+	logSinks    []chan LogEntry // a list of channels to receive log messages
+	dbgSinks    []chan LogEntry // a list of channels to receive debug messages
+	logFwdQuit  chan struct{}   // used to quit the default log message forwarder
+	dbgFwdQuit  chan struct{}   // used to quit the default debug message forwarder
+	logFwdClose chan struct{}   // used to signal it's ok to close the log channel
+	dbgFwdClose chan struct{}   // used to signal it's ok to close the debug channel
+	listLock    sync.Mutex      // protect concurrent access to the sink lists
+	once        sync.Once       // initialize on first use
 }
 
 // makes log available inside Hal
@@ -47,6 +54,17 @@ var log Logger
 
 // the singleton logger state
 var gl logger
+
+// String returns the LogEntry as a formatted log string.
+func (l *LogEntry) String() string {
+	var prefix string
+
+	if l.Prefix != "" {
+		prefix = "[" + l.Prefix + "] "
+	}
+
+	return l.Time.Format(time.RFC3339) + " " + prefix + l.Body
+}
 
 // initialize allocates channels and starts the background goroutines
 // that forward output to stdout
@@ -56,10 +74,10 @@ func (l *logger) initialize() {
 		defer l.listLock.Unlock()
 
 		l.debug = true
-		l.logSinks = make([]chan string, 1)
-		l.dbgSinks = make([]chan string, 1)
-		l.logSinks[0] = make(chan string, 10)
-		l.dbgSinks[0] = make(chan string, 10)
+		l.logSinks = make([]chan LogEntry, 1)
+		l.dbgSinks = make([]chan LogEntry, 1)
+		l.logSinks[0] = make(chan LogEntry, 10)
+		l.dbgSinks[0] = make(chan LogEntry, 10)
 		l.logFwdClose = make(chan struct{})
 		l.dbgFwdClose = make(chan struct{})
 
@@ -70,9 +88,9 @@ func (l *logger) initialize() {
 }
 
 // fwdStdout is run as a goroutine to read off a channel and print to stdout.
-func (l *logger) fwdStdout(src chan string, closed chan struct{}) {
+func (l *logger) fwdStdout(src chan LogEntry, closed chan struct{}) {
 	for out := range src {
-		print(out + "\n")
+		print(out.String() + "\n")
 	}
 
 	closed <- struct{}{}
@@ -83,25 +101,14 @@ func (l *Logger) SetPrefix(prefix string) {
 	l.prefix = prefix
 }
 
-// addPrefix conditionally adds the log prefix to messages when it is set.
-func (l *Logger) addPrefix(msg string) string {
-	now := time.Now()
-	var prefix string
-
-	if l.prefix != "" {
-		prefix = "[" + l.prefix + "] "
-	}
-
-	return now.Format(time.RFC3339) + " " + prefix + msg
-}
-
 // Printf formats the message and propagates it as a log message.
 func (l *Logger) Printf(msg string, a ...interface{}) {
 	gl.initialize()
 
-	out := fmt.Sprintf(msg, a...)
-	if l.prefix != "" {
-		out = l.addPrefix(out)
+	out := LogEntry{
+		Time:   time.Now(),
+		Prefix: l.prefix,
+		Body:   fmt.Sprintf(msg, a...),
 	}
 
 	for _, sink := range gl.logSinks {
@@ -113,9 +120,10 @@ func (l *Logger) Printf(msg string, a ...interface{}) {
 func (l *Logger) Println(a ...interface{}) {
 	gl.initialize()
 
-	out := fmt.Sprintln(a...)
-	if l.prefix != "" {
-		out = l.addPrefix(out)
+	out := LogEntry{
+		Time:   time.Now(),
+		Prefix: l.prefix,
+		Body:   fmt.Sprintln(a...),
 	}
 
 	for _, sink := range gl.logSinks {
@@ -129,9 +137,11 @@ func (l *Logger) Debugf(msg string, a ...interface{}) {
 	gl.initialize()
 
 	if gl.debug {
-		out := fmt.Sprintf(msg, a...)
-		if l.prefix != "" {
-			out = l.addPrefix(out)
+		out := LogEntry{
+			Time:    time.Now(),
+			Prefix:  l.prefix,
+			Body:    fmt.Sprintf(msg, a...),
+			IsDebug: true,
 		}
 
 		for _, sink := range gl.dbgSinks {
@@ -144,9 +154,10 @@ func (l *Logger) Debugf(msg string, a ...interface{}) {
 func (l *Logger) Fatalf(msg string, a ...interface{}) {
 	gl.initialize()
 
-	out := fmt.Sprintf(msg, a...)
-	if l.prefix != "" {
-		out = l.addPrefix(out)
+	out := LogEntry{
+		Time:   time.Now(),
+		Prefix: l.prefix,
+		Body:   fmt.Sprintf(msg, a...),
 	}
 
 	for _, sink := range gl.logSinks {
@@ -162,19 +173,22 @@ func (l *Logger) Fatalf(msg string, a ...interface{}) {
 
 // Panic panics immediately. No attempt is made to forward/propagate.
 func (l *Logger) Panic(msg string) {
-	if l.prefix != "" {
-		msg = l.addPrefix(msg)
+	out := LogEntry{
+		Time:   time.Now(),
+		Prefix: l.prefix,
+		Body:   msg,
 	}
-	panic(msg)
+	panic(out.String())
 }
 
 // Panicf formats a message and panics. Not propagated.
 func (l *Logger) Panicf(msg string, a ...interface{}) {
-	out := fmt.Sprintf(msg, a...)
-	if l.prefix != "" {
-		out = l.addPrefix(out)
+	out := LogEntry{
+		Time:   time.Now(),
+		Prefix: l.prefix,
+		Body:   fmt.Sprintf(msg, a...),
 	}
-	panic(out)
+	panic(out.String())
 }
 
 // IsDebug returns true of debug messages are enabled.
@@ -199,24 +213,24 @@ func (l *Logger) DisableDebug() {
 
 // NewLogSink creates a new channel that will receive log messages.
 // It is allocated and ready to go on return. Do not close it.
-func (l *Logger) NewLogSink() chan string {
+func (l *Logger) NewLogSink() chan LogEntry {
 	gl.initialize()
 	gl.listLock.Lock()
 	defer gl.listLock.Unlock()
 
-	sink := make(chan string, 1000)
+	sink := make(chan LogEntry, 1000)
 	gl.logSinks = append(gl.logSinks, sink)
 	return sink
 }
 
 // NewLogSink creates a new channel that will receive debug messages.
 // It is allocated and ready to go on return. Do not close it.
-func (l *Logger) NewDebugSink() chan string {
+func (l *Logger) NewDebugSink() chan LogEntry {
 	gl.initialize()
 	gl.listLock.Lock()
 	defer gl.listLock.Unlock()
 
-	sink := make(chan string, 1000)
+	sink := make(chan LogEntry, 1000)
 	gl.dbgSinks = append(gl.dbgSinks, sink)
 	return sink
 }
