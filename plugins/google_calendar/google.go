@@ -124,7 +124,7 @@ func getEvents(calendarId string, now time.Time) ([]CalEvent, error) {
 				log.Printf("Failed to parse end date TimeZone %q from calendar event: %s", event.End.TimeZone, err)
 			}
 
-			log.Printf("endZone: %q", event.End.TimeZone)
+			log.Debugf("endZone: %q", event.End.TimeZone)
 
 			end, err = time.ParseInLocation("2006-01-02", event.End.Date, zone)
 			if err != nil {

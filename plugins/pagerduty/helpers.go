@@ -28,6 +28,10 @@ import (
 
 var log hal.Logger
 
+func init() {
+	log.SetPrefix("plugins/pagerduty")
+}
+
 // AuthenticatedGet authenticates with the provided token and GETs the url.
 func authenticatedGet(geturl, token string) (*http.Response, error) {
 	tokenHdr := fmt.Sprintf("Token token=%s", token)
@@ -43,7 +47,7 @@ func authenticatedGet(geturl, token string) (*http.Response, error) {
 	client := &http.Client{}
 	r, err := client.Do(req)
 
-	log.Printf("pagerduty.authenticatedGet(%s, token) = %d", geturl, r.StatusCode)
+	log.Debugf("authenticatedGet(%s, token) = %d", geturl, r.StatusCode)
 
 	return r, err
 }

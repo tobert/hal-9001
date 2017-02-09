@@ -75,10 +75,10 @@ pfLoop:
 			pf.status = "stopped"
 			break pfLoop
 		case t := <-pf.tick:
-			log.Printf("PeriodicFunc tick %q @ %s", pf.Name, t)
+			log.Debugf("PeriodicFunc tick %q @ %s", pf.Name, t)
 			pf.runFunc(t)
 		case t := <-pf.run:
-			log.Printf("PeriodicFunc run %q @ %s", pf.Name, t)
+			log.Debugf("PeriodicFunc run %q @ %s", pf.Name, t)
 			pf.runFunc(t)
 		}
 	}

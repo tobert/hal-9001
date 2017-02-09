@@ -80,6 +80,7 @@ var mentionWords = [...]string{"@here", "@all"}
 
 func init() {
 	configCache = make(map[string]*Config)
+	log.SetPrefix("plugins/google_calendar")
 }
 
 func Register() {
@@ -153,8 +154,7 @@ func handleEvt(evt hal.Evt) {
 		return
 	}
 
-	// temporary debugging
-	log.Printf("google_calendar/handleEvt checking message. Replied to user at: %q. Replied to room at: %q. %d events since last reply", userTs, roomTs, config.EvtsSinceLast)
+	log.Debugf("handleEvt checking message. Replied to user at: %q. Replied to room at: %q. %d events since last reply", userTs, roomTs, config.EvtsSinceLast)
 
 	// count events since the last notification to the room
 	if roomTs != "" {
@@ -176,8 +176,8 @@ func handleEvt(evt hal.Evt) {
 	}
 
 	for _, e := range calEvents {
-		log.Printf("Autoreply: %t, Now: %q, Start: %q, End: %q", config.Autoreply, now.String(), e.Start.String(), e.End.String())
-		log.Printf("e.Description: %q, e.Name: %q", e.Description, e.Name)
+		log.Debugf("Autoreply: %t, Now: %q, Start: %q, End: %q", config.Autoreply, now.String(), e.Start.String(), e.End.String())
+		log.Debugf("e.Description: %q, e.Name: %q", e.Description, e.Name)
 		if config.Autoreply && e.Start.Before(now) && e.End.After(now) {
 			msg := e.Description
 			if msg == "" {
@@ -189,7 +189,7 @@ func handleEvt(evt hal.Evt) {
 			expire := e.End.Sub(now)
 			hal.SetKV(userSpamKey, now.Format(time.RFC3339), expire) // only notify each user once per calendar event
 			hal.SetKV(roomSpamKey, now.Format(time.RFC3339), expire) // only notify the room again if it gets busy
-			log.Printf("google_calendar: will not notify room %q for 10 minutes or the user %q for 2 hours", roomSpamKey, userSpamKey)
+			log.Debugf("will not notify room %q for 10 minutes or the user %q for 2 hours", roomSpamKey, userSpamKey)
 
 			config.EvtsSinceLast = 0
 
@@ -265,7 +265,7 @@ func getSpamKey(scope, id string) string {
 }
 
 func updateCachedCalEvents(roomId string) {
-	log.Printf("START: updateCachedCalEvents(%q)", roomId)
+	log.Debugf("START: updateCachedCalEvents(%q)", roomId)
 
 	now := time.Now()
 
@@ -286,7 +286,7 @@ func updateCachedCalEvents(roomId string) {
 	c.CalEvents = evts
 	c.mut.Unlock()
 
-	log.Printf("DONE: updateCachedCalEvents(%q)", roomId)
+	log.Debugf("DONE: updateCachedCalEvents(%q)", roomId)
 }
 
 func getCachedConfig(roomId string, now time.Time) *Config {
@@ -310,7 +310,7 @@ func (c *Config) getCachedCalEvents(now time.Time) ([]CalEvent, error) {
 	c.mut.Unlock()
 
 	if calAge.Hours() > 1.1 {
-		log.Printf("%q's calendar cache appears to be expired after %f hours", c.RoomId, calAge.Hours())
+		log.Debugf("%q's calendar cache appears to be expired after %f hours", c.RoomId, calAge.Hours())
 		evts, err := getEvents(c.CalendarId, now)
 		if err != nil {
 			log.Printf("Error encountered while fetching calendar events: %s", err)
