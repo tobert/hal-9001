@@ -47,8 +47,6 @@ func authenticatedGet(geturl, token string) (*http.Response, error) {
 	client := &http.Client{}
 	r, err := client.Do(req)
 
-	log.Debugf("authenticatedGet(%s, token) = %d", geturl, r.StatusCode)
-
 	return r, err
 }
 
