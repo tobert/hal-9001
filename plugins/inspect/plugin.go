@@ -17,7 +17,8 @@ package inspect
  */
 
 import "github.com/netflix/hal-9001/hal"
-import "log"
+
+var log hal.Logger
 
 func Register() {
 	getid := hal.Plugin{

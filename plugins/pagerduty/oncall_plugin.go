@@ -19,7 +19,6 @@ package pagerduty
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"sort"
 	"strings"
 	"sync"

@@ -18,7 +18,6 @@ package hal
 
 import (
 	"database/sql"
-	"log"
 	"strings"
 	"sync"
 

@@ -17,7 +17,6 @@ package pagerduty
  */
 
 import (
-	"log"
 	"strings"
 	"time"
 

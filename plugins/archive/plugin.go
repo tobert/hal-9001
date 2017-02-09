@@ -19,7 +19,6 @@ package archive
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -27,6 +26,8 @@ import (
 	"github.com/netflix/hal-9001/hal"
 	"github.com/nlopes/slack"
 )
+
+var log hal.Logger
 
 // ArchiveEntry is a single event observed by the archive plugin.
 type ArchiveEntry struct {

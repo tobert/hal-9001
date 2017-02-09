@@ -18,7 +18,6 @@ package pagerduty
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/netflix/hal-9001/hal"

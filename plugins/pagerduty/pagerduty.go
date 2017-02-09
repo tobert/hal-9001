@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 )
 
 // TODO: rename this file to pd_trigger.go

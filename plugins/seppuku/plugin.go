@@ -17,12 +17,13 @@ package seppuku
  */
 
 import (
-	"log"
 	"os"
 	"time"
 
 	"github.com/netflix/hal-9001/hal"
 )
+
+var log hal.Logger
 
 func Register() {
 	p := hal.Plugin{

@@ -2,7 +2,6 @@ package hal
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"time"

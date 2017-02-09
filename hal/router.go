@@ -18,7 +18,6 @@ package hal
 
 import (
 	"fmt"
-	"log"
 	"runtime/debug"
 	"strings"
 	"sync"

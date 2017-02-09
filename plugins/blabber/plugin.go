@@ -23,12 +23,13 @@ package blabber
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"math/rand"
 	"strings"
 
 	"github.com/netflix/hal-9001/hal"
 )
+
+var log hal.Logger
 
 type wncRow struct {
 	word  string

@@ -21,7 +21,6 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"io"
-	"log"
 	"sync"
 )
 

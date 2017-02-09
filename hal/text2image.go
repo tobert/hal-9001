@@ -37,7 +37,6 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
-	"log"
 	"strconv"
 	"unicode/utf8"
 )

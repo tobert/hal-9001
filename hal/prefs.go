@@ -19,7 +19,6 @@ package hal
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"sort"
 	"strings"
 )

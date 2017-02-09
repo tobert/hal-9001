@@ -20,7 +20,6 @@ package google_calendar
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,6 +27,8 @@ import (
 
 	"github.com/netflix/hal-9001/hal"
 )
+
+var log hal.Logger
 
 const Usage = `!gcal (silence|status|expire|reload)
 !gcal silence 4h

@@ -16,10 +16,6 @@ package hal
  * limitations under the License.
  */
 
-import (
-	"log"
-)
-
 const PLUGIN_INST_TABLE = `
 CREATE TABLE IF NOT EXISTS plugin_instances (
 	plugin  varchar(191) NOT NULL,

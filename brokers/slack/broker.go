@@ -23,7 +23,6 @@ import (
 	"image/draw"
 	"image/png"
 	"io/ioutil"
-	"log"
 	"os"
 	"regexp"
 	"strconv"
@@ -34,6 +33,8 @@ import (
 	"github.com/netflix/hal-9001/hal"
 	"github.com/nlopes/slack"
 )
+
+var log hal.Logger
 
 // Broker interacts with the slack service.
 // TODO: add a miss cache to avoid hammering the room/user info apis
@@ -61,6 +62,8 @@ var LooksLikeIdRE *regexp.Regexp
 
 func init() {
 	LooksLikeIdRE = regexp.MustCompile(`^[UCD]\w{8}$`)
+
+	log.SetPrefix("brokers/slack")
 }
 
 func (c Config) NewBroker(name string) Broker {
@@ -184,7 +187,7 @@ func (sb Broker) GetTopic(roomId string) (string, error) {
 
 func (sb Broker) SetTopic(roomId, topic string) error {
 	r, err := sb.Client.SetChannelTopic(roomId, topic)
-	log.Printf("SetTopic(%q, %q) = %q", roomId, topic, r)
+	log.Debugf("SetTopic(%q, %q) = %q", roomId, topic, r)
 	return err
 }
 
@@ -319,13 +322,13 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				// frequent and mostly useless in a bot: ignore
 
 			case *slack.HelloEvent:
-				log.Println("brokers/slack HelloEvent")
+				log.Debugf("HelloEvent")
 
 			case *slack.ConnectedEvent:
 				info := sb.RTM.GetInfo()
 				sb.UserId = info.User.ID
 
-				log.Printf("brokers/slack ConnectedEvent - retreived bot ID %q", sb.UserId)
+				log.Debugf("ConnectedEvent - retreived bot ID %q", sb.UserId)
 
 			case *slack.MessageEvent:
 				// https://api.slack.com/events/message
@@ -366,7 +369,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				sae := msg.Data.(*slack.StarAddedEvent)
 
 				if sae.User == sb.UserId {
-					log.Printf("ignoring event from bot with id %s", sb.UserId)
+					log.Debugf("ignoring event from bot with id %s", sb.UserId)
 					continue // ignore bot-created events
 				}
 
@@ -390,7 +393,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				sre := msg.Data.(*slack.StarRemovedEvent)
 
 				if sre.User == sb.UserId {
-					log.Printf("ignoring event from bot with id %s", sb.UserId)
+					log.Debugf("ignoring event from bot with id %s", sb.UserId)
 					continue // ignore bot-created events
 				}
 
@@ -414,7 +417,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				rae := msg.Data.(*slack.ReactionAddedEvent)
 
 				if rae.User == sb.UserId {
-					log.Printf("ignoring event from bot with id %s", sb.UserId)
+					log.Debugf("ignoring event from bot with id %s", sb.UserId)
 					continue // ignore bot-created events
 				}
 
@@ -438,7 +441,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				rre := msg.Data.(*slack.ReactionRemovedEvent)
 
 				if rre.User == sb.UserId {
-					log.Printf("ignoring event from bot with id %s", sb.UserId)
+					log.Debugf("ignoring event from bot with id %s", sb.UserId)
 					continue // ignore bot-created events
 				}
 
@@ -512,14 +515,14 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				// ignored
 
 			case *slack.RTMError:
-				log.Printf("brokers/slack ignoring RTMError: %s\n", ev.Error())
+				log.Printf("ignoring RTMError: %s\n", ev.Error())
 
 			case *slack.InvalidAuthEvent:
-				log.Println("brokers/slack InvalidAuthEvent")
+				log.Debugf("InvalidAuthEvent")
 				break
 
 			default:
-				log.Printf("brokers/slack: unexpected message: %+v\n", msg)
+				log.Printf("unexpected message: %+v\n", msg)
 			}
 		}
 	}
@@ -553,7 +556,7 @@ func (sb *Broker) FillUserCache() {
 
 	users, err := sb.Client.GetUsers()
 	if err != nil {
-		log.Printf("brokers/slack failed to fetch user list: %s", err)
+		log.Printf("failed to fetch user list: %s", err)
 		return
 	}
 
@@ -590,14 +593,14 @@ func (sb *Broker) FillRoomCache() {
 
 	rooms, err := sb.Client.GetChannels(true)
 	if err != nil {
-		log.Printf("brokers/slack failed to fetch room list: %s", err)
+		log.Printf("failed to fetch room list: %s", err)
 		return
 	}
 
 	// now get private channels a.k.a. groups
 	groups, err := sb.Client.GetGroups(true)
 	if err != nil {
-		log.Printf("brokers/slack failed to fetch private channel list: %s", err)
+		log.Printf("failed to fetch private channel list: %s", err)
 		return
 	}
 
@@ -619,7 +622,7 @@ func (sb *Broker) FillRoomCache() {
 // in-memory cache that falls through to the Slack API
 func (sb Broker) UserIdToName(id string) string {
 	if id == "" {
-		log.Println("broker/slack/UserIdToName(): Cannot look up empty string!")
+		log.Println("UserIdToName(): Cannot look up empty string!")
 		return ""
 	}
 
@@ -632,7 +635,7 @@ func (sb Broker) UserIdToName(id string) string {
 	} else {
 		user, err := sb.Client.GetUserInfo(id)
 		if err != nil {
-			log.Printf("brokers/slack could not retrieve user info for '%s' via API: %s\n", id, err)
+			log.Printf("could not retrieve user info for '%s' via API: %s\n", id, err)
 			return ""
 		}
 
@@ -677,17 +680,17 @@ func (sb Broker) RoomIdToName(id string) string {
 		if strings.HasPrefix(id, "G") {
 			grp, err := sb.Client.GetGroupInfo(id)
 			if err != nil {
-				log.Printf("brokers/slack could not retrieve room info for '%s' via API: %s\n", id, err)
+				log.Printf("could not retrieve room info for '%s' via API: %s\n", id, err)
 				return ""
 			}
 			name = grp.Name
 		} else if strings.HasPrefix(id, "D") {
-			log.Println("brokers/slack DM CHANNELS ARE A WORK IN PROGRESS")
-			//log.Printf("brokers/slack could not retrieve room info for '%s' via API: %s\n", id, err)
+			log.Println("DM CHANNELS ARE A WORK IN PROGRESS")
+			//log.Printf("could not retrieve room info for '%s' via API: %s\n", id, err)
 		} else {
 			room, err := sb.Client.GetChannelInfo(id)
 			if err != nil {
-				log.Printf("brokers/slack could not retrieve room info for '%s' via API: %s\n", id, err)
+				log.Printf("could not retrieve room info for '%s' via API: %s\n", id, err)
 				return ""
 			}
 			name = room.Name
@@ -726,7 +729,7 @@ func (sb Broker) UserNameToId(name string) string {
 			return id
 		}
 
-		log.Printf("brokers/slack service does not seem to have knowledge of username %q", name)
+		log.Printf("service does not seem to have knowledge of username %q", name)
 		return ""
 	}
 }
@@ -735,7 +738,7 @@ func (sb Broker) UserNameToId(name string) string {
 // in-memory cache that falls through to the Slack API
 func (sb Broker) RoomNameToId(name string) string {
 	if name == "" {
-		log.Println("broker/slack/RoomNameToId(): Cannot look up empty string!")
+		log.Println("RoomNameToId(): Cannot look up empty string!")
 		return ""
 	}
 
@@ -755,7 +758,7 @@ func (sb Broker) RoomNameToId(name string) string {
 			return id
 		}
 
-		log.Printf("brokers/slack service does not seem to have knowledge of room name %q", name)
+		log.Printf("service does not seem to have knowledge of room name %q", name)
 		return ""
 	}
 }

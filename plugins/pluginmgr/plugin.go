@@ -19,11 +19,12 @@ package pluginmgr
  */
 
 import (
-	"log"
 	"time"
 
 	"github.com/netflix/hal-9001/hal"
 )
+
+var log hal.Logger
 
 // NAME of the plugin
 const NAME = "pluginmgr"

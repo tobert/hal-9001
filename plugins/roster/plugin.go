@@ -19,12 +19,13 @@ package roster
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/netflix/hal-9001/hal"
 )
+
+var log hal.Logger
 
 type RosterUser struct {
 	Broker    string    `json: broker` // broker name e.g. slack, hipchat

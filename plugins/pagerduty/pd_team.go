@@ -19,7 +19,6 @@ package pagerduty
 import (
 	"encoding/json"
 	"io/ioutil"
-	"log"
 )
 
 // https://v2.developer.pagerduty.com/v2/page/api-reference#!/Teams/get_teams

@@ -17,10 +17,10 @@ package spam
  */
 
 import (
-	"log"
-
 	"github.com/netflix/hal-9001/hal"
 )
+
+var log hal.Logger
 
 func Register() {
 	p := hal.Plugin{

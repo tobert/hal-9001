@@ -18,7 +18,6 @@ package hal
 
 import (
 	dbsql "database/sql"
-	"log"
 )
 
 const CounterTable = `

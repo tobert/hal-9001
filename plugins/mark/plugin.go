@@ -19,13 +19,14 @@ package mark
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/netflix/hal-9001/hal"
 )
+
+var log hal.Logger
 
 type Mark struct {
 	Timestamp time.Time `json:"timestamp"`

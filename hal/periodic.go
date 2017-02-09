@@ -1,7 +1,6 @@
 package hal
 
 import (
-	"log"
 	"math/rand"
 	"sync"
 	"time"

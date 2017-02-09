@@ -19,7 +19,6 @@ package hal
 import (
 	"errors"
 	"fmt"
-	"log"
 	"regexp"
 	"sync"
 )
@@ -149,7 +148,7 @@ func (inst *Instance) Register() error {
 	// pick it up on the next message it processes
 	pr.instances = append(pr.instances, inst)
 
-	log.Printf("Registered plugin %q in room id %q on broker %q with RE match %q",
+	log.Debugf("Registered plugin %q in room id %q on broker %q with RE match %q",
 		inst.Name, inst.RoomId, inst.Broker.Name(), inst.regex)
 
 	return nil

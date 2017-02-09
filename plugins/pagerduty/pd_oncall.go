@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 )
 
 // https://v2.developer.pagerduty.com/v2/page/api-reference#!/On-Calls/get_oncalls

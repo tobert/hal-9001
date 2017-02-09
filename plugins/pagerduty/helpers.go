@@ -19,11 +19,14 @@ package pagerduty
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/netflix/hal-9001/hal"
 )
+
+var log hal.Logger
 
 // AuthenticatedGet authenticates with the provided token and GETs the url.
 func authenticatedGet(geturl, token string) (*http.Response, error) {

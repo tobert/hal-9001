@@ -20,7 +20,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"strings"
 	"time"
@@ -28,6 +27,8 @@ import (
 	"github.com/chzyer/readline"
 	"github.com/netflix/hal-9001/hal"
 )
+
+var log hal.Logger
 
 type Config struct{}
 

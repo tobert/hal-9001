@@ -21,7 +21,6 @@ package pagerduty
 import (
 	"encoding/json"
 	"io/ioutil"
-	"log"
 )
 
 func GetServices(token string, params map[string][]string) ([]Service, error) {

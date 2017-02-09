@@ -18,13 +18,14 @@ package hipchat
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
 	"github.com/mattn/go-xmpp"
 	"github.com/netflix/hal-9001/hal"
 )
+
+var log hal.Logger
 
 // Broker contains the Hipchat API handles required for interacting
 // with the hipchat service.

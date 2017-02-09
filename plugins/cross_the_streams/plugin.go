@@ -19,10 +19,11 @@ package cross_the_streams
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/netflix/hal-9001/hal"
 )
+
+var log hal.Logger
 
 // Register makes this plugin available to the system.
 func Register() {

@@ -2,7 +2,6 @@ package google_calendar
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/netflix/hal-9001/hal"
