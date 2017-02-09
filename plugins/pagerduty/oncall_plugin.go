@@ -317,12 +317,12 @@ func topicUpdater(token, roomId, brokerName string) {
 	mut.Lock()
 	defer mut.Unlock()
 
-	log.Printf("ENTER topicUpdater(token, %q, %q)", roomId, brokerName)
+	log.Debugf("ENTER topicUpdater(token, %q, %q)", roomId, brokerName)
 
 	pref := hal.GetPref("", brokerName, roomId, "pagerduty", "topic-updater-schedule-id", "-")
 	// probably not configured, nothing to see here...
 	if !pref.Success || pref.Value == "-" {
-		log.Printf("The pref ''/%q/%q/pagerduty/topic-updater-schedule-id does not seem to be set. Returning without taking action.",
+		log.Debugf("The pref ''/%q/%q/pagerduty/topic-updater-schedule-id does not seem to be set. Returning without taking action.",
 			brokerName, roomId)
 		return
 	}
@@ -338,7 +338,7 @@ func topicUpdater(token, roomId, brokerName string) {
 		return
 	}
 
-	log.Printf("Got %d users for schedule id %q", len(oncalls), pref.Value)
+	log.Debugf("Got %d users for schedule id %q", len(oncalls), pref.Value)
 
 	// there may be more than one entry but if they're both on the same
 	// schedule it should be the same primary oncall so ignore all but the first
