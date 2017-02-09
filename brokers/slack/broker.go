@@ -549,7 +549,7 @@ func (sb *Broker) FillUserCache() {
 	// don't let this fire more than once every half hour
 	now := time.Now()
 	if now.Sub(sb.lufill) < time.Minute*30 {
-		log.Printf("refusing to fill cache because it has been less than 30 minutes since the last fill @ %s", sb.lufill.String())
+		log.Debugf("refusing to fill cache because it has been less than 30 minutes since the last fill @ %s", sb.lufill.String())
 		return
 	}
 	sb.lufill = now
@@ -622,7 +622,7 @@ func (sb *Broker) FillRoomCache() {
 // in-memory cache that falls through to the Slack API
 func (sb Broker) UserIdToName(id string) string {
 	if id == "" {
-		log.Println("UserIdToName(): Cannot look up empty string!")
+		log.Debugf("UserIdToName(): Cannot look up empty string!")
 		return ""
 	}
 
@@ -667,7 +667,7 @@ func (sb Broker) RoomIdToName(id string) string {
 	defer sb.mut.Unlock()
 
 	if id == "" {
-		log.Println("broker/slack/RoomIdToName(): Cannot look up empty string!")
+		log.Debugf("RoomIdToName(): Cannot look up empty string!")
 		return ""
 	}
 
@@ -707,7 +707,7 @@ func (sb Broker) RoomIdToName(id string) string {
 // in-memory cache that falls through to the Slack API
 func (sb Broker) UserNameToId(name string) string {
 	if name == "" {
-		log.Println("broker/slack/UserNameToId(): Cannot look up empty string!")
+		log.Debugf("UserNameToId(): Cannot look up empty string!")
 		return ""
 	}
 
