@@ -104,7 +104,8 @@ func (pf *PeriodicFunc) runFunc(t time.Time) {
 func (pf *PeriodicFunc) Register() {
 	found := GetPeriodicFunc(pf.Name)
 	if found != nil {
-		log.Printf("Found duplicate name %q in list of PeriodicFuncs while registering.", pf.Name)
+		log.Debugf("Found duplicate name %q in list of PeriodicFuncs while registering.", pf.Name)
+		return
 	}
 
 	periodicData.mut.Lock()
