@@ -522,7 +522,7 @@ func (sb Broker) Stream(out chan *hal.Evt) {
 				break
 
 			default:
-				log.Printf("unexpected message: %+v\n", msg)
+				log.Debugf("unexpected message: %+v\n", msg)
 			}
 		}
 	}
