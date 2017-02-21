@@ -26,6 +26,7 @@ import (
 
 var sqldbSingleton *sql.DB
 var initSqlDbOnce sync.Once
+var sqlMapMutex sync.Mutex
 var sqlInitCache map[string]struct{}
 
 const SECRETS_KEY_DSN = "hal.dsn"
@@ -74,6 +75,9 @@ func ForceSqlDBHandle(db *sql.DB) {
 // idempotent execution. Errors are returned unmodified, including
 // primary key violations, so you may ignore them as needed.
 func SqlInit(sqlTxt string) error {
+	sqlMapMutex.Lock()
+	defer sqlMapMutex.Unlock()
+
 	db := SqlDB()
 
 	// avoid a database round-trip by checking an in-memory cache
