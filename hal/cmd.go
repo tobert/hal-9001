@@ -1550,7 +1550,6 @@ func (c *CmdInst) GetIdxParamInstByName(name string) *IdxParamInst {
 func (c *SubCmdInst) GetIdxParamInstByName(name string) *IdxParamInst {
 	ips := c.subCmd._idxparams()
 	for _, p := range ips {
-		log.Printf("if %q == %q {", p.name, name)
 		if p.name == name {
 			return c.GetIdxParamInst(p.idx)
 		}
