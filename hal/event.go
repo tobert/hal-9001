@@ -48,10 +48,16 @@ type Evt struct {
 	ReplyFunc func(string) // a function to be called with a reply rather than the usual process
 	Original  interface{}  // the original message container (e.g. slack.MessageEvent)
 	instance  *Instance    // used by the broker to provide plugin instance metadata
+	isReply   bool         // the message is a reply
+	isDM      bool         // the message is/should be a DM
+	isTable   bool         // the message is a table that should be rendered
+	oob       interface{}  // oob data that needs to flow between stages (e.g. tables)
 }
 
 // Clone() returns a copy of the event with the same broker/room/user
-// and a current timestamp. Body, Command, Subject, and Original will be empty.
+// and a current timestamp. Body, Command, and Subject will be empty.
+// Time is updated to the current time.
+// Original is carried through, so nil that if you don't want it preserved.
 func (e *Evt) Clone() Evt {
 	out := Evt{
 		ID:       e.ID,
@@ -64,6 +70,10 @@ func (e *Evt) Clone() Evt {
 		IsChat:   e.IsChat,
 		IsBot:    e.IsBot,
 		Original: e.Original,
+		isReply:  e.isReply,
+		isDM:     e.isDM,
+		isTable:  e.isTable,
+		// do not preserve oob
 	}
 
 	return out

@@ -134,13 +134,15 @@ func (r *RouterCTX) Route() {
 			break
 		case evt := <-r.in:
 			// events are processed concurrently, plugins are not
-			go r.processEvent(evt)
+			go r.inEvent(evt)
+		case evt := <-r.out:
+			go r.outEvent(evt)
 		}
 	}
 }
 
-// processEvent processes one event and is intended to run in a goroutine.
-func (r *RouterCTX) processEvent(evt *Evt) {
+// inEvent processes one event and is intended to run in a goroutine.
+func (r *RouterCTX) inEvent(evt *Evt) {
 	var pname string // must be in the recovery handler's scope
 
 	// detect invalid commands & count executions
@@ -235,4 +237,9 @@ func (r *RouterCTX) processEvent(evt *Evt) {
 			evt.Replyf("invalid bot command: %q (IsBot: %t) (%d plugins were executed for the event).", evt.Body, evt.IsBot, ranPlugins)
 		}
 	}
+}
+
+func (r *RouterCTX) outEvent(evt *Evt) {
+	// TODO: fill in this stub
+	log.Printf("STUB: did nothing with event %s", evt.String())
 }
