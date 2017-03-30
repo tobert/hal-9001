@@ -122,8 +122,8 @@ func pageAlias(evt hal.Evt, parts []string) {
 			return
 		}
 
-		log.Printf("Pagerduty response message: %s\n", resp.Message)
-		evt.Replyf("Message sent to %s using integration key %s.", parts[0], pref.Value)
+		log.Printf("Pagerduty response message for %q -> %s(%s): %s\n", pageMessage, parts[0], svckey, resp.Message)
+		evt.Replyf("Message sent to %s using integration key %s.", parts[0], svckey)
 	}
 }
 
