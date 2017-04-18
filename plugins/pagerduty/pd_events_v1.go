@@ -23,8 +23,6 @@ import (
 	"io/ioutil"
 )
 
-// TODO: rename this file to pd_trigger.go
-
 // https://developer.pagerduty.com/documentation/integration/events/trigger
 const V1EventEndpoint = `https://events.pagerduty.com/generic/2010-04-15/create_event.json`
 
