@@ -52,12 +52,11 @@ func authenticatedGet(geturl, token string) (*http.Response, error) {
 
 // AuthenticatedPost authenticates with the provided token and posts the
 // provided body.
-func authenticatedPost(token string, body []byte) (*http.Response, error) {
+func authenticatedPost(postUrl, token string, body []byte) (*http.Response, error) {
 	tokenHdr := fmt.Sprintf("Token token=%s", token)
 	buf := bytes.NewBuffer(body)
 
-	// TODO: make Endpoint a url parameter
-	req, err := http.NewRequest("POST", Endpoint, buf)
+	req, err := http.NewRequest("POST", postUrl, buf)
 	if err != nil {
 		return nil, err
 	}

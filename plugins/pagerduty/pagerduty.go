@@ -26,10 +26,9 @@ import (
 // TODO: rename this file to pd_trigger.go
 
 // https://developer.pagerduty.com/documentation/integration/events/trigger
+const V1EventEndpoint = `https://events.pagerduty.com/generic/2010-04-15/create_event.json`
 
-var Endpoint = "https://events.pagerduty.com/generic/2010-04-15/create_event.json"
-
-// Context is an interface for the contexts field in PD events.
+// Context is an interface for the contexts field in V1 PD events.
 type Context interface {
 	GetType() string
 }
@@ -124,7 +123,7 @@ func (e *Event) Send(token string) (*Response, error) {
 		return e.respond("error", err.Error()), err
 	}
 
-	resp, err := authenticatedPost(token, js)
+	resp, err := authenticatedPost(token, V1EventEndpoint, js)
 	if err != nil {
 		return e.respond("error", err.Error()), err
 	}
