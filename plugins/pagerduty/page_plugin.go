@@ -114,16 +114,44 @@ func pageAlias(evt hal.Evt, parts []string) {
 
 	// the value can be a list of tokens, separated by commas
 	for _, svckey := range strings.Split(pref.Value, ",") {
-		// create the event and send it
-		pde := NewTrigger(svckey, pageMessage) // in ./pagerduty.go
-		resp, err := pde.Send(token)
+		// the v1 API silently swallows events sent with a v2 integration key
+		// the v2 API *should* return a 202 when it can't immediately send the
+		// event to a device, so we try v2 first and then v1 if that returns
+		// anything other than a 200 OK.
+		pde2 := NewV2Event()
+		pde2.RoutingKey = svckey
+		pde2.Action = "trigger"
+		pde2.Payload.Summary = pageMessage
+		pde2.Payload.Component = evt.BrokerName()
+		pde2.Payload.Group = evt.Room
+		pde2.Payload.Source = evt.User
+		pde2.Payload.Class = "!page"
+		resp2, err := pde2.Send(token)
 		if err != nil {
-			evt.Replyf("Error while communicating with Pagerduty. %d %s", resp.StatusCode, resp.Message)
-			return
+			log.Printf("Pagerduty V2 API failed: %s", err)
+			evt.Replyf("Pagerduty V2 API failed: %s", err)
+			// do not bail out here - check the StatusCode and go on to try the V1 API if that check fails
 		}
 
-		log.Printf("Pagerduty response message for %q -> %s(%s): %s\n", pageMessage, parts[0], svckey, resp.Message)
-		evt.Replyf("Message sent to %s using integration key %s.", parts[0], svckey)
+		// only a 200 is acceptable - a 202 means the service couldn't verify it actually sent the alert
+		if resp2.StatusCode == 200 {
+			log.Printf("Pagerduty V2 response message for %q -> %s(%s): %s\n", pageMessage, parts[0], svckey, resp2.Message)
+			evt.Replyf("Message sent to %s using integration key %s via Pagerduty V2 API.", parts[0], svckey)
+		} else {
+			log.Printf("Pagerduty V2 API returned: %d %s\nTrying again with V1 API...", resp2.StatusCode, resp2.Message)
+			evt.Replyf("Pagerduty V2 API returned: %d %s\nTrying again with V1 API...", resp2.StatusCode, resp2.Message)
+
+			// create the event and send it
+			pde1 := NewTrigger(svckey, pageMessage) // in ./pagerduty.go
+			resp1, err := pde1.Send(token)
+			if err != nil {
+				evt.Replyf("Error while communicating with Pagerduty V1 API: %d %s", resp1.StatusCode, resp1.Message)
+				continue
+			}
+
+			log.Printf("Pagerduty V1 response message for %q -> %s(%s): %s\n", pageMessage, parts[0], svckey, resp1.Message)
+			evt.Replyf("Message sent to %q using integration key %s via Pagerduty V1 API.", parts[0], svckey)
+		}
 	}
 }
 
