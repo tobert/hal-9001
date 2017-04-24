@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"time"
 )
 
 // https://v2.developer.pagerduty.com/docs/events-api-v2
@@ -28,13 +29,13 @@ const V2EventEndpoint = `https://events.pagerduty.com/v2/enqueue`
 
 // data structures for the PagerDuty Common Event Format
 type EventPayload struct {
-	Summary   string            `json:"summary"`   // high-level text
-	Severity  string            `json:"severity"`  // enum: info, warning, error, critical
-	Source    string            `json:"source"`    // e.g. hostname, IP, ARN
-	Timestamp string            `json:"timestamp"` // ISO8601
-	Component string            `json:"component"` // e.g. "mysql", "keepalive"
-	Group     string            `json:"group"`     // e.g. "www", "prod-data"
-	Class     string            `json:"class"`     // e.g. "High CPU", "Latency"
+	Summary   string            `json:"summary"`             // high-level text
+	Severity  string            `json:"severity"`            // enum: info, warning, error, critical
+	Source    string            `json:"source,omitempty"`    // e.g. hostname, IP, ARN
+	Timestamp string            `json:"timestamp,omitempty"` // ISO8601
+	Component string            `json:"component,omitempty"` // e.g. "mysql", "keepalive"
+	Group     string            `json:"group,omitempty"`     // e.g. "www", "prod-data"
+	Class     string            `json:"class,omitempty"`     // e.g. "High CPU", "Latency"
 	Custom    map[string]string `json:"custom_details"`
 }
 
@@ -46,11 +47,12 @@ type EventImage struct {
 
 type EventBody struct {
 	RoutingKey string       `json:"routing_key"`
+	Action     string       `json:"event_action"`        // e.g. "trigger"
+	DedupKey   string       `json:"dedup_key,omitempty"` // arbitrary key for server-side dedup
 	Payload    EventPayload `json:"payload"`
 	Images     []EventImage `json:"images"`
-	Action     string       `json:"event_action"` // e.g. "trigger"
-	Client     string       `json:"client"`       // e.g. "Scorebot/#core"
-	ClientUrl  string       `json:"client_url"`   // e.g. "https://scorebot.prod.netflix.net"
+	Client     string       `json:"client"`     // e.g. "Scorebot/#core"
+	ClientUrl  string       `json:"client_url"` // e.g. "https://scorebot.prod.netflix.net"
 }
 
 type EventResult struct {
@@ -60,11 +62,19 @@ type EventResult struct {
 	StatusCode int    `json:"-"`
 }
 
-func NewV2Event() *EventBody {
+func NewV2Event(routingKey string) *EventBody {
+	now := time.Now()
 	details := make(map[string]string)
 	out := EventBody{
+		RoutingKey: routingKey,
+		Action:     "trigger",
 		Payload: EventPayload{
-			Custom: details,
+			// provide defaults for required fields
+			Summary:   "Something happened! This is the default summary.",
+			Source:    "unspecified",
+			Severity:  "error",
+			Timestamp: now.Format(time.RFC3339),
+			Custom:    details,
 		},
 		Images: []EventImage{},
 	}

@@ -118,14 +118,14 @@ func pageAlias(evt hal.Evt, parts []string) {
 		// the v2 API *should* return a 202 when it can't immediately send the
 		// event to a device, so we try v2 first and then v1 if that returns
 		// anything other than a 200 OK.
-		pde2 := NewV2Event()
-		pde2.RoutingKey = svckey
+		pde2 := NewV2Event(svckey)
 		pde2.Action = "trigger"
-		pde2.Payload.Summary = pageMessage
-		pde2.Payload.Component = evt.BrokerName()
-		pde2.Payload.Group = evt.Room
-		pde2.Payload.Source = evt.User
-		pde2.Payload.Class = "!page"
+		pde2.Payload.Summary = pageMessage        // required
+		pde2.Payload.Source = evt.User            // required
+		pde2.Payload.Severity = "critical"        // required
+		pde2.Payload.Component = evt.BrokerName() // optional
+		pde2.Payload.Group = evt.Room             // optional
+		pde2.Payload.Class = "!page"              // optional
 		resp2, err := pde2.Send(token)
 		if err != nil {
 			log.Printf("Pagerduty V2 API failed: %s", err)
