@@ -52,7 +52,7 @@ func authenticatedGet(geturl, token string) (*http.Response, error) {
 
 // AuthenticatedPost authenticates with the provided token and posts the
 // provided body.
-func authenticatedPost(postUrl, token string, body []byte) (*http.Response, error) {
+func authenticatedPost(token, postUrl string, body []byte) (*http.Response, error) {
 	tokenHdr := fmt.Sprintf("Token token=%s", token)
 	buf := bytes.NewBuffer(body)
 
