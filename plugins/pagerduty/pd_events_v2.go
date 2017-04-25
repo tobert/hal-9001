@@ -21,18 +21,17 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"time"
 )
 
 // https://v2.developer.pagerduty.com/docs/events-api-v2
 const V2EventEndpoint = `https://events.pagerduty.com/v2/enqueue`
 
 // data structures for the PagerDuty Common Event Format
+// Timestamp
 type EventPayload struct {
 	Summary   string            `json:"summary"`             // high-level text
 	Severity  string            `json:"severity"`            // enum: info, warning, error, critical
 	Source    string            `json:"source,omitempty"`    // e.g. hostname, IP, ARN
-	Timestamp string            `json:"timestamp,omitempty"` // ISO8601
 	Component string            `json:"component,omitempty"` // e.g. "mysql", "keepalive"
 	Group     string            `json:"group,omitempty"`     // e.g. "www", "prod-data"
 	Class     string            `json:"class,omitempty"`     // e.g. "High CPU", "Latency"
@@ -63,18 +62,16 @@ type EventResult struct {
 }
 
 func NewV2Event(routingKey string) *EventBody {
-	now := time.Now()
 	details := make(map[string]string)
 	out := EventBody{
 		RoutingKey: routingKey,
 		Action:     "trigger",
 		Payload: EventPayload{
 			// provide defaults for required fields
-			Summary:   "Something happened! This is the default summary.",
-			Source:    "unspecified",
-			Severity:  "error",
-			Timestamp: now.Format(time.RFC3339),
-			Custom:    details,
+			Summary:  "Something happened! This is the default summary.",
+			Source:   "unspecified",
+			Severity: "error",
+			Custom:   details,
 		},
 		Images: []EventImage{},
 	}
