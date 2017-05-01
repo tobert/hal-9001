@@ -111,7 +111,10 @@ func (eb *EventBody) Send(token string) (EventResult, error) {
 		return out, err
 	}
 
-	if resp.StatusCode == 200 {
+	// 200 means the event has been received and is on its way to a device.
+	// 202 means they received the event and will send asynchronously.
+	// Return success for all 2xx results.
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		err = json.Unmarshal(body, &out)
 		if err != nil {
 			msg := fmt.Sprintf("json.Unmarshal failed: %s", err)
@@ -121,21 +124,6 @@ func (eb *EventBody) Send(token string) (EventResult, error) {
 			return out, err
 		}
 		return out, nil
-	} else if resp.StatusCode == 202 {
-		// 202 Accepted means they received the event but it's unclear whether it
-		// will trigger an incident
-		// Hopefully this will be a positive signal that a V1 key has been used...
-		err = json.Unmarshal(body, &out)
-		if err != nil {
-			msg := fmt.Sprintf("json.Unmarshal failed: %s", err)
-			out.Status = "failed"
-			out.Message = msg
-			log.Println(msg)
-			return out, err
-		}
-		// return an error for 202 - it means Pagerduty isn't sure the alert
-		// is going to trigger so callers need a strong signal on that
-		return out, fmt.Errorf("Inconclusive response (202) from service.")
 	} else {
 		msg := fmt.Sprintf("Server returned %d: %q", resp, string(body))
 		out.Message = msg
