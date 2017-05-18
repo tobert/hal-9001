@@ -39,6 +39,12 @@ CREATE TABLE IF NOT EXISTS dir_node (
 	PRIMARY KEY(pkey, kind)
 )`
 
+type DirNode struct {
+	Key  string `json:"key"`
+	Kind string `json:"kind"`
+	Ts   int    `json:"ts"`
+}
+
 const DirNodeAttrTable = `
 CREATE TABLE IF NOT EXISTS dir_node_attr (
 	pkey    VARCHAR(191) NOT NULL,
@@ -50,6 +56,14 @@ CREATE TABLE IF NOT EXISTS dir_node_attr (
 	INDEX (pkey, kind),
 	FOREIGN KEY (pkey, kind) REFERENCES dir_node(pkey, kind) ON UPDATE CASCADE
 )`
+
+type DirNodeAttr struct {
+	Key   string `json:"key"`
+	Kind  string `json:"kind"`
+	Attr  string `json:"attr"`
+	Value string `json:"value"`
+	Ts    int    `json:"ts"`
+}
 
 const DirEdgeTable = `
 CREATE TABLE IF NOT EXISTS dir_edge (
@@ -64,6 +78,14 @@ CREATE TABLE IF NOT EXISTS dir_edge (
 	FOREIGN KEY (keyA, kindA) REFERENCES dir_node(pkey, kind) ON UPDATE CASCADE,
 	FOREIGN KEY (keyB, kindB) REFERENCES dir_node(pkey, kind) ON UPDATE CASCADE
 )`
+
+type DirEdge struct {
+	KeyA  string `json:"key_a"`
+	KindA string `json:"kind_a"`
+	KeyB  string `json:"key_b"`
+	KindB string `json:"kind_b"`
+	Ts    int    `json:"ts"`
+}
 
 var dirSingleton directory
 
@@ -159,7 +181,7 @@ func (dir *directory) Put(key, kind string, attrs map[string]string, edgeAttrs [
 }
 
 func (dir *directory) PutNode(key, kind string) error {
-	sql := `INSERT IGNORE INTO dir_node (pkey, kind) VALUES (?, ?)`
+	sql := `INSERT INTO dir_node (pkey, kind) VALUES (?, ?) ON DUPLICATE KEY UPDATE ts=NOW()`
 	return dir.exec(sql, key, kind)
 }
 
@@ -207,32 +229,6 @@ func (dir *directory) GetAttrNodes(attr, value string) ([][2]string, error) {
 	return out, nil
 }
 
-func (dir *directory) GetNodeAttrs(key, kind string) (map[string]string, error) {
-	out := make(map[string]string)
-
-	// nodes are not required to have attributes
-	// make sure it exists in the node table first
-	exists, err := dir.HasNode(key, kind)
-	if err != nil {
-		return out, err
-	}
-	if !exists {
-		return out, errors.NotFoundf("Node %q/%q does not exist in the database.", key, kind)
-	}
-
-	sql := `SELECT attr, value FROM dir_node_attr WHERE pkey=? AND kind=?`
-	data, err := dir.query(sql, &key, &kind)
-	if err != nil {
-		return out, err
-	}
-
-	for _, item := range data {
-		out[item[0]] = item[1]
-	}
-
-	return out, nil
-}
-
 func (dir *directory) HasEdge(keyA, kindA, keyB, kindB string) (bool, error) {
 	sql := `SELECT "y" FROM dir_edge WHERE keyA=? AND kindA=? AND keyB=? AND kindB=?`
 
@@ -249,7 +245,7 @@ func (dir *directory) HasEdge(keyA, kindA, keyB, kindB string) (bool, error) {
 }
 
 func (dir *directory) PutEdge(keyA, kindA, keyB, kindB string) error {
-	sql := `INSERT IGNORE INTO dir_edge (keyA, kindA, keyB, kindB) VALUES (?, ?, ?, ?)`
+	sql := `INSERT INTO dir_edge (keyA, kindA, keyB, kindB) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE ts=NOW()`
 	return dir.exec(sql, keyA, kindA, keyB, kindB)
 }
 
@@ -274,6 +270,81 @@ func (dir *directory) GetNeighbors(key, kind string) ([][2]string, error) {
 		} else {
 			out = append(out, [2]string{e[0], e[1]})
 		}
+	}
+
+	return out, nil
+}
+
+func (dir *directory) GetEdges() ([]DirEdge, error) {
+	sql := `SELECT keyA, kindA, keyB, kindB, ts FROM dir_edge`
+	db := SqlDB()
+	out := make([]DirEdge, 0)
+
+	rows, err := db.Query(sql)
+	if err != nil {
+		return out, errors.Annotatef(err, "SQL: %q", sql)
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		row := DirEdge{}
+		err := rows.Scan(&row.KeyA, &row.KindA, &row.KeyB, &row.KindB, &row.Ts)
+		if err != nil {
+			return out, errors.Annotate(err, "rows.Scan()")
+		}
+
+		out = append(out, row)
+	}
+
+	return out, nil
+}
+
+func (dir *directory) GetNodes() ([]DirNode, error) {
+	sql := `SELECT pkey, kind ts FROM dir_node`
+	db := SqlDB()
+	out := make([]DirNode, 0)
+
+	rows, err := db.Query(sql)
+	if err != nil {
+		return out, errors.Annotatef(err, "SQL: %q", sql)
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		row := DirNode{}
+		err := rows.Scan(&row.Key, &row.Kind, &row.Ts)
+		if err != nil {
+			return out, errors.Annotate(err, "rows.Scan()")
+		}
+
+		out = append(out, row)
+	}
+
+	return out, nil
+}
+
+func (dir *directory) GetNodeAttrs() ([]DirNodeAttr, error) {
+	sql := `SELECT pkey, kind, attr, value, ts FROM dir_node_attr`
+	db := SqlDB()
+	out := make([]DirNodeAttr, 0)
+
+	rows, err := db.Query(sql)
+	if err != nil {
+		return out, errors.Annotatef(err, "SQL: %q", sql)
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		row := DirNodeAttr{}
+		err := rows.Scan(&row.Key, &row.Kind, &row.Attr, &row.Value, &row.Ts)
+		if err != nil {
+			return out, errors.Annotate(err, "rows.Scan()")
+		}
+
+		out = append(out, row)
 	}
 
 	return out, nil
