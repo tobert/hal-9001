@@ -160,9 +160,11 @@ func (l *Logger) Fatalf(msg string, a ...interface{}) {
 		Body:   fmt.Sprintf(msg, a...),
 	}
 
-	for _, sink := range gl.logSinks {
+	for i, sink := range gl.logSinks {
 		sink <- out
-		close(sink)
+		if i > 0 {
+			close(sink)
+		}
 	}
 
 	l.DisableLogStdout()
