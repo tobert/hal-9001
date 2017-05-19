@@ -97,9 +97,10 @@ func ingestPDteams(token string) {
 
 	for _, team := range teams {
 		attrs := map[string]string{
-			"pd-team-id":      team.Id,
-			"pd-team":         team.Name,
-			"pd-team-summary": team.Summary,
+			"pd-team-id":          team.Id,
+			"pd-team":             team.Name,
+			"pd-team-summary":     team.Summary,
+			"pd-team-description": team.Description,
 		}
 
 		logit(hal.Directory().Put(team.Id, "pd-team", attrs, []string{"pd-team-id"}))
@@ -118,7 +119,6 @@ func ingestPDservices(token string) {
 		attrs := map[string]string{
 			"pd-service-id":           service.Id,
 			"pd-service":              service.Name,
-			"pd-service-key":          service.ServiceKey,
 			"pd-service-description":  service.Description,
 			"pd-escalation-policy-id": service.EscalationPolicy.Id,
 		}
