@@ -123,10 +123,6 @@ func ingestPDservices(token string) {
 			"pd-escalation-policy-id": service.EscalationPolicy.Id,
 		}
 
-		if len(service.Integrations) == 1 && service.Integrations[0].IntegrationKey != "" {
-			attrs["pd-integration-key"] = service.Integrations[0].IntegrationKey
-		}
-
 		edges := []string{"pd-service-key", "pd-service-id", "pd-escalation-policy-id", "pd-integration-key"}
 		logit(hal.Directory().Put(service.Id, "pd-service", attrs, edges))
 
@@ -137,11 +133,16 @@ func ingestPDservices(token string) {
 
 		for _, igr := range service.Integrations {
 			if igr.IntegrationKey == "" {
+				log.Printf("Integration %q, id %q, has an empty integration_key", igr.Name, igr.Id)
 				continue
 			}
 
 			logit(hal.Directory().PutNode(igr.IntegrationKey, "pd-integration-key"))
 			logit(hal.Directory().PutEdge(igr.IntegrationKey, "pd-integration-key", service.Id, "pd-service"))
+
+			for _, team := range service.Teams {
+				logit(hal.Directory().PutEdge(igr.IntegrationKey, "pd-integration-key", team.Id, "pd-team"))
+			}
 		}
 	}
 }
