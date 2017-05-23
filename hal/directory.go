@@ -276,7 +276,7 @@ func (dir *directory) GetNeighbors(key, kind string) ([][2]string, error) {
 }
 
 func (dir *directory) GetEdges() ([]DirEdge, error) {
-	sql := `SELECT keyA, kindA, keyB, kindB, UNIX_TIMESTAMP(ts) FROM dir_edge`
+	sql := `SELECT keyA, kindA, keyB, kindB, UNIX_TIMESTAMP(ts) FROM dir_edge WHERE keyA != '' AND kindA != '' AND keyB != '' AND kindB != ''`
 	db := SqlDB()
 	out := make([]DirEdge, 0)
 
@@ -301,7 +301,7 @@ func (dir *directory) GetEdges() ([]DirEdge, error) {
 }
 
 func (dir *directory) GetNodes() ([]DirNode, error) {
-	sql := `SELECT pkey, kind UNIX_TIMESTAMP(ts) FROM dir_node`
+	sql := `SELECT pkey, kind, UNIX_TIMESTAMP(ts) FROM dir_node WHERE pkey != '' AND kind != ''`
 	db := SqlDB()
 	out := make([]DirNode, 0)
 
@@ -326,7 +326,7 @@ func (dir *directory) GetNodes() ([]DirNode, error) {
 }
 
 func (dir *directory) GetNodeAttrs() ([]DirNodeAttr, error) {
-	sql := `SELECT pkey, kind, attr, value, UNIX_TIMESTAMP(ts) FROM dir_node_attr`
+	sql := `SELECT pkey, kind, attr, value, UNIX_TIMESTAMP(ts) FROM dir_node_attr WHERE pkey != '' AND kind != '' AND attr != ''`
 	db := SqlDB()
 	out := make([]DirNodeAttr, 0)
 
