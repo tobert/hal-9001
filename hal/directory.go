@@ -206,7 +206,7 @@ func (dir *directory) DelNode(key, kind string) error {
 }
 
 func (dir *directory) PutNodeAttr(key, kind, attr, value string) error {
-	sql := `INSERT INTO dir_node_attr (pkey, kind, attr, value) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value=?`
+	sql := `INSERT INTO dir_node_attr (pkey, kind, attr, value) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value=?, ts=NOW()`
 	return dir.exec(sql, key, kind, attr, value, value)
 }
 
