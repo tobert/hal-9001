@@ -234,6 +234,7 @@ type ServicesResponse struct {
 	Services []Service `json:"services"`
 	Limit    int       `json:"limit"`
 	Offset   int       `json:"offset"`
+	More     bool      `json:"more"`
 	Total    int       `json:"total"`
 }
 

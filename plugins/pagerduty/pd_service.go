@@ -49,7 +49,7 @@ func GetServices(token string, params map[string][]string) ([]Service, error) {
 
 		services = append(services, svcResp.Services...)
 
-		if svcResp.Total > svcResp.Offset {
+		if svcResp.More {
 			offset = offset + limit
 		} else {
 			break
