@@ -181,14 +181,15 @@ type PolicyService struct {
 }
 
 type Integration struct {
-	Id             string `json:"id"`
-	Type           string `json:"type"`
-	Summary        string `json:"summary"`
-	Self           string `json:"self"`
-	HtmlUrl        string `json:"html_url"`
-	Name           string `json:"name"`
-	CreatedAt      string `json:"created_at"`
-	IntegrationKey string `json:"integration_key"`
+	Id               string `json:"id"`
+	Type             string `json:"type"`
+	Summary          string `json:"summary"`
+	Self             string `json:"self"`
+	HtmlUrl          string `json:"html_url"`
+	Name             string `json:"name"`
+	CreatedAt        string `json:"created_at"`
+	IntegrationKey   string `json:"integration_key"`
+	IntegrationEmail string `json:"integration_email"`
 	// ignore service
 	// ignore vendor
 	// ignore config

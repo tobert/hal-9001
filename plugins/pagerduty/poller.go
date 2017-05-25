@@ -132,16 +132,20 @@ func ingestPDservices(token string) {
 		}
 
 		for _, igr := range service.Integrations {
-			if igr.IntegrationKey == "" {
-				log.Printf("Integration %q, id %q, has an empty integration_key", igr.Name, igr.Id)
-				continue
-			}
+			if igr.Type == "generic_email_inbound_integration" {
+				logit(hal.Directory().PutNode(igr.IntegrationEmail, "pd-integration-email"))
+				logit(hal.Directory().PutEdge(igr.IntegrationEmail, "pd-integration-email", service.Id, "pd-service"))
 
-			logit(hal.Directory().PutNode(igr.IntegrationKey, "pd-integration-key"))
-			logit(hal.Directory().PutEdge(igr.IntegrationKey, "pd-integration-key", service.Id, "pd-service"))
+				for _, team := range service.Teams {
+					logit(hal.Directory().PutEdge(igr.IntegrationEmail, "pd-integration-email", team.Id, "pd-team"))
+				}
+			} else if igr.Type == "events_api_v2_inbound_integration" || igr.Type == "generic_events_api_inbound_integration" {
+				logit(hal.Directory().PutNode(igr.IntegrationKey, "pd-integration-key"))
+				logit(hal.Directory().PutEdge(igr.IntegrationKey, "pd-integration-key", service.Id, "pd-service"))
 
-			for _, team := range service.Teams {
-				logit(hal.Directory().PutEdge(igr.IntegrationKey, "pd-integration-key", team.Id, "pd-team"))
+				for _, team := range service.Teams {
+					logit(hal.Directory().PutEdge(igr.IntegrationKey, "pd-integration-key", team.Id, "pd-team"))
+				}
 			}
 		}
 	}
