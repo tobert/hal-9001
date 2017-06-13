@@ -19,6 +19,7 @@ package prefmgr
 
 import (
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 
@@ -34,8 +35,12 @@ const HELP = `Listing keys with no filter will list all keys visible to the acti
 `
 
 var cli *hal.Cmd
-
 var slackLinkRE *regexp.Regexp
+var log hal.Logger
+
+func init() {
+	log.SetPrefix("plugins/prefmgr")
+}
 
 func init() {
 	cli = hal.NewCmd("!pref", true).SetUsage("Manage hal preferences over chat.")
@@ -91,6 +96,8 @@ func Register() {
 		Command: "pref",
 	}
 	plugin.Register()
+
+	http.HandleFunc("/api/pref", prefHandler)
 }
 
 // prefmgr is called when someone executes !pref in the chat system
