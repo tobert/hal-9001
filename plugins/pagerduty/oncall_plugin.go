@@ -118,7 +118,7 @@ func oncall(msg hal.Evt) {
 	}
 
 	for _, oncall := range oncalls {
-		schedSummary := strings.ToLower(oncall.Schedule.Summary)
+		schedSummary := clean(oncall.Schedule.Summary)
 		if schedSummary == want {
 			addMatch(matches, oncall)
 			exactMatchFound = true
@@ -128,7 +128,7 @@ func oncall(msg hal.Evt) {
 			continue
 		}
 
-		epDesc := strings.ToLower(oncall.EscalationPolicy.Description)
+		epDesc := clean(oncall.EscalationPolicy.Description)
 		if epDesc == want {
 			addMatch(matches, oncall)
 			exactMatchFound = true
@@ -138,7 +138,7 @@ func oncall(msg hal.Evt) {
 			continue
 		}
 
-		epSummary := strings.ToLower(oncall.EscalationPolicy.Summary)
+		epSummary := clean(oncall.EscalationPolicy.Summary)
 		if epSummary == want {
 			addMatch(matches, oncall)
 			exactMatchFound = true
@@ -151,20 +151,18 @@ func oncall(msg hal.Evt) {
 
 	// check team names if there were no matches
 	// TODO: cache some of these results and always check team names
-	if len(matches) == 0 {
-		teams, err := GetTeams(token, nil)
-		if err != nil {
-			log.Printf("REST call to Pagerduty /teams failed: %s", err)
-		} else {
-			for _, team := range teams {
-				ltname := strings.ToLower(team.Name)
-				ltdesc := strings.ToLower(team.Description)
+	teams, err := GetTeams(token, nil)
+	if err != nil {
+		log.Printf("REST call to Pagerduty /teams failed: %s", err)
+	} else {
+		for _, team := range teams {
+			ltname := clean(team.Name)
+			ltdesc := clean(team.Description)
 
-				if strings.Contains(ltname, want) || strings.Contains(ltdesc, want) {
-					oncalls := getTeamOncalls(token, team)
-					for _, oncall := range oncalls {
-						addMatch(matches, oncall)
-					}
+			if strings.Contains(ltname, want) || strings.Contains(ltdesc, want) {
+				oncalls := getTeamOncalls(token, team)
+				for _, oncall := range oncalls {
+					addMatch(matches, oncall)
 				}
 			}
 		}
@@ -182,7 +180,6 @@ func getTeamOncalls(token string, team Team) []Oncall {
 	defer mut.Unlock()
 
 	out := make([]Oncall, 0)
-	log.Printf("Returning empty list but should have fetched oncalls for team %+v", team)
 
 	params := map[string][]string{"team_ids[]": []string{team.Id}}
 	policies, err := GetEscalationPolicies(token, params)
@@ -436,4 +433,10 @@ func getMutex(token string) sync.Mutex {
 	}
 
 	return onePerToken[token]
+}
+
+func clean(in string) string {
+	lower := strings.ToLower(in)
+	clean := strings.Trim(lower, `()[]{}<>~!@#$%^&*+/="',.?|`)
+	return clean
 }
