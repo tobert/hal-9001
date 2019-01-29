@@ -30,8 +30,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/netflix/hal-9001/hal"
 	"github.com/nlopes/slack"
+	"github.com/tobert/hal-9001/hal"
 )
 
 var log hal.Logger

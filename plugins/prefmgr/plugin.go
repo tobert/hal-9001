@@ -23,7 +23,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/netflix/hal-9001/hal"
+	"github.com/tobert/hal-9001/hal"
 )
 
 const NAME = "prefmgr"

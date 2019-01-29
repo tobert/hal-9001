@@ -19,11 +19,11 @@ package main
 import (
 	"gopkg.in/DATA-DOG/go-sqlmock.v1"
 
-	"github.com/netflix/hal-9001/brokers/console"
-	"github.com/netflix/hal-9001/hal"
-	"github.com/netflix/hal-9001/plugins/pluginmgr"
-	"github.com/netflix/hal-9001/plugins/prefmgr"
-	"github.com/netflix/hal-9001/plugins/uptime"
+	"github.com/tobert/hal-9001/brokers/console"
+	"github.com/tobert/hal-9001/hal"
+	"github.com/tobert/hal-9001/plugins/pluginmgr"
+	"github.com/tobert/hal-9001/plugins/prefmgr"
+	"github.com/tobert/hal-9001/plugins/uptime"
 )
 
 // a simple bot that only implements generic plugins on a repl

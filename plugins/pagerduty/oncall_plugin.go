@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/netflix/hal-9001/hal"
+	"github.com/tobert/hal-9001/hal"
 )
 
 const OncallUsage = `!oncall <alias>

@@ -19,7 +19,7 @@ package hal_test
 import (
 	"testing"
 
-	"github.com/netflix/hal-9001/hal"
+	"github.com/tobert/hal-9001/hal"
 )
 
 func TestSecretsBasic(t *testing.T) {

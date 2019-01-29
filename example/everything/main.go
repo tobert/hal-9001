@@ -22,20 +22,20 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/netflix/hal-9001/hal"
+	"github.com/tobert/hal-9001/hal"
 
-	"github.com/netflix/hal-9001/brokers/hipchat"
-	"github.com/netflix/hal-9001/brokers/slack"
+	"github.com/tobert/hal-9001/brokers/hipchat"
+	"github.com/tobert/hal-9001/brokers/slack"
 
-	"github.com/netflix/hal-9001/plugins/archive"
-	"github.com/netflix/hal-9001/plugins/google_calendar"
-	"github.com/netflix/hal-9001/plugins/mark"
-	"github.com/netflix/hal-9001/plugins/pagerduty"
-	"github.com/netflix/hal-9001/plugins/pluginmgr"
-	"github.com/netflix/hal-9001/plugins/prefmgr"
-	"github.com/netflix/hal-9001/plugins/roster"
-	"github.com/netflix/hal-9001/plugins/seppuku"
-	"github.com/netflix/hal-9001/plugins/uptime"
+	"github.com/tobert/hal-9001/plugins/archive"
+	"github.com/tobert/hal-9001/plugins/google_calendar"
+	"github.com/tobert/hal-9001/plugins/mark"
+	"github.com/tobert/hal-9001/plugins/pagerduty"
+	"github.com/tobert/hal-9001/plugins/pluginmgr"
+	"github.com/tobert/hal-9001/plugins/prefmgr"
+	"github.com/tobert/hal-9001/plugins/roster"
+	"github.com/tobert/hal-9001/plugins/seppuku"
+	"github.com/tobert/hal-9001/plugins/uptime"
 )
 
 func main() {
