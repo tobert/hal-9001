@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/netflix/hal-9001/hal"
+	"github.com/tobert/hal-9001/hal"
 )
 
 func prefHandler(w http.ResponseWriter, r *http.Request) {

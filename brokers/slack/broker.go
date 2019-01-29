@@ -30,8 +30,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/netflix/hal-9001/hal"
 	"github.com/nlopes/slack"
+	"github.com/tobert/hal-9001/hal"
 )
 
 var log hal.Logger
@@ -138,9 +138,11 @@ func (sb Broker) SendAsIs(evt hal.Evt) {
 	// See: https://api.slack.com/bot-users
 	switch evt.Original.(type) {
 	case *slack.PostMessageParameters:
-		params := evt.Original.(*slack.PostMessageParameters)
-		params.AsUser = true // if we've gotten here, we always want this
-		sb.Client.PostMessage(evt.RoomId, evt.Body, *params)
+		postParams := evt.Original.(*slack.PostMessageParameters)
+		postOpt := slack.MsgOptionPostMessageParameters(*postParams)
+		asUserOpt := slack.MsgOptionAsUser(true) // if we've gotten here, we always want this
+		bodyOpt := slack.MsgOptionText(evt.Body, false)
+		sb.Client.PostMessage(evt.RoomId, postOpt, asUserOpt, bodyOpt)
 	default:
 		om := sb.RTM.NewOutgoingMessage(evt.Body, evt.RoomId)
 		sb.RTM.SendMessage(om)

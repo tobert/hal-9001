@@ -16,7 +16,7 @@ package main
  * limitations under the License.
  */
 
-import "github.com/netflix/hal-9001/hal"
+import "github.com/tobert/hal-9001/hal"
 
 // This bot doesn't do anything except start the router and wait forever
 // for messages that will never come.

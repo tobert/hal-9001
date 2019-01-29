@@ -16,7 +16,7 @@ package inspect
  * limitations under the License.
  */
 
-import "github.com/netflix/hal-9001/hal"
+import "github.com/tobert/hal-9001/hal"
 
 var log hal.Logger
 

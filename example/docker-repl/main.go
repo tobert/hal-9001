@@ -19,11 +19,11 @@ package main
 import (
 	"github.com/chzyer/readline"
 
-	"github.com/netflix/hal-9001/brokers/console"
-	"github.com/netflix/hal-9001/hal"
-	"github.com/netflix/hal-9001/plugins/docker"
-	"github.com/netflix/hal-9001/plugins/pluginmgr"
-	"github.com/netflix/hal-9001/plugins/prefmgr"
+	"github.com/tobert/hal-9001/brokers/console"
+	"github.com/tobert/hal-9001/hal"
+	"github.com/tobert/hal-9001/plugins/docker"
+	"github.com/tobert/hal-9001/plugins/pluginmgr"
+	"github.com/tobert/hal-9001/plugins/prefmgr"
 )
 
 // a simple bot that only implements generic plugins on a repl

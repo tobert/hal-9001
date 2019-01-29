@@ -26,7 +26,7 @@ import (
 	"math/rand"
 	"strings"
 
-	"github.com/netflix/hal-9001/hal"
+	"github.com/tobert/hal-9001/hal"
 )
 
 var log hal.Logger

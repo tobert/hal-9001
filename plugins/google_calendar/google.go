@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/netflix/hal-9001/hal"
+	"github.com/tobert/hal-9001/hal"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"

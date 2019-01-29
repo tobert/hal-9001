@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/netflix/hal-9001/hal"
+	"github.com/tobert/hal-9001/hal"
 )
 
 const PageUsage = `!page <alias> [optional message]

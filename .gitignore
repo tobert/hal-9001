@@ -32,3 +32,7 @@ example/everything/everything
 example/minimal/minimal
 example/repl/repl
 plugins/*/console/console
+
+# avoid accidentally checking these in until it makes sense to do so
+Gopkg.lock
+vendor/
